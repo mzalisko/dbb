@@ -1,0 +1,3 @@
+<svg {{ $attributes->merge(['width' => '16', 'height' => '16', 'viewBox' => '0 0 24 24', 'fill' => 'none', 'stroke' => 'currentColor', 'stroke-width' => '1.5', 'stroke-linecap' => 'round', 'stroke-linejoin' => 'round']) }}>
+    <circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>
+</svg>

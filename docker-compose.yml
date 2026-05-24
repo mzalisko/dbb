@@ -1,6 +1,9 @@
 services:
   app:
-    image: serversideup/php:8.3-fpm-nginx
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      target: dev
     working_dir: /var/www/html
     volumes:
       - .:/var/www/html
@@ -9,6 +12,9 @@ services:
     environment:
       - PHP_OPCACHE_ENABLE=0
       - AUTORUN_ENABLED=true
+      - AUTORUN_LARAVEL_MIGRATION=true
+      - AUTORUN_LARAVEL_STORAGE_LINK=true
+      - SSL_MODE=off
     depends_on:
       mysql:
         condition: service_healthy

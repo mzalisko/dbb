@@ -11,3 +11,7 @@ Route::middleware('auth')->group(function () {
         return view('dashboard');
     })->name('dashboard');
 });
+
+if (app()->isLocal() || app()->runningUnitTests()) {
+    Route::get('/_design', fn() => view('pages.design-system'))->middleware('web')->name('design-system');
+}

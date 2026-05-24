@@ -8,7 +8,7 @@
 
 ## 0. Стек (незмінно)
 
-- **Backend:** Laravel 12 + Livewire 3 + Alpine.js + Blade
+- **Backend:** Laravel 13 + Livewire 3 + Alpine.js + Blade
 - **Викидаємо:** React, Inertia, Ziggy
 - **WP-інтеграція:** dead-drop · XChaCha20-Poly1305 + Ed25519 · per-site keys · R2/MinIO
 - **Хостинг:** Docker Desktop локально → VPS за Tailscale (нуль публічних портів)
@@ -111,4 +111,4 @@ C:\Dev\worktrees\          ← git worktrees
 
 ---
 
-**Оновлення:** 2026-05-24 — Windows-native setup. Далі редагує тільки `scribe`.
+**Оновлення:** 2026-05-24 — Laravel 12 -> 13 (P1-T00). Далі редагує тільки `scribe`.

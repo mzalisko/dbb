@@ -1,0 +1,1 @@
+<x-icon.chev-r {{ $attributes }} />

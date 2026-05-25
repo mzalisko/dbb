@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Site extends Model
 {
@@ -27,6 +28,22 @@ class Site extends Model
     public function client(): BelongsTo
     {
         return $this->belongsTo(Client::class);
+    }
+
+    public function contactEntries(): HasMany
+    {
+        return $this->hasMany(ContactEntry::class)->orderBy('order');
+    }
+
+    /** Filter contact entries visible for a given geo (ISO-2 or 'world'). */
+    public function entriesForGeo(string $type, string $geo): \Illuminate\Database\Eloquent\Collection
+    {
+        return $this->contactEntries()
+            ->where('type', $type)
+            ->where('visible', true)
+            ->get()
+            ->filter(fn($e) => $e->visibleForGeo($geo))
+            ->values();
     }
 
     public function getStatusColorAttribute(): string

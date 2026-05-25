@@ -1,121 +1,96 @@
 <div style="flex:1; display:flex; flex-direction:column; overflow-y:auto;">
-    <x-ui.topbar :crumbs="['Sites']">
+    <x-ui.topbar :crumbs="['Сайти']">
         <x-ui.button variant="secondary" size="sm" style="margin-right:4px;">
-            <x-icon.export width="13" height="13" /> Export
+            <x-icon.export width="13" height="13" /> Експорт
         </x-ui.button>
-        <x-ui.button size="sm" wire:click="$dispatch('open-modal','site-form')">
-            <x-icon.plus width="13" height="13" /> Add Site
+        <x-ui.button size="sm">
+            <x-icon.plus width="13" height="13" /> Додати сайт
         </x-ui.button>
     </x-ui.topbar>
 
     <x-ui.page-head
-        eyebrow="Sites"
-        title="{{ $sites->total() }} sites"
-        sub="Click a site to view its details and configuration." />
+        :title="'Сайти · ' . $sites->count()"
+        sub="Натисніть на картку щоб відкрити сайт зі всіма контактами." />
 
-    <div style="padding:0 40px 64px;">
-        {{-- Flash --}}
-        @if (session('message'))
-            <x-ui.alert variant="success" style="margin-bottom:16px;">{{ session('message') }}</x-ui.alert>
-        @endif
-
-        {{-- Filters --}}
-        <div style="display:flex; gap:12px; align-items:center; margin-bottom:20px;">
-            <div style="display:flex; align-items:center; gap:10px; height:44px; padding:0 18px; border-radius:999px; background:var(--card); border:1px solid var(--ink-3); max-width:400px; flex:1;">
-                <x-icon.search width="15" height="15" style="color:var(--ink-5);" />
-                <input wire:model.live.debounce.300ms="search" type="text" placeholder="Search sites…"
-                    style="flex:1; font:14.5px var(--font-sans); color:var(--ink-7); background:transparent; border:0; outline:none;" />
-            </div>
-            @if ($clientId)
-                <span style="font-size:14px; color:var(--ink-5);">
-                    Filtered by client ·
-                    <a href="{{ route('sites.index') }}" wire:navigate style="color:var(--accent);">Clear</a>
-                </span>
-            @endif
-            <x-ui.select wire:model.live="status" style="width:160px;">
-                <option value="">All statuses</option>
-                <option value="active">Active</option>
-                <option value="maintenance">Maintenance</option>
-                <option value="offline">Offline</option>
-            </x-ui.select>
-        </div>
-
-        {{-- Table --}}
-        <x-ui.card :padding="false">
-            <x-ui.table>
-                <thead>
-                    <tr>
-                        <th wire:click="sort('name')" style="cursor:pointer;">
-                            Site @if($sortBy === 'name')<span>{{ $sortDir === 'asc' ? '↑' : '↓' }}</span>@endif
-                        </th>
-                        <th>Client</th>
-                        <th wire:click="sort('wp_version')" style="cursor:pointer;">WP</th>
-                        <th>PHP</th>
-                        <th wire:click="sort('status')" style="cursor:pointer;">
-                            Status @if($sortBy === 'status')<span>{{ $sortDir === 'asc' ? '↑' : '↓' }}</span>@endif
-                        </th>
-                        <th wire:click="sort('last_checked_at')" style="cursor:pointer;">Last Checked</th>
-                        <th></th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @forelse ($sites as $site)
-                        <tr>
-                            <td>
-                                <div>
-                                    <a href="{{ route('sites.show', $site) }}" wire:navigate style="font-weight:500; color:var(--ink-9);">
-                                        {{ $site->name }}
-                                    </a>
-                                    <div style="font-size:12px;">
-                                        <a href="{{ $site->url }}" target="_blank" rel="noopener" style="color:var(--ink-5);">
-                                            {{ $site->url }} <x-icon.external-link width="10" height="10" style="display:inline; vertical-align:middle;" />
-                                        </a>
-                                    </div>
-                                </div>
-                            </td>
-                            <td>
-                                <a href="{{ route('clients.show', $site->client) }}" wire:navigate style="color:var(--ink-7);">
-                                    {{ $site->client->company_name }}
-                                </a>
-                            </td>
-                            <td class="mono">{{ $site->wp_version ?? '--' }}</td>
-                            <td class="mono">{{ $site->php_version ?? '--' }}</td>
-                            <td><x-ui.pill :status="$site->status_color">{{ $site->status }}</x-ui.pill></td>
-                            <td>
-                                <span class="mono" style="font-size:12px; color:var(--ink-5);">
-                                    {{ $site->last_checked_at?->diffForHumans() ?? 'Never' }}
-                                </span>
-                            </td>
-                            <td>
-                                <x-ui.dropdown align="right">
-                                    <x-slot:trigger><x-icon.more-v width="16" height="16" /></x-slot:trigger>
-                                    <a href="{{ route('sites.show', $site) }}" wire:navigate class="dropdown-item">View</a>
-                                    <button class="dropdown-item" wire:click="$dispatch('edit-site', { id: {{ $site->id }} })">Edit</button>
-                                    <button class="dropdown-item" style="color:var(--bad);"
-                                        x-on:click="if(confirm('Delete this site?')) $wire.deleteSite({{ $site->id }})">Delete</button>
-                                </x-ui.dropdown>
-                            </td>
-                        </tr>
-                    @empty
-                        <tr>
-                            <td colspan="7">
-                                <x-ui.empty-state icon="sites" title="No sites found"
-                                    description="Add a WordPress site to start monitoring.">
-                                    <x-slot:action>
-                                        <x-ui.button wire:click="$dispatch('open-modal','site-form')">
-                                            <x-icon.plus width="14" height="14" /> Add Site
-                                        </x-ui.button>
-                                    </x-slot:action>
-                                </x-ui.empty-state>
-                            </td>
-                        </tr>
-                    @endforelse
-                </tbody>
-            </x-ui.table>
-        </x-ui.card>
-
-        <div style="margin-top:16px;">{{ $sites->links() }}</div>
+    {{-- Group filter --}}
+    <div style="padding:0 40px 24px; display:flex; gap:8px; flex-wrap:wrap;">
+        <button wire:click="$set('groupFilter', 'all')" style="
+            display:inline-flex; align-items:center; gap:8px;
+            height:32px; padding:0 14px; border-radius:999px;
+            background:{{ $groupFilter === 'all' ? 'var(--ink-9)' : 'var(--card)' }};
+            color:{{ $groupFilter === 'all' ? 'var(--paper)' : 'var(--ink-7)' }};
+            box-shadow:{{ $groupFilter === 'all' ? 'none' : 'inset 0 0 0 1px var(--ink-3)' }};
+            font:13px var(--font-sans); cursor:pointer;">
+            Усі
+        </button>
+        @foreach ($groups as $group)
+            <button wire:click="$set('groupFilter', '{{ $group->group }}')" style="
+                display:inline-flex; align-items:center; gap:8px;
+                height:32px; padding:0 14px; border-radius:999px;
+                background:{{ $groupFilter === $group->group ? 'var(--ink-9)' : 'var(--card)' }};
+                color:{{ $groupFilter === $group->group ? 'var(--paper)' : 'var(--ink-7)' }};
+                box-shadow:{{ $groupFilter === $group->group ? 'none' : 'inset 0 0 0 1px var(--ink-3)' }};
+                font:13px var(--font-sans); cursor:pointer;">
+                <span style="width:6px; height:6px; border-radius:999px; background:{{ $group->group_color }};"></span>
+                {{ ucfirst($group->group) }}
+            </button>
+        @endforeach
     </div>
 
-    @livewire('sites.form')
+    {{-- Site cards grid --}}
+    <div style="padding:0 40px 64px; display:grid; grid-template-columns:repeat(3, 1fr); gap:14px;">
+        @forelse ($sites as $site)
+            @php
+                $statusClass = match($site->status) {
+                    'active'      => 'dot-ok',
+                    'maintenance' => 'dot-warn',
+                    default       => 'dot-bad',
+                };
+                $statusLabel = match($site->status) {
+                    'active'      => 'Активний',
+                    'maintenance' => 'Пауза',
+                    default       => 'Помилка',
+                };
+            @endphp
+            <a href="{{ route('sites.show', $site) }}" wire:navigate style="
+                text-align:left; padding:18px; background:var(--card);
+                border:1px solid var(--ink-3); border-radius:4px;
+                cursor:pointer; transition:border-color .15s; display:block;"
+               onmouseover="this.style.borderColor='var(--ink-9)'"
+               onmouseout="this.style.borderColor='var(--ink-3)'">
+
+                <div style="display:flex; align-items:flex-start; gap:10px;">
+                    <span class="avatar avatar-sq">{{ strtoupper(substr($site->name, 0, 1)) }}</span>
+                    <div style="flex:1; min-width:0;">
+                        <div class="mono" style="font:13.5px var(--font-mono); color:var(--ink-9); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ $site->name }}</div>
+                        <div style="margin-top:4px; font:12px var(--font-sans); color:{{ $site->status === 'offline' ? 'var(--bad)' : 'var(--ink-5)' }};">
+                            <span class="dot {{ $statusClass }}"></span>{{ $statusLabel }}
+                            <span style="color:var(--ink-4); margin-left:6px;">· {{ $site->last_checked_at?->diffForHumans(null, true) ?? 'Ніколи' }}</span>
+                        </div>
+                    </div>
+                </div>
+
+                @if ($site->status === 'offline')
+                    <div style="margin-top:12px; padding:8px 10px; border-left:2px solid var(--bad); background:var(--bad-soft); font:12px var(--font-mono); color:var(--bad);">
+                        Connection refused
+                    </div>
+                @endif
+
+                <div style="margin-top:14px; padding-top:12px; border-top:1px solid var(--ink-3); display:flex; gap:18px; font:12px var(--font-mono); color:var(--ink-5);">
+                    @if ($site->group)
+                        <span>
+                            <span style="width:6px; height:6px; border-radius:999px; background:{{ $site->group_color ?? '#a39d8c' }}; display:inline-block; margin-right:6px;"></span>
+                            {{ ucfirst($site->group) }}
+                        </span>
+                    @endif
+                    <span>📞 {{ $site->contactEntries()->where('type', 'phone')->where('visible', true)->count() }}</span>
+                    <span>💬 {{ $site->contactEntries()->where('type', 'messenger')->where('visible', true)->count() }}</span>
+                </div>
+            </a>
+        @empty
+            <div style="grid-column:1/-1; padding:80px 40px; text-align:center; color:var(--ink-5); font:13.5px var(--font-sans);">
+                Немає сайтів. Додайте перший.
+            </div>
+        @endforelse
+    </div>
 </div>

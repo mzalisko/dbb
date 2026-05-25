@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use App\Models\ActivityLog;
 use App\Models\Client;
+use App\Models\ContactEntry;
 use App\Models\Site;
 use App\Models\User;
 use Illuminate\Database\Seeder;
@@ -16,6 +17,7 @@ class DatabaseSeeder extends Seeder
     {
         // Clear existing data (maintain FK order)
         DB::statement('SET FOREIGN_KEY_CHECKS=0');
+        ContactEntry::truncate();
         ActivityLog::truncate();
         Site::withTrashed()->forceDelete();
         Client::withTrashed()->forceDelete();
@@ -273,5 +275,167 @@ class DatabaseSeeder extends Seeder
         foreach ($logs as $log) {
             ActivityLog::create($log);
         }
+
+        // ── Contact Entries (demo-site.example) ───────────────
+        $demoSite = Site::where('name', 'demo-site.example')->firstOrFail();
+
+        // Phones — PL pool (primary + 2 backups)
+        $plPhone = ContactEntry::create([
+            'site_id'  => $demoSite->id, 'type' => 'phone',
+            'value'    => '+48 00 000 00 00', 'label' => 'Польща · головний',
+            'role'     => 'primary', 'geo_mode' => 'only', 'countries' => ['PL'],
+            'visible'  => true, 'order' => 1,
+        ]);
+        ContactEntry::create([
+            'site_id'   => $demoSite->id, 'type' => 'phone',
+            'value'     => '+48 99 999 99 99', 'label' => 'PL резерв',
+            'role'      => 'backup', 'geo_mode' => 'only', 'countries' => ['PL'],
+            'visible'   => true, 'order' => 1, 'parent_id' => $plPhone->id,
+        ]);
+        ContactEntry::create([
+            'site_id'   => $demoSite->id, 'type' => 'phone',
+            'value'     => '+48 71 222 11 00', 'label' => 'PL резерв · 2',
+            'role'      => 'backup', 'geo_mode' => 'only', 'countries' => ['PL'],
+            'visible'   => true, 'order' => 2, 'parent_id' => $plPhone->id,
+        ]);
+
+        // Phones — UA + World pool (primary + 3 backups)
+        $worldPhone = ContactEntry::create([
+            'site_id'  => $demoSite->id, 'type' => 'phone',
+            'value'    => '11111111111', 'label' => 'Головний (UA + Світ)',
+            'role'     => 'primary', 'geo_mode' => 'except', 'countries' => ['PL'],
+            'visible'  => true, 'order' => 1,
+        ]);
+        ContactEntry::create([
+            'site_id'   => $demoSite->id, 'type' => 'phone',
+            'value'     => '+099 11 22 33', 'label' => 'UA резерв',
+            'role'      => 'backup', 'geo_mode' => 'only', 'countries' => ['UA'],
+            'visible'   => true, 'order' => 1, 'parent_id' => $worldPhone->id,
+        ]);
+        ContactEntry::create([
+            'site_id'   => $demoSite->id, 'type' => 'phone',
+            'value'     => '073 111-22-33', 'label' => 'UA резерв · 2',
+            'role'      => 'backup', 'geo_mode' => 'only', 'countries' => ['UA'],
+            'visible'   => true, 'order' => 2, 'parent_id' => $worldPhone->id,
+        ]);
+        ContactEntry::create([
+            'site_id'   => $demoSite->id, 'type' => 'phone',
+            'value'     => '+48 22 555 33 11', 'label' => 'Універсальний резерв',
+            'role'      => 'backup', 'geo_mode' => 'all', 'countries' => [],
+            'visible'   => true, 'order' => 3, 'parent_id' => $worldPhone->id,
+        ]);
+
+        // Phones — hidden (archived)
+        ContactEntry::create([
+            'site_id'  => $demoSite->id, 'type' => 'phone',
+            'value'    => '063 000-00-00', 'label' => 'Колишній головний',
+            'role'     => 'hidden', 'geo_mode' => 'all', 'countries' => [],
+            'visible'  => false, 'order' => 5,
+        ]);
+
+        // Messengers — PL pool
+        $plTg = ContactEntry::create([
+            'site_id'  => $demoSite->id, 'type' => 'messenger', 'kind' => 'telegram',
+            'value'    => '@demo_pl', 'label' => 'PL · Telegram головний',
+            'role'     => 'primary', 'geo_mode' => 'only', 'countries' => ['PL'],
+            'visible'  => true, 'order' => 1,
+        ]);
+        ContactEntry::create([
+            'site_id'   => $demoSite->id, 'type' => 'messenger', 'kind' => 'whatsapp',
+            'value'     => '+48 22 555 33 11', 'label' => 'PL · WhatsApp резерв',
+            'role'      => 'backup', 'geo_mode' => 'only', 'countries' => ['PL'],
+            'visible'   => true, 'order' => 1, 'parent_id' => $plTg->id,
+        ]);
+        ContactEntry::create([
+            'site_id'   => $demoSite->id, 'type' => 'messenger', 'kind' => 'messenger',
+            'value'     => 'm.me/demoPL', 'label' => 'PL · Facebook Messenger',
+            'role'      => 'backup', 'geo_mode' => 'only', 'countries' => ['PL'],
+            'visible'   => true, 'order' => 2, 'parent_id' => $plTg->id,
+        ]);
+
+        // Messengers — UA + World pool
+        $mainTg = ContactEntry::create([
+            'site_id'  => $demoSite->id, 'type' => 'messenger', 'kind' => 'telegram',
+            'value'    => '@demo_main', 'label' => 'Головний (UA + Світ)',
+            'role'     => 'primary', 'geo_mode' => 'except', 'countries' => ['PL'],
+            'visible'  => true, 'order' => 1,
+        ]);
+        ContactEntry::create([
+            'site_id'   => $demoSite->id, 'type' => 'messenger', 'kind' => 'viber',
+            'value'     => '+38 099 11 22 33', 'label' => 'UA · Viber резерв',
+            'role'      => 'backup', 'geo_mode' => 'only', 'countries' => ['UA'],
+            'visible'   => true, 'order' => 1, 'parent_id' => $mainTg->id,
+        ]);
+        ContactEntry::create([
+            'site_id'   => $demoSite->id, 'type' => 'messenger', 'kind' => 'whatsapp',
+            'value'     => '+38 073 000 11 22', 'label' => 'UA · WhatsApp резерв',
+            'role'      => 'backup', 'geo_mode' => 'only', 'countries' => ['UA'],
+            'visible'   => true, 'order' => 2, 'parent_id' => $mainTg->id,
+        ]);
+        ContactEntry::create([
+            'site_id'   => $demoSite->id, 'type' => 'messenger', 'kind' => 'telegram',
+            'value'     => '@demo_support', 'label' => 'Універсальний резерв',
+            'role'      => 'backup', 'geo_mode' => 'all', 'countries' => [],
+            'visible'   => true, 'order' => 3, 'parent_id' => $mainTg->id,
+        ]);
+
+        // Messengers — hidden
+        ContactEntry::create([
+            'site_id'  => $demoSite->id, 'type' => 'messenger', 'kind' => 'skype',
+            'value'    => 'live:demo.old', 'label' => 'Старий Skype',
+            'role'     => 'hidden', 'geo_mode' => 'all', 'countries' => [],
+            'visible'  => false, 'order' => 9,
+        ]);
+
+        // Prices — 3 SKUs, multi-currency geo-targeted
+        ContactEntry::create([
+            'site_id' => $demoSite->id, 'type' => 'price',
+            'value'   => 'WAVE-01', 'label' => 'Підписка · Standard',
+            'role'    => 'primary', 'geo_mode' => 'only', 'countries' => ['PL'],
+            'visible' => true, 'order' => 1, 'sku' => 'WAVE-01',
+            'currency' => 'PLN', 'price' => 149, 'old_price' => 199, 'price_unit' => '/міс',
+        ]);
+        ContactEntry::create([
+            'site_id' => $demoSite->id, 'type' => 'price',
+            'value'   => 'WAVE-01', 'label' => 'Підписка · Standard',
+            'role'    => 'primary', 'geo_mode' => 'only', 'countries' => ['UA'],
+            'visible' => true, 'order' => 2, 'sku' => 'WAVE-01',
+            'currency' => 'UAH', 'price' => 1290, 'old_price' => 1490, 'price_unit' => '/міс',
+        ]);
+        ContactEntry::create([
+            'site_id' => $demoSite->id, 'type' => 'price',
+            'value'   => 'WAVE-01', 'label' => 'Підписка · Standard',
+            'role'    => 'primary', 'geo_mode' => 'except', 'countries' => ['PL', 'UA'],
+            'visible' => true, 'order' => 3, 'sku' => 'WAVE-01',
+            'currency' => 'EUR', 'price' => 39, 'old_price' => null, 'price_unit' => '/mo',
+        ]);
+        ContactEntry::create([
+            'site_id' => $demoSite->id, 'type' => 'price',
+            'value'   => 'WAVE-02', 'label' => 'Підписка · Pro',
+            'role'    => 'primary', 'geo_mode' => 'only', 'countries' => ['PL'],
+            'visible' => true, 'order' => 1, 'sku' => 'WAVE-02',
+            'currency' => 'PLN', 'price' => 299, 'old_price' => null, 'price_unit' => '/міс',
+        ]);
+        ContactEntry::create([
+            'site_id' => $demoSite->id, 'type' => 'price',
+            'value'   => 'WAVE-02', 'label' => 'Підписка · Pro',
+            'role'    => 'primary', 'geo_mode' => 'only', 'countries' => ['UA'],
+            'visible' => true, 'order' => 2, 'sku' => 'WAVE-02',
+            'currency' => 'UAH', 'price' => 2490, 'old_price' => null, 'price_unit' => '/міс',
+        ]);
+        ContactEntry::create([
+            'site_id' => $demoSite->id, 'type' => 'price',
+            'value'   => 'WAVE-02', 'label' => 'Підписка · Pro',
+            'role'    => 'primary', 'geo_mode' => 'except', 'countries' => ['PL', 'UA'],
+            'visible' => true, 'order' => 3, 'sku' => 'WAVE-02',
+            'currency' => 'USD', 'price' => 79, 'old_price' => null, 'price_unit' => '/mo',
+        ]);
+        ContactEntry::create([
+            'site_id' => $demoSite->id, 'type' => 'price',
+            'value'   => 'ONBOARD', 'label' => 'Setup · одноразово',
+            'role'    => 'primary', 'geo_mode' => 'all', 'countries' => [],
+            'visible' => true, 'order' => 1, 'sku' => 'ONBOARD',
+            'currency' => 'EUR', 'price' => 0, 'old_price' => 149, 'price_unit' => 'одноразово',
+        ]);
     }
 }

@@ -3,6 +3,8 @@
 use App\Livewire\Dashboard;
 use App\Livewire\Clients;
 use App\Livewire\Sites;
+use App\Livewire\Groups;
+use App\Livewire\DataBrowser;
 use App\Livewire\Users;
 use App\Livewire\Settings;
 use App\Livewire\ActivityLog;
@@ -24,10 +26,16 @@ Route::middleware('auth')->group(function () {
     Route::get('/sites', Sites\Index::class)->name('sites.index');
     Route::get('/sites/{site}', Sites\Show::class)->name('sites.show');
 
+    // Groups
+    Route::get('/groups', Groups\Index::class)->name('groups.index');
+
+    // Data Browser
+    Route::get('/data', DataBrowser::class)->name('data.index');
+
     // Team / Users
     Route::get('/team', Users\Index::class)->name('users.index');
 
-    // Activity Log
+    // Activity Log / Logs
     Route::get('/activity', ActivityLog::class)->name('activity.index');
 
     // Settings

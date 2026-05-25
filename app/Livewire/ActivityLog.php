@@ -2,31 +2,28 @@
 
 namespace App\Livewire;
 
+use App\Models\Site;
 use Livewire\Component;
-use Livewire\WithPagination;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Title;
+use Livewire\Attributes\Url;
 
 #[Layout('components.layouts.app')]
-#[Title('Activity Log')]
+#[Title('Логи')]
 class ActivityLog extends Component
 {
-    use WithPagination;
-
-    public string $search = '';
-
-    public function updatedSearch(): void
-    {
-        $this->resetPage();
-    }
+    #[Url]
+    public string $tab = 'data';
 
     public function render()
     {
-        $logs = \App\Models\ActivityLog::with('user')
-            ->when($this->search, fn($q) => $q->where('action', 'like', "%{$this->search}%"))
+        $dataLogs = \App\Models\ActivityLog::with(['user', 'subject'])
             ->latest('created_at')
-            ->paginate(25);
+            ->take(50)
+            ->get();
 
-        return view('livewire.activity-log', compact('logs'));
+        $sites = Site::orderBy('name')->take(20)->get();
+
+        return view('livewire.activity-log', compact('dataLogs', 'sites'));
     }
 }

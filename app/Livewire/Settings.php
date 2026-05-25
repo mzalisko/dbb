@@ -34,6 +34,7 @@ class Settings extends Component
     public ?string $current_password = '';
 
     public string $activeTab = 'profile';
+    public string $section = 'workspace';
 
     public function mount(): void
     {

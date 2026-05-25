@@ -41,32 +41,39 @@
             <a href="{{ route('dashboard') }}" wire:navigate
                class="sidebar-link {{ request()->routeIs('dashboard') ? 'active' : '' }}">
                 <x-icon.dash width="14" height="14" />
-                Dashboard
-            </a>
-            <a href="{{ route('clients.index') }}" wire:navigate
-               class="sidebar-link {{ request()->routeIs('clients.*') ? 'active' : '' }}">
-                <x-icon.groups width="14" height="14" />
-                Clients
+                <span style="flex:1;">Дашборд</span>
             </a>
             <a href="{{ route('sites.index') }}" wire:navigate
                class="sidebar-link {{ request()->routeIs('sites.*') ? 'active' : '' }}">
                 <x-icon.sites width="14" height="14" />
-                Sites
+                <span style="flex:1;">Сайти</span>
+                <span class="mono" style="font:11px var(--font-mono); color:var(--ink-4);">{{ \App\Models\Site::count() }}</span>
+            </a>
+            <a href="{{ route('groups.index') }}" wire:navigate
+               class="sidebar-link {{ request()->routeIs('groups.*') ? 'active' : '' }}">
+                <x-icon.groups width="14" height="14" />
+                <span style="flex:1;">Групи сайтів</span>
+            </a>
+            <a href="{{ route('data.index') }}" wire:navigate
+               class="sidebar-link {{ request()->routeIs('data.*') ? 'active' : '' }}">
+                <x-icon.data width="14" height="14" />
+                <span style="flex:1;">Браузер даних</span>
             </a>
             <a href="{{ route('users.index') }}" wire:navigate
                class="sidebar-link {{ request()->routeIs('users.*') ? 'active' : '' }}">
                 <x-icon.team width="14" height="14" />
-                Team
+                <span style="flex:1;">Команда</span>
+                <span class="mono" style="font:11px var(--font-mono); color:var(--ink-4);">{{ \App\Models\User::count() }}</span>
             </a>
             <a href="{{ route('activity.index') }}" wire:navigate
                class="sidebar-link {{ request()->routeIs('activity.*') ? 'active' : '' }}">
                 <x-icon.logs width="14" height="14" />
-                Activity
+                <span style="flex:1;">Логи</span>
             </a>
             <a href="{{ route('settings') }}" wire:navigate
                class="sidebar-link {{ request()->routeIs('settings') ? 'active' : '' }}">
                 <x-icon.settings width="14" height="14" />
-                Settings
+                <span style="flex:1;">Налаштування</span>
             </a>
         </nav>
 

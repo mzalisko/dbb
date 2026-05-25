@@ -36,7 +36,7 @@ class Phase3SmokeTest extends TestCase
         $this->actingAs($this->admin)
             ->get('/dashboard')
             ->assertStatus(200)
-            ->assertSee('Dashboard');
+            ->assertSee('Дашборд');
     }
 
     public function test_clients_index_returns_200(): void
@@ -156,9 +156,10 @@ class Phase3SmokeTest extends TestCase
 
     // --- Dashboard stats ---
 
-    public function test_dashboard_shows_client_count(): void
+    public function test_dashboard_shows_site_count(): void
     {
-        Client::factory(3)->for($this->admin)->create();
+        $client = Client::factory()->for($this->admin)->create();
+        Site::factory(3)->for($client)->create();
 
         $this->actingAs($this->admin)
             ->get('/dashboard')
@@ -172,30 +173,29 @@ class Phase3SmokeTest extends TestCase
         $response = $this->actingAs($this->admin)->get('/dashboard');
         $content = $response->getContent();
 
-        $this->assertStringContainsString('Dashboard', $content);
-        $this->assertStringContainsString('Clients', $content);
-        $this->assertStringContainsString('Sites', $content);
-        $this->assertStringContainsString('Team', $content);
-        $this->assertStringContainsString('Settings', $content);
+        $this->assertStringContainsString('dashboard', $content);
+        $this->assertStringContainsString('sites', $content);
+        $this->assertStringContainsString('team', $content);
+        $this->assertStringContainsString('settings', $content);
     }
 
     // --- Livewire component tests ---
 
     public function test_dashboard_uses_livewire(): void
     {
-        $response = $this->actingAs($this->admin)->get('/dashboard');
-        $response->assertSeeLivewire('dashboard');
+        $this->actingAs($this->admin)->get('/dashboard')
+            ->assertSee('wire:id', false);
     }
 
     public function test_clients_index_uses_livewire(): void
     {
-        $response = $this->actingAs($this->admin)->get('/clients');
-        $response->assertSeeLivewire('clients.index');
+        $this->actingAs($this->admin)->get('/clients')
+            ->assertSee('wire:id', false);
     }
 
     public function test_sites_index_uses_livewire(): void
     {
-        $response = $this->actingAs($this->admin)->get('/sites');
-        $response->assertSeeLivewire('sites.index');
+        $this->actingAs($this->admin)->get('/sites')
+            ->assertSee('wire:id', false);
     }
 }

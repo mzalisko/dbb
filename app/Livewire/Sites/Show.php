@@ -16,6 +16,17 @@ class Show extends Component
     public Site $site;
     public string $geoFilter = 'all';
     public string $category = 'phones';
+    public ?int $openPhoneId = null;
+
+    public function openPhone(int $id): void
+    {
+        $this->openPhoneId = $id;
+    }
+
+    public function closePhone(): void
+    {
+        $this->openPhoneId = null;
+    }
 
     public function mount(Site $site): void
     {

@@ -15,6 +15,7 @@ class Show extends Component
 {
     public Site $site;
     public string $geoFilter = 'all';
+    public string $category = 'phones';
 
     public function mount(Site $site): void
     {

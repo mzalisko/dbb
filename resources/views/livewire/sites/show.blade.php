@@ -150,13 +150,12 @@
                     ['key' => 'prices',     'label' => 'Ціни',       'count' => $priceBySku->count()],
                 ] as $cat)
                     <button wire:click="$set('category', '{{ $cat['key'] }}')"
-                        @click="$wire.set('category', '{{ $cat['key'] }}')"
                         style="
                             display:inline-flex; align-items:center; gap:6px;
                             height:30px; padding:0 12px; border-radius:999px;
-                            background:{{ true ? 'var(--card)' : 'var(--ink-9)' }};
-                            box-shadow:inset 0 0 0 1px var(--ink-3);
-                            font:12.5px var(--font-sans); color:var(--ink-7); cursor:pointer;">
+                            background:{{ $category === $cat['key'] ? 'var(--ink-9)' : 'var(--card)' }};
+                            box-shadow:{{ $category === $cat['key'] ? 'none' : 'inset 0 0 0 1px var(--ink-3)' }};
+                            font:12.5px var(--font-sans); color:{{ $category === $cat['key'] ? 'var(--paper)' : 'var(--ink-7)' }}; cursor:pointer;">
                         {{ $cat['label'] }}
                         <span class="mono" style="font:10.5px var(--font-mono); opacity:.7;">{{ $cat['count'] }}</span>
                     </button>
@@ -180,6 +179,7 @@
         </div>
 
         {{-- Phones table --}}
+        @if ($category === 'phones')
         <div class="card" style="overflow:hidden; margin-bottom:20px;">
             <div style="display:grid; grid-template-columns:32px 1.4fr 1fr 100px 80px; gap:12px; padding:12px 18px; background:var(--paper-2); border-bottom:1px solid var(--ink-3);">
                 <span></span>
@@ -220,8 +220,10 @@
                 </div>
             @endforelse
         </div>
+        @endif
 
         {{-- Messengers table --}}
+        @if ($category === 'messengers')
         @if ($msgPrimaries->count() > 0)
         <div class="card" style="overflow:hidden; margin-bottom:20px;">
             <div style="display:grid; grid-template-columns:32px 1.4fr 1fr 100px 80px; gap:12px; padding:12px 18px; background:var(--paper-2); border-bottom:1px solid var(--ink-3);">
@@ -259,8 +261,10 @@
             @endforeach
         </div>
         @endif
+        @endif
 
         {{-- Prices table --}}
+        @if ($category === 'prices')
         @if ($priceBySku->count() > 0)
         <div class="card" style="overflow:hidden;">
             <header style="padding:14px 20px; display:flex; align-items:center; border-bottom:1px solid var(--ink-3); background:var(--paper-2);">
@@ -293,6 +297,7 @@
                 </div>
             @endforeach
         </div>
+        @endif
         @endif
     </div>
 

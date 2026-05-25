@@ -11,6 +11,7 @@
 
     <div style="padding:0 40px 64px; display:grid; grid-template-columns:repeat(2, 1fr); gap:14px;">
         @forelse ($groups as $group)
+            <a href="{{ route('sites.index', ['groupFilter' => $group->group]) }}" wire:navigate style="display:block; text-decoration:none; color:inherit;">
             <article class="card" style="padding:22px; position:relative; overflow:hidden; cursor:pointer; transition:border-color .15s;"
                      onmouseover="this.style.borderColor='var(--ink-9)'"
                      onmouseout="this.style.borderColor='var(--ink-3)'">
@@ -41,7 +42,7 @@
                         @endphp
                         <div style="display:flex; align-items:center; gap:10px; padding:6px 0;">
                             <span class="dot {{ $dotClass }}" style="margin:0; flex-shrink:0;"></span>
-                            <a href="{{ route('sites.show', $site) }}" wire:navigate
+                            <a href="{{ route('sites.show', $site) }}" wire:navigate @click.stop
                                class="mono" style="font:12.5px var(--font-mono); color:var(--ink-7);">{{ $site->name }}</a>
                             <div style="flex:1;"></div>
                             <span style="font:11px var(--font-mono); color:var(--ink-4);">{{ $site->last_checked_at?->diffForHumans(null, true) ?? '—' }}</span>
@@ -65,11 +66,12 @@
                         <span><span class="dot dot-bad"></span>{{ $errorCount }} помилка</span>
                     @endif
                     <div style="flex:1;"></div>
-                    <a href="{{ route('sites.index') }}" wire:navigate style="color:var(--ink-9); display:inline-flex; align-items:center; gap:4px;">
+                    <a href="{{ route('sites.index', ['groupFilter' => $group->group]) }}" wire:navigate style="color:var(--ink-9); display:inline-flex; align-items:center; gap:4px;">
                         Відкрити <x-icon.arrow width="11" height="11" />
                     </a>
                 </footer>
             </article>
+            </a>
         @empty
             <div style="grid-column:1/-1; padding:80px; text-align:center; color:var(--ink-5); font:13.5px var(--font-sans);">
                 Немає груп. Додайте перший сайт з групою.

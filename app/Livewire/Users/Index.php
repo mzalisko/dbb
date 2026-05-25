@@ -17,6 +17,23 @@ class Index extends Component
 
     public string $search = '';
 
+    public ?int $openUserId = null;
+
+    public function openUser(int $id): void
+    {
+        $this->openUserId = $id;
+    }
+
+    public function closeUser(): void
+    {
+        $this->openUserId = null;
+    }
+
+    public function getOpenUserProperty(): ?\App\Models\User
+    {
+        return $this->openUserId ? \App\Models\User::find($this->openUserId) : null;
+    }
+
     public function updatedSearch(): void
     {
         $this->resetPage();

@@ -4,20 +4,14 @@
     </div>
 
     @if (session('status'))
-        <div style="margin-bottom:16px; padding:12px; background:var(--ok-soft); color:var(--ok); border-radius:4px; font-size:13px;">
-            {{ session('status') }}
-        </div>
+        <x-ui.alert variant="success" style="margin-bottom:16px;">{{ session('status') }}</x-ui.alert>
     @endif
 
     <form method="POST" action="{{ route('password.email') }}">
         @csrf
 
         <div style="margin-bottom:20px;">
-            <label class="label" for="email">Email</label>
-            <x-ui.input type="email" id="email" name="email" :value="old('email')" required autofocus />
-            @error('email')
-                <p style="color:var(--bad); font-size:12px; margin-top:6px;">{{ $message }}</p>
-            @enderror
+            <x-ui.input type="email" name="email" label="Email" :value="old('email')" :error="$errors->first('email')" required autofocus autocomplete="email" />
         </div>
 
         <x-ui.button type="submit" class="btn btn-primary" style="width:100%; justify-content:center;">

@@ -1,116 +1,67 @@
-<div>
-    {{-- Header --}}
-    <div style="margin-bottom:24px;">
-        <h1 style="font-size:24px;">Dashboard</h1>
-        <p style="margin-top:4px;">Welcome back, {{ auth()->user()->name }}</p>
-    </div>
+<div style="flex:1; display:flex; flex-direction:column; overflow-y:auto;">
+    <x-ui.topbar :crumbs="['Dashboard']">
+        <x-ui.button size="sm" wire:click="$dispatch('open-modal','site-form')">
+            <x-icon.plus width="13" height="13" /> Add Site
+        </x-ui.button>
+    </x-ui.topbar>
 
-    {{-- Stat cards --}}
-    <div class="stat-grid" style="display:grid; grid-template-columns:repeat(4,1fr); gap:16px;">
-        <x-ui.card>
-            <div style="padding:4px 0;">
-                <div style="color:var(--ink-5);margin-bottom:12px;">
-                    <x-icon.groups width="20" height="20" />
-                </div>
-                <div style="font-size:32px;font-weight:400;color:var(--ink-9);line-height:1;">{{ $totalClients }}</div>
-                <div class="eyebrow" style="margin-top:8px;">Total Clients</div>
+    <x-ui.page-head
+        eyebrow="Overview"
+        :title="$totalSites . ' sites'"
+        sub="Workspace status. Click a client to see their sites." />
+
+    <div style="padding:0 40px 64px;">
+        {{-- Two-column layout --}}
+        <div style="display:grid; grid-template-columns:1.5fr 1fr; gap:48px;">
+
+            {{-- Recent Clients --}}
+            <div>
+                <header style="display:flex; align-items:baseline; margin-bottom:12px; padding-bottom:12px; border-bottom:1px solid var(--ink-3);">
+                    <h3 style="font:400 18px/1 var(--font-sans); color:var(--ink-9); flex:1;">Clients</h3>
+                    <a href="{{ route('clients.index') }}" wire:navigate class="btn btn-ghost btn-sm" style="padding:0;">All →</a>
+                </header>
+                @forelse ($recentClients as $client)
+                    <a href="{{ route('clients.show', $client) }}" wire:navigate
+                       style="display:grid; grid-template-columns:28px 1fr auto; gap:14px; padding:14px 0; border-bottom:1px solid var(--ink-3); align-items:center; transition:background .12s;"
+                       onmouseover="this.style.background='var(--paper-2)'" onmouseout="this.style.background='transparent'">
+                        <x-ui.avatar :initials="$client->initials" square />
+                        <div>
+                            <div class="mono" style="font:13.5px var(--font-mono); color:var(--ink-9);">{{ $client->company_name }}</div>
+                            <div style="margin-top:3px; font:12px var(--font-sans); color:var(--ink-5);">
+                                {{ $client->sites->count() }} {{ Str::plural('site', $client->sites->count()) }}
+                            </div>
+                        </div>
+                        <x-ui.pill :status="$client->status === 'active' ? 'ok' : 'warn'">{{ $client->status }}</x-ui.pill>
+                    </a>
+                @empty
+                    <x-ui.empty-state icon="groups" title="No clients yet" description="Add your first client to get started." />
+                @endforelse
             </div>
-        </x-ui.card>
 
-        <x-ui.card>
-            <div style="padding:4px 0;">
-                <div style="color:var(--ok);margin-bottom:12px;">
-                    <x-icon.sites width="20" height="20" />
-                </div>
-                <div style="font-size:32px;font-weight:400;color:var(--ink-9);line-height:1;">{{ $activeSites }}</div>
-                <div class="eyebrow" style="margin-top:8px;">Active Sites</div>
-            </div>
-        </x-ui.card>
-
-        <x-ui.card>
-            <div style="padding:4px 0;">
-                <div style="color:var(--warn);margin-bottom:12px;">
-                    <x-icon.bolt width="20" height="20" />
-                </div>
-                <div style="font-size:32px;font-weight:400;color:var(--ink-9);line-height:1;">{{ $maintenanceSites }}</div>
-                <div class="eyebrow" style="margin-top:8px;">Maintenance</div>
-            </div>
-        </x-ui.card>
-
-        <x-ui.card>
-            <div style="padding:4px 0;">
-                <div style="color:var(--bad);margin-bottom:12px;">
-                    <x-icon.globe width="20" height="20" />
-                </div>
-                <div style="font-size:32px;font-weight:400;color:var(--ink-9);line-height:1;">{{ $offlineSites }}</div>
-                <div class="eyebrow" style="margin-top:8px;">Offline</div>
-            </div>
-        </x-ui.card>
-    </div>
-
-    {{-- Two columns --}}
-    <div style="display:grid; grid-template-columns:1fr 1fr; gap:24px; margin-top:24px;">
-
-        {{-- Recent Clients --}}
-        <x-ui.card>
-            <x-slot:header>
-                <div style="display:flex;justify-content:space-between;align-items:center;">
-                    <span>Recent Clients</span>
-                    <a href="{{ route('clients.index') }}" wire:navigate style="font-size:12px;color:var(--ink-5);">View all</a>
-                </div>
-            </x-slot:header>
-            @forelse ($recentClients as $client)
-                <div class="row" style="grid-template-columns: auto 1fr auto;">
-                    <x-ui.avatar :initials="$client->initials" />
-                    <div>
-                        <a href="{{ route('clients.show', $client) }}" wire:navigate style="font-weight:500;color:var(--ink-9);">
-                            {{ $client->company_name }}
-                        </a>
-                        <div style="font-size:12px;color:var(--ink-5);">
-                            {{ $client->sites->count() }} {{ Str::plural('site', $client->sites->count()) }}
+            {{-- Recent Activity --}}
+            <div>
+                <header style="display:flex; align-items:baseline; margin-bottom:12px; padding-bottom:12px; border-bottom:1px solid var(--ink-3);">
+                    <h3 style="font:400 18px/1 var(--font-sans); color:var(--ink-9); flex:1;">Activity</h3>
+                    <a href="{{ route('activity.index') }}" wire:navigate class="btn btn-ghost btn-sm" style="padding:0;">All →</a>
+                </header>
+                @forelse ($recentActivity as $log)
+                    <div style="padding:12px 0; border-bottom:1px solid var(--ink-3);">
+                        <div style="display:flex; justify-content:space-between; align-items:baseline; gap:12px;">
+                            <div style="font:13px/1.4 var(--font-sans); color:var(--ink-8);">
+                                <span class="dot {{ $log->action === 'created' ? 'dot-ok' : '' }}"></span>
+                                <span class="mono" style="color:var(--ink-9); font-size:12.5px;">{{ $log->user?->name ?? 'System' }}</span>
+                                <span style="color:var(--ink-5); margin-left:6px;">{{ $log->action }}</span>
+                                @if ($log->subject_type)
+                                    <span style="color:var(--ink-5);">{{ class_basename($log->subject_type) }}</span>
+                                @endif
+                            </div>
+                            <span class="mono" style="font:11px var(--font-mono); color:var(--ink-4); white-space:nowrap;">{{ $log->created_at->diffForHumans() }}</span>
                         </div>
                     </div>
-                    <x-ui.pill :status="$client->status === 'active' ? 'ok' : 'warn'">
-                        {{ $client->status }}
-                    </x-ui.pill>
-                </div>
-            @empty
-                <x-ui.empty-state icon="groups" title="No clients yet"
-                    description="Add your first client to get started." />
-            @endforelse
-        </x-ui.card>
-
-        {{-- Activity Log --}}
-        <x-ui.card>
-            <x-slot:header>
-                <div style="display:flex;justify-content:space-between;align-items:center;">
-                    <span>Recent Activity</span>
-                    <a href="{{ route('activity.index') }}" wire:navigate style="font-size:12px;color:var(--ink-5);">View all</a>
-                </div>
-            </x-slot:header>
-            @forelse ($recentActivity as $log)
-                <div class="row" style="grid-template-columns: auto 1fr auto;">
-                    <x-ui.avatar :initials="$log->user?->name ?? '?'" />
-                    <div>
-                        <span style="font-weight:500;">{{ $log->user?->name ?? 'System' }}</span>
-                        <span style="color:var(--ink-5);">{{ $log->action }}</span>
-                        @if ($log->subject)
-                            <span>{{ class_basename($log->subject_type) }} #{{ $log->subject_id }}</span>
-                        @endif
-                    </div>
-                    <span class="mono" style="font-size:11px;color:var(--ink-4);">
-                        {{ $log->created_at->diffForHumans() }}
-                    </span>
-                </div>
-            @empty
-                <x-ui.empty-state icon="logs" title="No activity yet" />
-            @endforelse
-        </x-ui.card>
+                @empty
+                    <x-ui.empty-state icon="logs" title="No activity yet" />
+                @endforelse
+            </div>
+        </div>
     </div>
-
-    <style>
-        @media (max-width: 768px) {
-            .stat-grid { grid-template-columns: repeat(2, 1fr) !important; }
-        }
-    </style>
 </div>

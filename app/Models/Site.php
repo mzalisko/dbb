@@ -13,7 +13,8 @@ class Site extends Model
 
     protected $fillable = [
         'client_id', 'name', 'url', 'wp_version',
-        'php_version', 'status', 'last_checked_at', 'notes',
+        'php_version', 'status', 'group', 'group_color',
+        'last_checked_at', 'notes',
     ];
 
     protected function casts(): array

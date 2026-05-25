@@ -1,5 +1,8 @@
 <!DOCTYPE html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" data-theme="light">
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}"
+      x-data="themeApp()"
+      :data-theme="theme"
+      x-init="initTheme()">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -81,17 +84,29 @@
 
         {{-- User section --}}
         <div class="sidebar-user">
-            <span class="avatar" style="background:var(--accent); color:var(--paper); flex-shrink:0;">
-                {{ strtoupper(substr(auth()->user()->name ?? 'U', 0, 2)) }}
+            <span style="position:relative;">
+                <span class="avatar" style="background:var(--accent); color:var(--paper); flex-shrink:0;">
+                    {{ strtoupper(substr(auth()->user()->name ?? 'U', 0, 2)) }}
+                </span>
+                <span style="position:absolute;right:-1px;bottom:-1px;width:9px;height:9px;border-radius:999px;background:var(--ok);border:2px solid var(--paper-2);"></span>
             </span>
             <div style="flex:1; min-width:0;">
                 <div style="font:400 13px/1.2 var(--font-sans); color:var(--ink-9); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ auth()->user()->name ?? '' }}</div>
-                <div style="font:11px/1 var(--font-mono); color:var(--ink-5); margin-top:3px;">{{ auth()->user()->role ?? '' }}</div>
+                <div style="font:11px/1 var(--font-mono); color:var(--ink-5); margin-top:3px;">{{ auth()->user()->role ?? 'admin' }}</div>
             </div>
+            {{-- Theme toggle --}}
+            <button @click="toggleTheme()"
+                :title="theme === 'light' ? 'Темна тема' : 'Світла тема'"
+                style="width:28px;height:28px;border-radius:999px;color:var(--ink-5);display:inline-flex;align-items:center;justify-content:center;transition:color .12s;flex-shrink:0;"
+                onmouseover="this.style.color='var(--ink-9)'" onmouseout="this.style.color='var(--ink-5)'">
+                <template x-if="theme === 'light'"><x-icon.moon width="14" height="14" /></template>
+                <template x-if="theme === 'dark'"><x-icon.sun width="14" height="14" /></template>
+            </button>
+            {{-- Logout --}}
             <form method="POST" action="{{ route('logout') }}" style="flex-shrink:0;">
                 @csrf
                 <button type="submit" title="Log out"
-                    style="width:28px; height:28px; border-radius:999px; color:var(--ink-5); display:inline-flex; align-items:center; justify-content:center; transition:color .12s;"
+                    style="width:28px;height:28px;border-radius:999px;color:var(--ink-5);display:inline-flex;align-items:center;justify-content:center;transition:color .12s;"
                     onmouseover="this.style.color='var(--ink-9)'" onmouseout="this.style.color='var(--ink-5)'">
                     <x-icon.logout width="14" height="14" />
                 </button>
@@ -105,5 +120,20 @@
     </main>
 
     @livewireScripts
+
+    <script>
+    function themeApp() {
+      return {
+        theme: 'light',
+        initTheme() {
+          this.theme = localStorage.getItem('db-theme') || 'light';
+        },
+        toggleTheme() {
+          this.theme = this.theme === 'light' ? 'dark' : 'light';
+          localStorage.setItem('db-theme', this.theme);
+        }
+      }
+    }
+    </script>
 </body>
 </html>

@@ -541,3 +541,6 @@ svg { display: block; }
 .fade-in { animation: fade-in .25s ease-out; }
 .slide-in { animation: slide-in .25s cubic-bezier(.2,.7,.3,1); }
 }
+
+/* hide Alpine x-cloak elements before JS loads */
+[x-cloak] { display: none !important; }

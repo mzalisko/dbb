@@ -3,8 +3,8 @@
 namespace App\Livewire;
 
 use App\Models\ContactEntry;
-use App\Models\Site;
 use Livewire\Component;
+use Livewire\WithPagination;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Title;
 use Livewire\Attributes\Url;
@@ -13,13 +13,18 @@ use Livewire\Attributes\Url;
 #[Title('Браузер даних')]
 class DataBrowser extends Component
 {
+    use WithPagination;
+
     #[Url]
     public string $search = '';
 
     #[Url]
-    public string $typeFilter = 'phone';
+    public string $typeFilter = '';
 
     public array $selected = [];
+
+    public function updatingSearch(): void { $this->resetPage(); }
+    public function updatingTypeFilter(): void { $this->resetPage(); }
 
     public function toggleSelected(int $id): void
     {
@@ -35,19 +40,27 @@ class DataBrowser extends Component
         $this->selected = [];
     }
 
+    public function bulkToggleVisibility(): void
+    {
+        ContactEntry::whereIn('id', $this->selected)->each(function ($entry) {
+            $entry->update(['visible' => !$entry->visible]);
+        });
+        $this->selected = [];
+    }
+
     public function render()
     {
         $entries = ContactEntry::query()
             ->with('site')
-            ->where('type', $this->typeFilter)
-            ->where('visible', true)
-            ->when($this->search, fn($q) => $q->where('value', 'like', "%{$this->search}%")
-                ->orWhere('label', 'like', "%{$this->search}%"))
+            ->when($this->typeFilter, fn($q) => $q->where('type', $this->typeFilter))
+            ->when($this->search, fn($q) => $q->where(fn($q2) =>
+                $q2->where('value', 'like', "%{$this->search}%")
+                   ->orWhere('label', 'like', "%{$this->search}%")
+            ))
             ->orderBy('created_at', 'desc')
-            ->take(100)
-            ->get();
+            ->paginate(15);
 
-        $totalCount = ContactEntry::where('visible', true)->count();
+        $totalCount = ContactEntry::count();
 
         return view('livewire.data-browser', compact('entries', 'totalCount'));
     }

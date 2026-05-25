@@ -20,6 +20,15 @@
 
         {{-- Type filter --}}
         <div style="display:flex; gap:8px; margin-top:16px;">
+            <button wire:click="$set('typeFilter', '')" style="
+                display:inline-flex; align-items:center; gap:6px;
+                height:30px; padding:0 12px; border-radius:999px;
+                background:{{ $typeFilter === '' ? 'var(--ink-9)' : 'var(--card)' }};
+                color:{{ $typeFilter === '' ? 'var(--paper)' : 'var(--ink-7)' }};
+                box-shadow:{{ $typeFilter === '' ? 'none' : 'inset 0 0 0 1px var(--ink-3)' }};
+                font:12.5px var(--font-sans); cursor:pointer;">
+                Всі
+            </button>
             @foreach ([['key' => 'phone', 'label' => 'Телефони'], ['key' => 'messenger', 'label' => 'Месенджери'], ['key' => 'price', 'label' => 'Ціни']] as $t)
                 <button wire:click="$set('typeFilter', '{{ $t['key'] }}')" style="
                     display:inline-flex; align-items:center; gap:6px;
@@ -39,7 +48,7 @@
         <div style="position:sticky; top:0; z-index:5; margin-top:16px; padding:12px 40px; background:var(--ink-9); color:var(--paper); display:flex; align-items:center; gap:14px;">
             <span class="mono" style="font:500 13px var(--font-mono);">{{ count($selected) }} обрано</span>
             <span style="height:14px; width:1px; background:rgba(255,255,255,.2);"></span>
-            <button style="font:13px var(--font-sans); color:var(--paper); cursor:pointer;">Видимість</button>
+            <button wire:click="bulkToggleVisibility" style="font:13px var(--font-sans); color:var(--paper); cursor:pointer;">Видимість</button>
             <button style="font:13px var(--font-sans); color:var(--paper); cursor:pointer;">Змінити гео</button>
             <button style="font:13px var(--font-sans); color:var(--paper); cursor:pointer;">Видалити</button>
             <div style="flex:1;"></div>
@@ -83,5 +92,11 @@
                 </div>
             @endforelse
         </div>
+
+        @if ($entries->hasPages())
+            <div style="margin-top:16px; display:flex; justify-content:center;">
+                {{ $entries->links() }}
+            </div>
+        @endif
     </div>
 </div>

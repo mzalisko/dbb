@@ -1,21 +1,17 @@
 <x-layouts.guest>
+    @if (session('status'))
+        <x-ui.alert variant="success" style="margin-bottom:16px;">{{ session('status') }}</x-ui.alert>
+    @endif
+
     <form method="POST" action="{{ route('login') }}">
         @csrf
 
         <div style="margin-bottom:20px;">
-            <label class="label" for="email">Email</label>
-            <x-ui.input type="email" id="email" name="email" :value="old('email')" required autofocus />
-            @error('email')
-                <p style="color:var(--bad); font-size:12px; margin-top:6px;">{{ $message }}</p>
-            @enderror
+            <x-ui.input type="email" name="email" label="Email" :value="old('email')" :error="$errors->first('email')" required autofocus autocomplete="email" />
         </div>
 
         <div style="margin-bottom:20px;">
-            <label class="label" for="password">Password</label>
-            <x-ui.input type="password" id="password" name="password" required />
-            @error('password')
-                <p style="color:var(--bad); font-size:12px; margin-top:6px;">{{ $message }}</p>
-            @enderror
+            <x-ui.input type="password" name="password" label="Password" :error="$errors->first('password')" required autocomplete="current-password" />
         </div>
 
         <div style="margin-bottom:20px;">

@@ -3,32 +3,19 @@
         @csrf
 
         <div style="margin-bottom:20px;">
-            <label class="label" for="name">Name</label>
-            <x-ui.input type="text" id="name" name="name" :value="old('name')" required autofocus />
-            @error('name')
-                <p style="color:var(--bad); font-size:12px; margin-top:6px;">{{ $message }}</p>
-            @enderror
+            <x-ui.input type="text" name="name" label="Name" :value="old('name')" :error="$errors->first('name')" required autofocus autocomplete="name" />
         </div>
 
         <div style="margin-bottom:20px;">
-            <label class="label" for="email">Email</label>
-            <x-ui.input type="email" id="email" name="email" :value="old('email')" required />
-            @error('email')
-                <p style="color:var(--bad); font-size:12px; margin-top:6px;">{{ $message }}</p>
-            @enderror
+            <x-ui.input type="email" name="email" label="Email" :value="old('email')" :error="$errors->first('email')" required autocomplete="email" />
         </div>
 
         <div style="margin-bottom:20px;">
-            <label class="label" for="password">Password</label>
-            <x-ui.input type="password" id="password" name="password" required />
-            @error('password')
-                <p style="color:var(--bad); font-size:12px; margin-top:6px;">{{ $message }}</p>
-            @enderror
+            <x-ui.input type="password" name="password" label="Password" :error="$errors->first('password')" required autocomplete="new-password" />
         </div>
 
         <div style="margin-bottom:20px;">
-            <label class="label" for="password_confirmation">Confirm Password</label>
-            <x-ui.input type="password" id="password_confirmation" name="password_confirmation" required />
+            <x-ui.input type="password" name="password_confirmation" label="Confirm Password" required autocomplete="new-password" />
         </div>
 
         <x-ui.button type="submit" class="btn btn-primary" style="width:100%; justify-content:center;">

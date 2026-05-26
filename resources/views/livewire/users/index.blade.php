@@ -40,9 +40,9 @@
                         default   => ''
                     };
                     $roleLabel = match($user->role) {
-                        'admin'   => 'Admin',
-                        'manager' => 'Manager',
-                        default   => 'Viewer'
+                        'admin'   => 'Адміністратор',
+                        'manager' => 'Менеджер',
+                        default   => 'Перегляд'
                     };
                     $nameParts = explode(' ', $user->name);
                     $initials = strtoupper(substr($nameParts[0], 0, 1)) . strtoupper(substr($nameParts[1] ?? $nameParts[0], 0, 1));
@@ -90,7 +90,7 @@
             <div>
                 <label class="label">Роль</label>
                 <div style="display:flex; gap:8px; margin-top:12px;">
-                    @foreach ([['admin', 'Admin', 'Повний доступ'], ['manager', 'Manager', 'Дані + сайти'], ['viewer', 'Viewer', 'Тільки читання']] as [$k, $l, $d])
+                    @foreach ([['admin', 'Адмін', 'Повний доступ'], ['manager', 'Менеджер', 'Дані + сайти'], ['viewer', 'Перегляд', 'Тільки читання']] as [$k, $l, $d])
                         <button style="flex:1; padding:12px 14px; border-radius:4px; text-align:left; cursor:pointer;
                             border:1px solid {{ $openUser->role === $k ? 'var(--ink-9)' : 'var(--ink-3)' }};
                             background:{{ $openUser->role === $k ? 'var(--ink-9)' : 'transparent' }};
@@ -108,16 +108,16 @@
                 <div style="margin-top:14px;">
                     <div style="display:grid; grid-template-columns:1fr 60px 60px 60px 60px; gap:8px; padding:10px 0; border-bottom:1px solid var(--ink-3);">
                         <span class="eyebrow" style="font-size:9.5px;">Ресурс</span>
-                        @foreach (['Read', 'Create', 'Edit', 'Delete'] as $a)
+                        @foreach (['Читання', 'Створення', 'Редаг.', 'Видал.'] as $a)
                             <span class="eyebrow" style="font-size:9.5px; text-align:center;">{{ $a }}</span>
                         @endforeach
                     </div>
                     @foreach ([
-                        ['Sites', [true, true, true, true]],
-                        ['Phones', [true, true, true, true]],
-                        ['Site groups', [true, true, true, false]],
-                        ['Team', [true, true, true, true]],
-                        ['API keys', [true, true, false, true]],
+                        ['Сайти', [true, true, true, true]],
+                        ['Телефони', [true, true, true, true]],
+                        ['Групи сайтів', [true, true, true, false]],
+                        ['Команда', [true, true, true, true]],
+                        ['API ключі', [true, true, false, true]],
                     ] as $i => [$r, $perms])
                         <div style="display:grid; grid-template-columns:1fr 60px 60px 60px 60px; gap:8px; padding:12px 0; border-top:{{ $i ? '1px solid var(--ink-3)' : 'none' }}; align-items:center;">
                             <span style="font:13.5px var(--font-sans); color:var(--ink-9);">{{ $r }}</span>

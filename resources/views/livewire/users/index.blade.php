@@ -8,7 +8,8 @@
     </x-ui.topbar>
 
     <x-ui.page-head
-        title="Команда"
+        :number="$users->total()"
+        label="учасників"
         sub="Натисніть на учасника щоб переглянути права." />
 
     <div style="flex:1; overflow-y:auto; padding:0 40px 64px;">

@@ -9,7 +9,8 @@
     </x-ui.topbar>
 
     <x-ui.page-head
-        :title="'Сайти · ' . $sites->count()"
+        :number="$sites->count()"
+        label="сайтів"
         sub="Натисніть на картку щоб відкрити сайт зі всіма контактами." />
 
     {{-- Group filter --}}
@@ -83,8 +84,14 @@
                             {{ ucfirst($site->group) }}
                         </span>
                     @endif
-                    <span>📞 {{ $site->contactEntries()->where('type', 'phone')->where('visible', true)->count() }}</span>
-                    <span>💬 {{ $site->contactEntries()->where('type', 'messenger')->where('visible', true)->count() }}</span>
+                    <span style="display:inline-flex;align-items:center;gap:4px;">
+                        <x-icon.phone width="11" height="11" />
+                        {{ $site->contactEntries()->where('type', 'phone')->where('visible', true)->count() }}
+                    </span>
+                    <span style="display:inline-flex;align-items:center;gap:4px;">
+                        <x-icon.chat width="11" height="11" />
+                        {{ $site->contactEntries()->where('type', 'messenger')->where('visible', true)->count() }}
+                    </span>
                 </div>
             </a>
         @empty

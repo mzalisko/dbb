@@ -7,7 +7,8 @@
     </x-ui.topbar>
 
     <x-ui.page-head
-        title="Браузер даних"
+        :number="$totalCount"
+        label="записів"
         sub="Усі контактні дані з усіх сайтів. Шукайте, фільтруйте, виконуйте групові операції." />
 
     <div style="padding:0 40px;">

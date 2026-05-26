@@ -6,7 +6,8 @@
     </x-ui.topbar>
 
     <x-ui.page-head
-        title="Групи сайтів"
+        :number="$groups->count()"
+        label="груп"
         sub="Об'єднайте сайти за середовищем, регіоном чи командою." />
 
     <div style="padding:0 40px 64px; display:grid; grid-template-columns:repeat(2, 1fr); gap:14px;">

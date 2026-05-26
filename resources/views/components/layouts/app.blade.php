@@ -104,15 +104,6 @@
                 <template x-if="theme === 'light'"><x-icon.moon width="14" height="14" /></template>
                 <template x-if="theme === 'dark'"><x-icon.sun width="14" height="14" /></template>
             </button>
-            {{-- Logout --}}
-            <form method="POST" action="{{ route('logout') }}" style="flex-shrink:0;">
-                @csrf
-                <button type="submit" title="Log out"
-                    style="width:28px;height:28px;border-radius:999px;color:var(--ink-5);display:inline-flex;align-items:center;justify-content:center;transition:color .12s;"
-                    onmouseover="this.style.color='var(--ink-9)'" onmouseout="this.style.color='var(--ink-5)'">
-                    <x-icon.logout width="14" height="14" />
-                </button>
-            </form>
         </div>
     </aside>
 

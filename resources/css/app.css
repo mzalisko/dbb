@@ -1,3 +1,6 @@
+/* Establish layer order so our @layer components wins over Tailwind @layer base */
+@layer properties, theme, base, components, utilities;
+
 @import './tokens.css';
 @import 'tailwindcss';
 

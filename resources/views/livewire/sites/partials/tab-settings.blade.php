@@ -1,21 +1,15 @@
 {{-- ─── Tab: Налаштування ───────────────────────────────── --}}
 <div x-show="tab==='settings'" style="padding:24px 40px 64px;">
     {{-- Sub-tabs --}}
-    <div style="display:flex; gap:0; border-bottom:1px solid var(--ink-3); margin-bottom:32px;">
+    <div class="tabs" style="margin-bottom:32px;">
         @foreach([
             ['key'=>'failover','label'=>'Failover','count'=>$phonePrimaries->count()],
             ['key'=>'categories','label'=>'Категорії даних','count'=>6],
             ['key'=>'api','label'=>'API доступ','count'=>1],
         ] as $st)
-            <button @click="settingsSub='{{ $st['key'] }}'" style="
-                display:inline-flex;align-items:center;gap:6px;padding:12px 18px;margin-bottom:-1px;
-                border-bottom:2px solid transparent;font:13.5px var(--font-sans);cursor:pointer;background:transparent;"
-                :style="settingsSub==='{{ $st['key'] }}' ? 'border-bottom-color:var(--ink-9);color:var(--ink-9);font-weight:500;' : 'color:var(--ink-5);'">
+            <button class="tab" :class="settingsSub==='{{ $st['key'] }}' ? 'active' : ''" @click="settingsSub='{{ $st['key'] }}'">
                 {{ $st['label'] }}
-                <span style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:999px;font:10px var(--font-mono);"
-                    :style="settingsSub==='{{ $st['key'] }}' ? 'background:var(--ink-9);color:var(--paper);' : 'background:var(--ink-2);color:var(--ink-5);'">
-                    {{ $st['count'] }}
-                </span>
+                <span class="tab-n">{{ $st['count'] }}</span>
             </button>
         @endforeach
     </div>

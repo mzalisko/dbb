@@ -1,10 +1,10 @@
 {{-- ── Phones sub-section ── --}}
 {{-- ЯК ЦЕ ПРАЦЮЄ box --}}
-<div style="margin-top:16px; padding:14px 18px; border:1px solid #e8cfa0; background:#fdf5e6; border-radius:4px;">
-    <div style="font:500 10.5px var(--font-mono); letter-spacing:.08em; color:#b08020; margin-bottom:6px;">ЯК ЦЕ ПРАЦЮЄ</div>
-    <p style="font:13px/1.5 var(--font-sans); color:#7a5a10; margin:0;">
-        Резервні номери прив'язані до конкретного <strong>головного</strong> та показані з відступом під ним. Натисніть <strong>+ резерв</strong> щоб додати запасний до будь-якого головного.
-    </p>
+<div style="margin-top:16px; padding:14px 18px; border-radius:4px; background:var(--accent-soft); border:1px solid var(--accent); color:#7a3818;">
+    <div style="font:11px var(--font-mono); letter-spacing:.16em; text-transform:uppercase; margin-bottom:6px; color:var(--accent);">Як це працює</div>
+    <div style="font:13.5px/1.55 var(--font-sans);">
+        Резервні номери прив'язані до конкретного <b>головного</b> та показані з відступом під ним. Натисніть <b>+ резерв</b> щоб додати запасний до будь-якого головного.
+    </div>
 </div>
 
 {{-- Phone table --}}

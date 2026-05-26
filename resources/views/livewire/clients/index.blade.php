@@ -1,109 +1,86 @@
 <div style="flex:1; display:flex; flex-direction:column; overflow-y:auto;">
-    <x-ui.topbar :crumbs="['Clients']">
-        <x-ui.button size="sm" wire:click="$dispatch('open-modal','client-form')">
-            <x-icon.plus width="13" height="13" /> Add Client
-        </x-ui.button>
+    <x-ui.topbar :crumbs="['Клієнти']">
+        <button class="btn btn-secondary btn-sm" style="margin-right:4px;">
+            <x-icon.export width="13" height="13" /> Експорт
+        </button>
+        <button class="btn btn-primary btn-sm" wire:click="$dispatch('open-modal','client-form')">
+            <x-icon.plus width="13" height="13" /> Додати клієнта
+        </button>
     </x-ui.topbar>
 
     <x-ui.page-head
-        eyebrow="Clients"
-        title="{{ $clients->total() }} clients"
-        sub="All your client companies and their WordPress sites." />
+        :number="$clients->total()"
+        label="клієнтів"
+        sub="Усі клієнтські компанії та їхні WordPress-сайти." />
 
     <div style="padding:0 40px 64px;">
-        {{-- Flash --}}
         @if (session('message'))
-            <x-ui.alert variant="success" style="margin-bottom:16px;">{{ session('message') }}</x-ui.alert>
+            <div style="margin-bottom:16px; padding:12px 16px; background:var(--ok-soft); color:var(--ok); border-radius:4px; font:13.5px var(--font-sans);">
+                {{ session('message') }}
+            </div>
         @endif
 
         {{-- Filters --}}
-        <div style="display:flex; gap:12px; align-items:flex-end; margin-bottom:20px;">
-            <div style="display:flex; align-items:center; gap:10px; height:44px; padding:0 18px; border-radius:999px; background:var(--card); border:1px solid var(--ink-3); max-width:400px; flex:1;">
+        <div style="display:flex; gap:12px; align-items:center; margin-bottom:20px;">
+            <div style="display:flex; align-items:center; gap:10px; height:44px; padding:0 18px; border-radius:999px; background:var(--card); border:1px solid var(--ink-3); flex:1; max-width:440px;">
                 <x-icon.search width="15" height="15" style="color:var(--ink-5);" />
                 <input wire:model.live.debounce.300ms="search" type="text"
-                    placeholder="Search clients…"
-                    style="flex:1; font:14.5px var(--font-sans); color:var(--ink-7); background:transparent; border:0; outline:none;"
-                    placeholder-style="color:var(--ink-4);" />
+                    placeholder="Пошук клієнтів…"
+                    style="flex:1; font:14.5px var(--font-sans); color:var(--ink-7); background:transparent; border:0; outline:none;" />
             </div>
-            <x-ui.select wire:model.live="status" style="width:160px;">
-                <option value="">All statuses</option>
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
-                <option value="archived">Archived</option>
-            </x-ui.select>
+            <select wire:model.live="status" style="height:36px; padding:0 12px; border-radius:6px; border:1px solid var(--ink-3); background:var(--card); font:13px var(--font-sans); color:var(--ink-7); cursor:pointer;">
+                <option value="">Всі статуси</option>
+                <option value="active">Активний</option>
+                <option value="inactive">Пауза</option>
+                <option value="archived">Архів</option>
+            </select>
         </div>
 
         {{-- Table --}}
-        <x-ui.card :padding="false">
-            <x-ui.table>
-                <thead>
-                    <tr>
-                        <th wire:click="sort('company_name')" style="cursor:pointer;">
-                            Company @if($sortBy === 'company_name')<span>{{ $sortDir === 'asc' ? '↑' : '↓' }}</span>@endif
-                        </th>
-                        <th>Contact</th>
-                        <th>Sites</th>
-                        <th wire:click="sort('status')" style="cursor:pointer;">
-                            Status @if($sortBy === 'status')<span>{{ $sortDir === 'asc' ? '↑' : '↓' }}</span>@endif
-                        </th>
-                        <th wire:click="sort('created_at')" style="cursor:pointer;">
-                            Created @if($sortBy === 'created_at')<span>{{ $sortDir === 'asc' ? '↑' : '↓' }}</span>@endif
-                        </th>
-                        <th></th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @forelse ($clients as $client)
-                        <tr>
-                            <td>
-                                <a href="{{ route('clients.show', $client) }}" wire:navigate
-                                   style="display:flex; align-items:center; gap:10px; color:var(--ink-9); font-weight:500;">
-                                    <x-ui.avatar :initials="$client->initials" square />
-                                    {{ $client->company_name }}
-                                </a>
-                            </td>
-                            <td>
-                                <div>{{ $client->contact_name }}</div>
-                                <div style="font-size:12px; color:var(--ink-5);">{{ $client->contact_email }}</div>
-                            </td>
-                            <td class="num">{{ $client->sites_count }}</td>
-                            <td>
-                                <x-ui.pill :status="$client->status === 'active' ? 'ok' : ($client->status === 'inactive' ? 'warn' : 'info')">
-                                    {{ $client->status }}
-                                </x-ui.pill>
-                            </td>
-                            <td class="mono" style="font-size:12px; color:var(--ink-5);">
-                                {{ $client->created_at->format('M d, Y') }}
-                            </td>
-                            <td>
-                                <x-ui.dropdown align="right">
-                                    <x-slot:trigger><x-icon.more-v width="16" height="16" /></x-slot:trigger>
-                                    <a href="{{ route('clients.show', $client) }}" wire:navigate class="dropdown-item">View</a>
-                                    <button class="dropdown-item" wire:click="$dispatch('edit-client', { id: {{ $client->id }} })">Edit</button>
-                                    <button class="dropdown-item" style="color:var(--bad);"
-                                        x-on:click="if(confirm('Delete this client?')) $wire.deleteClient({{ $client->id }})">Delete</button>
-                                </x-ui.dropdown>
-                            </td>
-                        </tr>
-                    @empty
-                        <tr>
-                            <td colspan="6">
-                                <x-ui.empty-state icon="groups" title="No clients found"
-                                    description="Add your first client to get started.">
-                                    <x-slot:action>
-                                        <x-ui.button wire:click="$dispatch('open-modal','client-form')">
-                                            <x-icon.plus width="14" height="14" /> Add Client
-                                        </x-ui.button>
-                                    </x-slot:action>
-                                </x-ui.empty-state>
-                            </td>
-                        </tr>
-                    @endforelse
-                </tbody>
-            </x-ui.table>
-        </x-ui.card>
+        <div class="card" style="overflow:hidden;">
+            <div style="display:grid; grid-template-columns:1.8fr 1.2fr 80px 120px 120px 40px; gap:12px; padding:10px 18px; background:var(--paper-2); border-bottom:1px solid var(--ink-3);">
+                @foreach(['Компанія','Контакт','Сайти','Статус','Створено',''] as $h)
+                    <span class="eyebrow" style="font-size:9.5px;">{{ $h }}</span>
+                @endforeach
+            </div>
+            @forelse ($clients as $i => $client)
+                <div style="display:grid; grid-template-columns:1.8fr 1.2fr 80px 120px 120px 40px; gap:12px; padding:14px 18px; border-top:{{ $i ? '1px solid var(--ink-3)' : 'none' }}; align-items:center; cursor:pointer; transition:background .12s;"
+                     onmouseover="this.style.background='var(--paper-2)'" onmouseout="this.style.background='transparent'">
+                    <a href="{{ route('clients.show', $client) }}" wire:navigate style="display:flex; align-items:center; gap:10px;">
+                        <span class="avatar avatar-sq">{{ strtoupper(substr($client->company_name, 0, 1)) }}</span>
+                        <span style="font:13.5px var(--font-sans); color:var(--ink-9);">{{ $client->company_name }}</span>
+                    </a>
+                    <div>
+                        <div style="font:13px var(--font-sans); color:var(--ink-8);">{{ $client->contact_name ?? '—' }}</div>
+                        <div style="font:11.5px var(--font-mono); color:var(--ink-5); margin-top:2px;">{{ $client->contact_email ?? '' }}</div>
+                    </div>
+                    <span class="mono" style="font:14px var(--font-mono); color:var(--ink-9);">{{ $client->sites_count }}</span>
+                    <span>
+                        @php
+                            $sc = match($client->status) { 'active'=>'ok','inactive'=>'warn',default=>'info' };
+                            $sl = match($client->status) { 'active'=>'Активний','inactive'=>'Пауза',default=>'Архів' };
+                        @endphp
+                        <span class="pill pill-{{ $sc }}" style="font-size:11.5px;">{{ $sl }}</span>
+                    </span>
+                    <span class="mono" style="font:11.5px var(--font-mono); color:var(--ink-5);">{{ $client->created_at->format('d M Y') }}</span>
+                    <div style="display:flex; justify-content:flex-end;">
+                        <button style="color:var(--ink-4); cursor:pointer; padding:4px;" wire:click.stop="$dispatch('edit-client', { id: {{ $client->id }} })">
+                            <x-icon.more-v width="14" height="14" />
+                        </button>
+                    </div>
+                </div>
+            @empty
+                <div style="padding:80px; text-align:center; color:var(--ink-5); font:13.5px var(--font-sans);">
+                    Немає клієнтів. Додайте першого.
+                </div>
+            @endforelse
+        </div>
 
-        <div style="margin-top:16px;">{{ $clients->links() }}</div>
+        @if ($clients->hasPages())
+            <div style="margin-top:16px; display:flex; justify-content:center;">
+                {{ $clients->links() }}
+            </div>
+        @endif
     </div>
 
     @livewire('clients.form')

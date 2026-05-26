@@ -62,6 +62,7 @@
                class="sidebar-link {{ request()->routeIs('data.*') ? 'active' : '' }}">
                 <x-icon.data width="14" height="14" />
                 <span style="flex:1;">Браузер даних</span>
+                <span class="mono" style="font:11px var(--font-mono); color:var(--ink-4);">{{ \App\Models\ContactEntry::count() }}</span>
             </a>
             <a href="{{ route('users.index') }}" wire:navigate
                class="sidebar-link {{ request()->routeIs('users.*') ? 'active' : '' }}">

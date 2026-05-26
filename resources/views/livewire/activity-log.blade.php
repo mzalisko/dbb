@@ -67,7 +67,7 @@
                             @endif
                         </div>
                         <span style="font:13px var(--font-sans); color:var(--ink-9);">{{ $log->action }}</span>
-                        <span style="font:12.5px var(--font-sans); color:var(--ink-5);">{{ $log->user?->name ?? 'System' }}</span>
+                        <span style="font:12.5px var(--font-sans); color:var(--ink-5);">{{ $log->user?->name ?? 'Система' }}</span>
                         <span style="font:11.5px var(--font-mono); color:{{ $isBad ? 'var(--bad)' : 'var(--ok)' }};">{{ $isBad ? 'WARN' : 'OK' }}</span>
                     </div>
                 @empty

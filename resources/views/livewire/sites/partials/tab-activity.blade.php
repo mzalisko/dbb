@@ -60,7 +60,7 @@
                         <span class="avatar" style="width:22px;height:22px;font-size:10px;background:{{ $log->user?'var(--ink-9)':'var(--ink-4)' }};color:var(--paper);">
                             {{ strtoupper(substr($log->user?->name??'S',0,2)) }}
                         </span>
-                        <span style="font:12.5px var(--font-sans);color:var(--ink-7);">{{ $log->user?->name??'System' }}</span>
+                        <span style="font:12.5px var(--font-sans);color:var(--ink-7);">{{ $log->user?->name??'Система' }}</span>
                     </div>
                     <span class="mono" style="font:12px var(--font-mono);color:var(--ink-5);">{{ $log->created_at->diffForHumans(null,true) }}</span>
                     <span style="color:var(--ink-4);" x-text="open?'&#x2228;':'&#x203A;'"></span>

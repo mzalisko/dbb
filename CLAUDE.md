@@ -20,13 +20,12 @@
 
 ## 1. Правила роботи
 
-1. **Plan Mode першим.** Без затвердженого плану від `planner` + `critic` — ніхто не починає.
+1. **Plan Mode першим.** Без затвердженого плану від `@planner` + `@critic` — ніхто не починає.
 2. **4–8 worktrees паралельно.** `.\scripts\new-worktree.ps1 <agent> <recipe-id>`
-3. **Субагент = вузька роль.** Описи у `.claude\agents\*.md`
-4. **Opus+thinking** для архітектури/безпеки. **Haiku** для Ralph-loops.
+3. **Субагент = вузька роль.** Описи у `.claude\agents\*.md` (8 агентів).
+4. **Opus** для архітектури/безпеки/коду. **Sonnet** для vault/keeper.
 5. **Recipes у vault.** `C:\Dev\ddbv2-vault\30-tasks\<phase>\<id>.md`
-6. **Cost guard:** Ralph `MAX_ITERATIONS=200`. Перевищення → пауза → scribe.
-7. **Помилка → правило.** Scribe додає у §9 + vault `50-mistakes\`.
+6. **Помилка → правило.** `@keeper` додає у §9 + vault `50-mistakes\`.
 
 ## 2. Захищені файли (sign-off critic)
 
@@ -40,13 +39,13 @@
 ## 3. Команди (PowerShell)
 
 ```powershell
-.\scripts\new-worktree.ps1 backend-eng P1-T01   # новий worktree
-.\scripts\merge-worktree.ps1 wt-backend-eng-p1-t01  # merge
-.\scripts\start-dev.ps1                          # запуск сервера
-.\.ralph\icon-port\run.ps1                       # ralph loop
-git worktree list                                # активні worktrees
-docker compose exec app php artisan <cmd>        # artisan
-docker compose logs -f app                       # логи
+.\scripts\new-worktree.ps1 backend PL-T01    # новий worktree для @backend
+.\scripts\new-worktree.ps1 ui PH-T01         # новий worktree для @ui
+.\scripts\merge-worktree.ps1 wt-backend-pl-t01  # merge
+.\scripts\start-dev.ps1                       # запуск сервера
+git worktree list                             # активні worktrees
+docker compose exec app php artisan <cmd>     # artisan
+docker compose logs -f app                    # логи
 ```
 
 ## 4. MCP сервери
@@ -57,24 +56,28 @@ claude mcp add obsidian -- npx -y mcp-remote http://localhost:22360/sse
 claude mcp add github -- npx -y @modelcontextprotocol/server-github
 ```
 
-## 5. Цикл фази
+## 5. Цикл фази (8-агентний pipeline)
 
-1. `planner` → recipes у vault
-2. `critic` → APPROVED (max 2 раунди)
-3. `orchestrator` → worktrees (≤4 паралельно)
-4. worktree commit → merge → `tester` smoke
-5. `scribe` → vault + kanban
-6. `/clear` перед наступною фазою
+```
+@planner → @critic → @team-lead → @ui / @backend / @tester → @reviewer → @keeper
+```
+
+1. `@planner` → recipes у vault (`30-tasks/<phase>/<id>.md`)
+2. `@critic` → APPROVED або NEEDS_REVISION (max 2 раунди)
+3. `@team-lead` → запускає worktrees паралельно (≤4)
+4. `@ui` / `@backend` / `@tester` → виконують recipes у worktrees
+5. `@reviewer` → APPROVED або правки (1 раунд)
+6. `@keeper` → vault sync + git commit/push + kanban
+7. `/clear` перед наступною фазою
 
 ## 6. Token economy (коротко)
 
-| Роль | Модель |
+| Агент | Модель |
 |---|---|
-| orchestrator, planner, critic, security-eng, crypto-eng, tester | opus |
-| designer, backend-eng, frontend-eng | opus |
-| devops, scribe | sonnet |
-| ralph-loop (icons, mistakes) | haiku |
-| ralph-loop (tests) | sonnet |
+| @planner, @critic, @team-lead | opus |
+| @ui, @backend, @tester, @reviewer | opus |
+| @keeper | sonnet |
+| ralph-loop | haiku / sonnet |
 
 Повні правила: `C:\Dev\ddbv2-vault\70-token-economy\rules.md`
 
@@ -84,7 +87,7 @@ claude mcp add github -- npx -y @modelcontextprotocol/server-github
 C:\Dev\ddbv2\
 ├── CLAUDE.md
 ├── docs\BRIEF.md
-├── .claude\agents\        ← 12 ролей
+├── .claude\agents\        ← 8 агентів (planner, critic, team-lead, ui, backend, tester, reviewer, keeper)
 ├── .claude\commands\
 ├── .ralph\                ← loops
 ├── scripts\               ← *.ps1
@@ -111,4 +114,4 @@ C:\Dev\worktrees\          ← git worktrees
 
 ---
 
-**Оновлення:** 2026-05-24 — Laravel 12 -> 13 (P1-T00). Далі редагує тільки `scribe`.
+**Оновлення:** 2026-05-24 — Laravel 12 → 13 (P1-T00). 2026-05-26 — 8-агентний pipeline (planner→critic→team-lead→ui/backend/tester→reviewer→keeper). Далі редагує тільки `@keeper`.

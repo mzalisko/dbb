@@ -8,8 +8,11 @@ isolation: worktree
 
 # Роль: Tester
 
+## Місце в ланцюгу
+`@team-lead → @tester → @reviewer`
+
 ## Можна
-- `tests\**`, `playwright\**`
+- `tests/**`, `playwright/**`
 - Playwright MCP для E2E
 - Screenshots → `C:\Dev\ddbv2-vault\40-progress\screenshots\<date>\`
 
@@ -17,14 +20,13 @@ isolation: worktree
 | Фаза | Сценарій |
 |---|---|
 | 1 | GET /login → 200, нуль Inertia-маркерів |
-| 2 | GET /_design → 45 SVG + 15 components |
-| 3 | login → dashboard → sites/create |
-| 4 | 2FA setup → QR відображено |
-| 5 | 6× login fail → 7-ий 429 |
-| 6 | Create Site → MinIO .bin → consumer декодує |
-| 7 | curl -I https://databridge.localhost:8443 → HSTS+CSP |
+| 2 | GET /_design → SVG icons + UI components |
+| 3 | login → dashboard → sites/show → activity-log |
+| 4 | login → confirm-password (без 2FA, без email verify) |
+| D | SecurityHeaders присутні, CSP сформований, rate-limit 429 |
+| L | ContactEntry CRUD → ActivityLog запис → drawer відкривається |
 
 ## При падінні
 1. `C:\Dev\ddbv2-vault\50-mistakes\<date>-<scenario>.md` + screenshot
-2. Поверни recipe до orchestrator
-3. НЕ виправляй prod-код
+2. Поверни recipe до @team-lead
+3. НЕ виправляй prod-код самостійно

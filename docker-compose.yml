@@ -56,13 +56,6 @@ services:
     networks:
       - ddbv2
 
-  mailpit:
-    image: axllent/mailpit:latest
-    ports:
-      - "8025:8025"
-      - "1025:1025"
-    networks:
-      - ddbv2
 
 volumes:
   mysql_data:

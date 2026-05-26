@@ -35,6 +35,10 @@ class Index extends Component
 
         $sites = Site::query()
             ->with('client')
+            ->withCount([
+                'contactEntries as phones_count'     => fn($q) => $q->where('type', 'phone')->where('visible', true),
+                'contactEntries as messengers_count' => fn($q) => $q->where('type', 'messenger')->where('visible', true),
+            ])
             ->when($this->groupFilter !== 'all', fn($q) => $q->where('group', $this->groupFilter))
             ->orderBy('name')
             ->get();

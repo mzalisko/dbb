@@ -86,11 +86,11 @@
                     @endif
                     <span style="display:inline-flex;align-items:center;gap:4px;">
                         <x-icon.phone width="11" height="11" />
-                        {{ $site->contactEntries()->where('type', 'phone')->where('visible', true)->count() }}
+                        {{ $site->phones_count }}
                     </span>
                     <span style="display:inline-flex;align-items:center;gap:4px;">
                         <x-icon.chat width="11" height="11" />
-                        {{ $site->contactEntries()->where('type', 'messenger')->where('visible', true)->count() }}
+                        {{ $site->messengers_count }}
                     </span>
                 </div>
             </a>

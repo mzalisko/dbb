@@ -7,7 +7,8 @@
 
     <x-ui.page-head
         eyebrow="Огляд"
-        :title="$totalSites . ' сайтів'"
+        :number="$totalSites"
+        label="сайтів"
         sub="Стан робочого простору. Натисніть на сайт щоб відкрити його." />
 
     <div style="padding:0 40px 64px;">
@@ -70,15 +71,13 @@
                         <div style="display:flex; justify-content:space-between; align-items:baseline; gap:12px;">
                             <div style="font:13px/1.4 var(--font-sans); color:var(--ink-8);">
                                 <span class="dot {{ $dotClass }}"></span>
-                                @if ($log->subject_type)
-                                    <span class="mono" style="color:var(--ink-9); font-size:12.5px;">
-                                        {{ class_basename($log->subject_type) }}
-                                    </span>
-                                @endif
+                                <span class="mono" style="color:var(--ink-9); font-size:12.5px;">
+                                    {{ $log->subject?->name ?? ($log->subject_type ? class_basename($log->subject_type) : '—') }}
+                                </span>
                                 <span style="color:var(--ink-5); margin-left:6px;">{{ $log->action }}</span>
                             </div>
                             <span class="mono" style="font:11px var(--font-mono); color:var(--ink-4); white-space:nowrap;">
-                                {{ $log->created_at->diffForHumans(null, true) }}
+                                {{ $log->created_at->format('H:i:s') }}
                             </span>
                         </div>
                     </div>

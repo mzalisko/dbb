@@ -87,6 +87,21 @@ class Show extends Component
             ->take(20)
             ->get();
 
+        // All entries including hidden (for full Data tab list)
+        $allPhonesAll = $this->site->contactEntries()->where('type', 'phone')->orderBy('order')->with('backups')->get();
+        $allMsgsAll   = $this->site->contactEntries()->where('type', 'messenger')->orderBy('order')->with('backups')->get();
+        $allPricesAll = $this->site->contactEntries()->where('type', 'price')->orderBy('order')->get();
+
+        // Extra categories
+        $addressCount = $this->site->contactEntries()->where('type', 'address')->count();
+        $socialCount  = $this->site->contactEntries()->where('type', 'social')->count();
+
+        // Messenger kinds grouped (for platform pills)
+        $msgByKind = $allMsgs->groupBy('kind');
+
+        // Prices grouped by SKU (all including hidden)
+        $priceBySkuAll = $allPricesAll->groupBy('sku');
+
         // Counts
         $phoneCount = $allPhones->count();
         $msgCount   = $allMsgs->count();
@@ -94,11 +109,13 @@ class Show extends Component
 
         return view('livewire.sites.show', compact(
             'geos',
-            'allPhones', 'allMsgs',
+            'allPhones', 'allMsgs', 'allPhonesAll', 'allMsgsAll', 'allPricesAll',
             'phonePrimaries', 'msgPrimaries',
-            'priceBySku',
+            'msgByKind',
+            'priceBySku', 'priceBySkuAll',
             'activityLogs',
             'phoneCount', 'msgCount', 'priceCount',
+            'addressCount', 'socialCount',
         ));
     }
 }

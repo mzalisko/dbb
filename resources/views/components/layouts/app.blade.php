@@ -35,7 +35,7 @@
         {{-- Search --}}
         <div class="sidebar-search">
             <x-icon.search width="13" height="13" />
-            <span style="flex:1; font:12.5px var(--font-sans);">Find…</span>
+            <span style="flex:1; font:12.5px var(--font-sans);">Знайти…</span>
             <span style="font:10.5px var(--font-mono); padding:2px 5px; border-radius:3px; background:var(--paper);">⌘K</span>
         </div>
 
@@ -56,6 +56,7 @@
                class="sidebar-link {{ request()->routeIs('groups.*') ? 'active' : '' }}">
                 <x-icon.groups width="14" height="14" />
                 <span style="flex:1;">Групи сайтів</span>
+                <span class="mono" style="font:11px var(--font-mono); color:var(--ink-4);">{{ \App\Models\Site::whereNotNull('group')->distinct('group')->count('group') }}</span>
             </a>
             <a href="{{ route('data.index') }}" wire:navigate
                class="sidebar-link {{ request()->routeIs('data.*') ? 'active' : '' }}">

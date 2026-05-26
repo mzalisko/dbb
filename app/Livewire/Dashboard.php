@@ -19,7 +19,7 @@ class Dashboard extends Component
             ->take(6)
             ->get();
 
-        $recentLogs = ActivityLog::with('user')
+        $recentLogs = ActivityLog::with(['user', 'subject'])
             ->latest('created_at')
             ->take(7)
             ->get();

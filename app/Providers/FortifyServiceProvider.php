@@ -44,5 +44,13 @@ class FortifyServiceProvider extends ServiceProvider
             $throttleKey = str()->lower($request->input(Fortify::username())).'|'.$request->ip();
             return Limit::perMinute(5)->by($throttleKey);
         });
+
+        RateLimiter::for('two-factor', function (Request $request) {
+            return Limit::perMinute(5)->by($request->session()->getId());
+        });
+
+        RateLimiter::for('forgot-password', function (Request $request) {
+            return Limit::perMinute(3)->by($request->ip());
+        });
     }
 }

@@ -15,13 +15,15 @@ class Site extends Model
     protected $fillable = [
         'client_id', 'name', 'url', 'wp_version',
         'php_version', 'status', 'group', 'group_color',
-        'last_checked_at', 'notes',
+        'last_checked_at', 'notes', 'is_favourite',
     ];
+
 
     protected function casts(): array
     {
         return [
             'last_checked_at' => 'datetime',
+            'is_favourite'    => 'boolean',
         ];
     }
 

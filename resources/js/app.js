@@ -1,5 +1,1 @@
-import Alpine from 'alpinejs';
-
-window.Alpine = Alpine;
-
-Alpine.start();
+// Alpine is bundled and started by @livewireScripts — no manual init needed.

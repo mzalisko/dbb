@@ -19,8 +19,8 @@ class DatabaseSeeder extends Seeder
         DB::statement('SET FOREIGN_KEY_CHECKS=0');
         ContactEntry::truncate();
         ActivityLog::truncate();
-        Site::withTrashed()->forceDelete();
-        Client::withTrashed()->forceDelete();
+        DB::table('sites')->truncate();
+        DB::table('clients')->truncate();
         User::truncate();
         DB::statement('SET FOREIGN_KEY_CHECKS=1');
 
@@ -162,6 +162,7 @@ class DatabaseSeeder extends Seeder
             'group'          => 'production',
             'group_color'    => '#5a8a3c',
             'last_checked_at'=> now()->subMinutes(5),
+            'is_favourite'   => true,
             'notes'          => "Основний демо-сайт.\n\nТелефони: 7 номерів (PL+UA geo)\nMessengers: 3 (Telegram, WhatsApp, FB Messenger)",
         ]);
 
@@ -175,6 +176,7 @@ class DatabaseSeeder extends Seeder
             'group'          => 'production',
             'group_color'    => '#5a8a3c',
             'last_checked_at'=> now()->subMinutes(20),
+            'is_favourite'   => true,
             'notes'          => "Головний сайт NordWave Digital.\n\nТелефони: 12 номерів\nMessengers: 2 (Telegram, WhatsApp)",
         ]);
 

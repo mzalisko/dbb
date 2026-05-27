@@ -461,29 +461,31 @@ svg { display: block; }
 
 /* --- Sidebar --- */
 .sidebar {
-  width: 220px;
+  width: 260px;
   background: var(--paper-2);
   border-right: 1px solid var(--ink-3);
+  box-shadow: 2px 0 16px rgba(26,24,20,.07);
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
   height: 100vh;
   position: sticky;
   top: 0;
-  padding: 28px 16px 20px;
+  padding: 28px 20px 22px;
 }
 .sidebar-search {
   display: flex;
   align-items: center;
   gap: 8px;
-  height: 32px;
-  padding: 0 10px;
+  height: 34px;
+  padding: 0 12px;
   background: var(--card);
   border: 1px solid var(--ink-3);
   border-radius: 6px;
   color: var(--ink-5);
-  margin-bottom: 16px;
+  margin-bottom: 20px;
   cursor: text;
+  box-shadow: 0 1px 2px rgba(26,24,20,.04);
 }
 .sidebar-nav {
   display: flex;
@@ -493,11 +495,11 @@ svg { display: block; }
 .sidebar-link {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 8px 10px;
-  border-radius: 4px;
+  gap: 11px;
+  padding: 9px 12px;
+  border-radius: 6px;
   font: 400 13.5px/1 var(--font-sans);
-  color: var(--ink-5);
+  color: var(--ink-6);
   transition: all .12s;
   width: 100%;
   text-align: left;
@@ -505,20 +507,22 @@ svg { display: block; }
   background: transparent;
   box-shadow: none;
 }
-.sidebar-link svg { color: var(--ink-4); }
+.sidebar-link svg { color: var(--ink-4); transition: color .12s; }
 .sidebar-link:hover {
   background: var(--card);
   color: var(--ink-9);
+  box-shadow: 0 1px 3px rgba(26,24,20,.06), inset 0 0 0 1px var(--ink-3);
 }
-.sidebar-link:hover svg { color: var(--ink-9); }
+.sidebar-link:hover svg { color: var(--ink-8); }
 .sidebar-link.active {
   background: var(--card);
-  box-shadow: inset 0 0 0 1px var(--ink-3);
+  box-shadow: 0 1px 3px rgba(26,24,20,.08), inset 0 0 0 1px var(--ink-3);
   color: var(--ink-9);
+  font-weight: 500;
 }
 .sidebar-link.active svg { color: var(--ink-9); }
 .sidebar-user {
-  padding-top: 16px;
+  padding-top: 18px;
   border-top: 1px solid var(--ink-3);
   display: flex;
   align-items: center;
@@ -549,3 +553,34 @@ svg { display: block; }
 
 /* hide Alpine x-cloak elements before JS loads */
 [x-cloak] { display: none !important; }
+
+
+/* --- Filter pills --- */
+.filter-pill {
+  display: inline-flex; align-items: center; gap: 8px;
+  height: 32px; padding: 0 14px; border-radius: 999px;
+  font: 13px var(--font-sans); cursor: pointer; white-space: nowrap; flex-shrink: 0;
+  background: var(--card); color: var(--ink-7);
+  box-shadow: inset 0 0 0 1px var(--ink-3);
+  transition: background .12s, color .12s, box-shadow .12s;
+}
+.filter-pill.is-active {
+  background: var(--ink-9); color: var(--paper); box-shadow: none;
+}
+.filter-pill-sm {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 26px; padding: 0 12px; border-radius: 999px;
+  font: 12px var(--font-sans); cursor: pointer; white-space: nowrap; flex-shrink: 0;
+  background: transparent; color: var(--ink-5);
+  box-shadow: inset 0 0 0 1px var(--ink-3);
+  transition: background .12s, color .12s, box-shadow .12s;
+}
+.filter-pill-sm.is-active {
+  background: var(--ink-9); color: var(--paper); box-shadow: none;
+}
+
+/* thin persistent scrollbar for scrollable lists */
+.thin-scroll { scrollbar-width: thin; scrollbar-color: var(--ink-3) transparent; }
+.thin-scroll::-webkit-scrollbar { width: 3px; height: 3px; }
+.thin-scroll::-webkit-scrollbar-track { background: transparent; }
+.thin-scroll::-webkit-scrollbar-thumb { background: var(--ink-3); border-radius: 2px; }

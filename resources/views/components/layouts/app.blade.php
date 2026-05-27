@@ -22,13 +22,13 @@
     {{-- Sidebar --}}
     <aside class="sidebar">
         {{-- Logo --}}
-        <div style="display:flex; align-items:center; gap:10px; padding:0 6px 22px;">
-            <span style="width:30px; height:30px; border-radius:6px; background:var(--ink-9); color:var(--paper); display:inline-flex; align-items:center; justify-content:center; flex-shrink:0;">
-                <x-icon.logo width="16" height="16" />
+        <div style="display:flex; align-items:center; gap:12px; padding:0 4px 26px;">
+            <span style="width:34px; height:34px; border-radius:8px; background:var(--ink-9); color:var(--paper); display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; box-shadow:0 2px 6px rgba(26,24,20,.18);">
+                <x-icon.logo width="18" height="18" />
             </span>
             <div>
-                <div style="font:500 14px/1 var(--font-sans); color:var(--ink-9);">DataBridge</div>
-                <div style="font:11px/1 var(--font-mono); color:var(--ink-5); margin-top:4px;">CRM</div>
+                <div style="font:600 14.5px/1 var(--font-sans); color:var(--ink-9); letter-spacing:-.01em;">DataBridge</div>
+                <div style="font:11px/1 var(--font-mono); color:var(--ink-5); margin-top:5px; letter-spacing:.04em; text-transform:uppercase;">CRM v2</div>
             </div>
         </div>
 

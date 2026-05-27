@@ -131,5 +131,7 @@
       }
     }
     </script>
+
+    <x-ui.toast />
 </body>
 </html>

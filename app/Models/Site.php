@@ -16,14 +16,15 @@ class Site extends Model
         'client_id', 'name', 'url', 'wp_version',
         'php_version', 'status', 'group', 'group_color',
         'last_checked_at', 'notes', 'is_favourite',
+        'failover_enabled', 'failover_interval', 'failover_threshold',
     ];
-
 
     protected function casts(): array
     {
         return [
-            'last_checked_at' => 'datetime',
-            'is_favourite'    => 'boolean',
+            'last_checked_at'  => 'datetime',
+            'is_favourite'     => 'boolean',
+            'failover_enabled' => 'boolean',
         ];
     }
 

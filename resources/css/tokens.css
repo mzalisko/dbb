@@ -584,3 +584,142 @@ svg { display: block; }
 .thin-scroll::-webkit-scrollbar { width: 3px; height: 3px; }
 .thin-scroll::-webkit-scrollbar-track { background: transparent; }
 .thin-scroll::-webkit-scrollbar-thumb { background: var(--ink-3); border-radius: 2px; }
+
+/* ============================================================
+   Page-level layout (extracted from inline styles 2026-05-27)
+   ============================================================ */
+
+/* Scrollable page shell */
+.page { flex: 1; display: flex; flex-direction: column; overflow-y: auto; }
+
+/* List header (big count title) */
+.list-head { padding: 40px 40px 28px; flex-shrink: 0; }
+.list-title { font: 400 36px/1.05 var(--font-sans); letter-spacing: -0.03em; }
+.list-title__n { color: var(--ink-9); }
+.list-title__w { color: var(--ink-5); }
+
+/* Filter pill row */
+.filter-row { padding: 0 40px 16px; display: flex; gap: 8px; flex-wrap: wrap; }
+.pill-dot { width: 6px; height: 6px; border-radius: 999px; }
+
+/* --- Search bar --- */
+.search-row { padding: 0 40px 24px; }
+.search-box {
+  position: relative; display: flex; align-items: center; gap: 10px;
+  height: 42px; padding: 0 14px;
+  background: var(--paper-2); border: 1px solid var(--ink-3); border-radius: 6px;
+  transition: border-color .15s, background .15s;
+}
+.search-box.is-filled { border-color: var(--ink-7); background: var(--card); }
+.search-box__icon { color: var(--ink-4); flex-shrink: 0; }
+.search-box__input {
+  flex: 1; background: transparent; border: none; outline: none;
+  font: 14px var(--font-sans); color: var(--ink-9);
+}
+.search-box__kbd {
+  font: 11px var(--font-mono); color: var(--ink-4);
+  padding: 2px 6px; border: 1px solid var(--ink-3); border-radius: 3px;
+  flex-shrink: 0; user-select: none;
+}
+.search-box__clear {
+  color: var(--ink-5); display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; width: 20px; height: 20px; border-radius: 999px;
+  background: var(--ink-3); cursor: pointer; transition: background .12s, color .12s;
+}
+.search-box__clear:hover { background: var(--ink-5); color: var(--paper); }
+
+/* --- Site cards grid --- */
+.sites-grid {
+  padding: 0 40px 64px; display: grid;
+  grid-template-columns: repeat(3, 1fr); gap: 14px; align-items: start;
+}
+.site-card { height: 100%; position: relative; }
+.site-card__link {
+  text-align: left; padding: 18px 42px 18px 18px;
+  background: var(--card); border: 1px solid var(--ink-3); border-radius: 4px;
+  cursor: pointer; transition: border-color .15s;
+  display: flex; flex-direction: column; height: 100%;
+}
+.site-card__link:hover { border-color: var(--ink-9); }
+.site-card__fav {
+  position: absolute; top: 16px; right: 16px; z-index: 1;
+  padding: 4px; border-radius: 4px; cursor: pointer; transition: opacity .12s;
+}
+.site-card__fav:hover { opacity: .7; }
+.site-card__body { flex: 1; }
+.site-card__head { display: flex; align-items: flex-start; gap: 10px; }
+.site-card__title {
+  font: 13.5px var(--font-mono); color: var(--ink-9);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.site-card__status { margin-top: 4px; font: 12px var(--font-sans); color: var(--ink-5); }
+.site-card__status.is-offline { color: var(--bad); }
+.site-card__when { color: var(--ink-4); margin-left: 6px; }
+.site-card__banner {
+  margin-top: 12px; padding: 8px 10px;
+  border-left: 2px solid var(--bad); background: var(--bad-soft);
+  font: 12px var(--font-mono); color: var(--bad);
+}
+.site-card__footer {
+  margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--ink-3);
+  display: flex; gap: 18px; font: 12px var(--font-mono); color: var(--ink-5);
+}
+.meta-chip { display: inline-flex; align-items: center; gap: 4px; }
+.group-dot { width: 6px; height: 6px; border-radius: 999px; display: inline-block; margin-right: 6px; }
+
+/* List / search empty states */
+.list-empty {
+  grid-column: 1 / -1; padding: 80px 40px; text-align: center;
+  color: var(--ink-5); font: 13.5px var(--font-sans);
+}
+.search-empty {
+  padding: 0 40px 64px; text-align: center;
+  color: var(--ink-5); font: 13.5px var(--font-sans);
+}
+
+/* ============================================================
+   Drawer (slide-in panel) — shared by sites + groups create forms
+   ============================================================ */
+.drawer-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 60; }
+.drawer-panel {
+  position: fixed; top: 0; right: 0; bottom: 0; width: 480px; max-width: 100vw;
+  background: var(--card); border-left: 1px solid var(--ink-3); z-index: 61;
+  display: flex; flex-direction: column;
+}
+.drawer-panel--narrow { width: 440px; }
+.drawer-head { padding: 28px 28px 0; flex-shrink: 0; }
+.drawer-head__row { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.drawer-title { font: 400 22px/1.1 var(--font-sans); color: var(--ink-9); letter-spacing: -0.02em; }
+.drawer-close {
+  width: 28px; height: 28px; border-radius: 999px; color: var(--ink-5);
+  display: inline-flex; align-items: center; justify-content: center;
+  flex-shrink: 0; margin-top: 2px; cursor: pointer; transition: color .12s;
+}
+.drawer-close:hover { color: var(--ink-9); }
+.drawer-divider { margin-top: 20px; border-bottom: 1px solid var(--ink-3); }
+.drawer-body { flex: 1; overflow-y: auto; padding: 24px 28px; }
+.drawer-foot {
+  flex-shrink: 0; padding: 16px 28px; border-top: 1px solid var(--ink-3);
+  display: flex; align-items: center; justify-content: flex-end; gap: 8px;
+  background: var(--paper-2);
+}
+
+/* --- Form field helpers --- */
+.field { margin-bottom: 24px; }
+.field-error { font: 12px var(--font-sans); color: var(--bad); margin-top: 6px; display: block; }
+.field-select {
+  width: 100%; height: 40px; font: 14px var(--font-sans); color: var(--ink-9);
+  background: transparent; border: 0; border-bottom: 1px solid var(--ink-3);
+  outline: none; cursor: pointer;
+}
+.radio-list { display: flex; flex-direction: column; gap: 8px; }
+.radio-row {
+  display: flex; align-items: center; gap: 10px; cursor: pointer;
+  font: 13.5px var(--font-sans); color: var(--ink-8);
+}
+.radio-native { width: 16px; height: 16px; cursor: pointer; }
+
+/* Color picker (create group) */
+.color-row { display: flex; align-items: center; gap: 14px; margin-top: 8px; }
+.color-input { width: 40px; height: 40px; border: 1px solid var(--ink-3); border-radius: 6px; cursor: pointer; padding: 2px; }
+.color-hex { font: 13px var(--font-mono); color: var(--ink-5); }

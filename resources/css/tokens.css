@@ -611,8 +611,21 @@ svg { display: block; }
 .list-title__w { color: var(--ink-5); }
 
 /* Filter pill row */
-.filter-row { padding: 0 40px 16px; display: flex; gap: 8px; flex-wrap: wrap; }
+.filter-row { padding: 0 40px 16px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .pill-dot { width: 6px; height: 6px; border-radius: 999px; }
+
+/* Overflow ("more") pill + popover (Chrome-bookmarks-bar style) */
+.filter-more { position: relative; }
+.filter-more > .dropdown { top: calc(100% + 6px); left: 0; }
+.pill-menu-item {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  padding: 8px 12px; border-radius: 4px;
+  font: 13px var(--font-sans); color: var(--ink-7);
+  cursor: pointer; text-align: left; white-space: nowrap;
+  transition: background .1s, color .1s;
+}
+.pill-menu-item:hover { background: var(--paper-2); color: var(--ink-9); }
+.pill-menu-item.is-active { background: var(--ink-9); color: var(--paper); }
 
 /* --- Search bar --- */
 .search-row { padding: 0 40px 24px; }

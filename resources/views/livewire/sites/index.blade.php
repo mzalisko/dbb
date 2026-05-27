@@ -62,17 +62,44 @@ $initialCount = $initialGroup === 'all'
         </h1>
     </header>
 
-    {{-- Group filter --}}
+    {{-- Group filter — first 5 inline, rest collapse into an overflow menu --}}
+    @php
+        $pillLimit      = 5;
+        $visibleGroups  = $groups->take($pillLimit);
+        $overflowGroups = $groups->slice($pillLimit);
+    @endphp
     <div class="filter-row">
         <button class="filter-pill {{ $initialGroup === 'all' ? 'is-active' : '' }}" :class="activeGroup === 'all' ? 'is-active' : ''" x-on:click="setGroup('all')">
             Усі
         </button>
-        @foreach ($groups as $group)
+        @foreach ($visibleGroups as $group)
             <button class="filter-pill {{ $initialGroup === $group->group ? 'is-active' : '' }}" :class="activeGroup === '{{ $group->group }}' ? 'is-active' : ''" x-on:click="setGroup('{{ $group->group }}')">
                 <span class="pill-dot" style="background:{{ $group->group_color }};"></span>
                 {{ ucfirst($group->group) }}
             </button>
         @endforeach
+
+        @if ($overflowGroups->isNotEmpty())
+            @php $overflowNames = $overflowGroups->pluck('group')->values(); @endphp
+            <div class="filter-more" x-data="{ moreOpen: false }" @click.outside="moreOpen = false">
+                <button class="filter-pill"
+                        :class="{{ Illuminate\Support\Js::from($overflowNames) }}.includes(activeGroup) ? 'is-active' : ''"
+                        @click="moreOpen = !moreOpen" title="Ще групи">
+                    <x-icon.grid width="13" height="13" />
+                    <span x-show="{{ Illuminate\Support\Js::from($overflowNames) }}.includes(activeGroup)"
+                          x-text="activeGroup" style="text-transform:capitalize;"></span>
+                </button>
+                <div class="dropdown" x-show="moreOpen" x-cloak>
+                    @foreach ($overflowGroups as $group)
+                        <button class="pill-menu-item" :class="activeGroup === '{{ $group->group }}' ? 'is-active' : ''"
+                                @click="setGroup('{{ $group->group }}'); moreOpen = false">
+                            <span class="pill-dot" style="background:{{ $group->group_color }};"></span>
+                            {{ ucfirst($group->group) }}
+                        </button>
+                    @endforeach
+                </div>
+            </div>
+        @endif
     </div>
 
     {{-- Search bar --}}

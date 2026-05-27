@@ -81,17 +81,41 @@
                     <a href="{{ route('sites.index') }}" wire:navigate class="btn btn-ghost btn-sm" style="padding:0;">Усі →</a>
                 </header>
 
-                {{-- Group filter strip (Alpine — instant, no round-trip) --}}
-                <div style="display:flex; gap:6px; overflow-x:auto; padding:8px 0 14px; scrollbar-width:none; -ms-overflow-style:none;">
+                {{-- Group filter strip — first 4 inline, rest in overflow menu --}}
+                @php
+                    $dashVisible  = $groups->take(4);
+                    $dashOverflow = $groups->slice(4);
+                @endphp
+                <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center; padding:8px 0 14px;">
                     <button class="filter-pill-sm" :class="activeGroup === 'all' ? 'is-active' : ''" x-on:click="setGroup('all')">
                         Усі
                     </button>
-                    @foreach ($groups as $group)
+                    @foreach ($dashVisible as $group)
                         <button class="filter-pill-sm" :class="activeGroup === '{{ $group->group }}' ? 'is-active' : ''" x-on:click="setGroup('{{ $group->group }}')">
                             <span style="width:5px; height:5px; border-radius:999px; background:{{ $group->group_color }};"></span>
                             {{ ucfirst($group->group) }}
                         </button>
                     @endforeach
+
+                    @if ($dashOverflow->isNotEmpty())
+                        @php $dashOverflowNames = $dashOverflow->pluck('group')->values(); @endphp
+                        <div class="filter-more" x-data="{ moreOpen: false }" @click.outside="moreOpen = false">
+                            <button class="filter-pill-sm"
+                                    :class="{{ Illuminate\Support\Js::from($dashOverflowNames) }}.includes(activeGroup) ? 'is-active' : ''"
+                                    @click="moreOpen = !moreOpen" title="Ще групи">
+                                <x-icon.grid width="12" height="12" />
+                            </button>
+                            <div class="dropdown" x-show="moreOpen" x-cloak>
+                                @foreach ($dashOverflow as $group)
+                                    <button class="pill-menu-item" :class="activeGroup === '{{ $group->group }}' ? 'is-active' : ''"
+                                            @click="setGroup('{{ $group->group }}'); moreOpen = false">
+                                        <span class="pill-dot" style="background:{{ $group->group_color }};"></span>
+                                        {{ ucfirst($group->group) }}
+                                    </button>
+                                @endforeach
+                            </div>
+                        </div>
+                    @endif
                 </div>
 
                 <div class="thin-scroll" style="max-height:427px; overflow-y:auto; padding-right:10px;">

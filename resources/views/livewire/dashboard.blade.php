@@ -1,5 +1,5 @@
 <div style="flex:1; display:flex; flex-direction:column; overflow-y:auto;">
-    <x-ui.topbar :crumbs="['Дашборд']" :bell="false" />
+    <x-ui.topbar :crumbs="['Дашборд']" />
 
     <x-ui.page-head :title="'Привіт, ' . (auth()->user()->name ? explode(' ', auth()->user()->name)[0] : 'друже')" />
 

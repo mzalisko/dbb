@@ -47,7 +47,7 @@ $initialCount = $initialGroup === 'all'
      @site-created.window="showCreate = false">
 
     <x-ui.topbar :crumbs="['Сайти']">
-        <x-ui.button variant="secondary" size="sm" style="margin-right:4px;">
+        <x-ui.button variant="secondary" size="sm">
             <x-icon.export width="13" height="13" /> Експорт
         </x-ui.button>
         <x-ui.button size="sm" @click="showCreate = true">

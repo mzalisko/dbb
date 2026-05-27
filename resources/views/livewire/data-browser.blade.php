@@ -1,6 +1,6 @@
 <div style="flex:1; display:flex; flex-direction:column;">
     <x-ui.topbar :crumbs="['Браузер даних']">
-        <x-ui.button variant="secondary" size="sm" style="margin-right:4px;">
+        <x-ui.button variant="secondary" size="sm">
             <x-icon.export width="13" height="13" /> Експорт
         </x-ui.button>
         <x-ui.button size="sm">Bulk операції</x-ui.button>

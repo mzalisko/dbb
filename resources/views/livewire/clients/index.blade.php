@@ -1,6 +1,6 @@
 <div style="flex:1; display:flex; flex-direction:column; overflow-y:auto;">
     <x-ui.topbar :crumbs="['Клієнти']">
-        <button class="btn btn-secondary btn-sm" style="margin-right:4px;">
+        <button class="btn btn-secondary btn-sm">
             <x-icon.export width="13" height="13" /> Експорт
         </button>
         <button class="btn btn-primary btn-sm" wire:click="$dispatch('open-modal','client-form')">

@@ -1,14 +1,11 @@
 <div style="flex:1; display:flex; flex-direction:column; overflow-y:auto;" x-data="{ tab: 'data', settingsSub: 'failover', actFilter: 'all' }">
 
-    <x-ui.topbar :crumbs="['Сайти', $site->name]">
-        <button onclick="history.back()" class="btn btn-ghost btn-sm">
-            &larr; Назад
+    <x-ui.topbar :crumbs="['Сайти', $site->name]" :back="true">
+        <button class="btn btn-ghost btn-sm">
+            <x-icon.refresh width="13" height="13" /> Sync
         </button>
-        <button class="btn btn-ghost btn-sm" style="margin-left:4px;">
-            &#8635; Sync
-        </button>
-        <button class="btn btn-primary btn-sm" style="margin-left:4px;">
-            + Додати
+        <button class="btn btn-primary btn-sm">
+            <x-icon.plus width="13" height="13" /> Додати
         </button>
     </x-ui.topbar>
 

@@ -1,12 +1,4 @@
 {{-- ── Messengers sub-section ── --}}
-{{-- ЯК ЦЕ ПРАЦЮЄ box --}}
-<div class="howto">
-    <div class="howto__title">Як це працює</div>
-    <div class="howto__text">
-        Один <b>головний месенджер</b> на гео-пул, інші — резерв. Можна змішувати Telegram / Viber / WhatsApp в одному пулі — клієнт обере зручний.
-    </div>
-</div>
-
 {{-- Platform pills --}}
 @if($msgByKind->count() > 0)
     <div class="msg-pills">
@@ -52,7 +44,7 @@
             <span class="cc-arrow">&rarr;</span>
         </div>
         @if($msg->backups->count()>0)
-            <div x-data="{open:true}" class="creserve">
+            <div x-data="{open:false}" class="creserve">
                 <div class="creserve__head" @click="open=!open">
                     <span class="creserve__title">
                         <span x-text="open?'&#x25BE;':'&#x25B8;'"></span> РЕЗЕРВ &middot; {{ $msg->backups->count() }}

@@ -1,12 +1,4 @@
 {{-- ── Phones sub-section ── --}}
-{{-- ЯК ЦЕ ПРАЦЮЄ box --}}
-<div class="howto">
-    <div class="howto__title">Як це працює</div>
-    <div class="howto__text">
-        Резервні номери прив'язані до конкретного <b>головного</b> та показані з відступом під ним. Натисніть <b>+ резерв</b> щоб додати запасний до будь-якого головного.
-    </div>
-</div>
-
 {{-- Phone table --}}
 <div class="card ctable">
     {{-- Header --}}
@@ -40,7 +32,7 @@
 
         {{-- РЕЗЕРВ section --}}
         @if($phone->backups->count() > 0)
-            <div x-data="{open:true}" class="creserve">
+            <div x-data="{open:false}" class="creserve">
                 {{-- РЕЗЕРВ header --}}
                 <div class="creserve__head" @click="open=!open">
                     <span class="creserve__title">

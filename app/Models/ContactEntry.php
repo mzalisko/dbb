@@ -2,12 +2,15 @@
 
 namespace App\Models;
 
+use App\Observers\ContactEntryObserver;
+use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Collection;
 
+#[ObservedBy(ContactEntryObserver::class)]
 class ContactEntry extends Model
 {
     use HasFactory;

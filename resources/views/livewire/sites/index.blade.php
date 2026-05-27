@@ -87,7 +87,7 @@ $initialCount = $initialGroup === 'all'
                         @click="moreOpen = !moreOpen" title="Ще групи">
                     <x-icon.grid width="13" height="13" />
                     <span x-show="{{ Illuminate\Support\Js::from($overflowNames) }}.includes(activeGroup)"
-                          x-text="activeGroup" style="text-transform:capitalize;"></span>
+                          x-text="activeGroup" class="capitalize"></span>
                 </button>
                 <div class="dropdown" x-show="moreOpen" x-cloak>
                     @foreach ($overflowGroups as $group)
@@ -110,7 +110,7 @@ $initialCount = $initialGroup === 'all'
                    placeholder="Пошук сайтів…" @keydown.escape="search = ''" />
             <span class="search-box__kbd" x-show="!search">/</span>
             <button class="search-box__clear" x-show="search" @click="search = ''; $refs.searchInput.focus()">
-                <x-icon.close width="10" height="10" style="display:block;" />
+                <x-icon.close width="10" height="10" />
             </button>
         </div>
     </div>
@@ -161,7 +161,7 @@ $initialCount = $initialGroup === 'all'
                     <div class="site-card__body">
                         <div class="site-card__head">
                             <span class="avatar avatar-sq">{{ strtoupper(substr($site->name, 0, 1)) }}</span>
-                            <div style="flex:1; min-width:0;">
+                            <div class="site-card__info">
                                 <div class="site-card__title mono">{{ $site->name }}</div>
                                 <div class="site-card__status {{ $site->status === 'offline' ? 'is-offline' : '' }}">
                                     <span class="dot {{ $statusClass }}"></span>{{ $statusLabel }}
@@ -200,7 +200,7 @@ $initialCount = $initialGroup === 'all'
 
     {{-- Empty search state — display:none initially (search always empty on load) so it never flashes --}}
     <div class="search-empty" style="display:none;" x-show="search !== '' && visibleCount() === 0">
-        Нічого не знайдено за запитом «<span x-text="search" style="color:var(--ink-7);"></span>»
+        Нічого не знайдено за запитом «<span x-text="search" class="search-match"></span>»
     </div>
 
     {{-- ══ Create Site Drawer ══ --}}
@@ -226,7 +226,7 @@ $initialCount = $initialGroup === 'all'
             <div class="drawer-head__row">
                 <h2 class="drawer-title">Додати сайт</h2>
                 <button class="drawer-close" @click="showCreate = false">
-                    <x-icon.close width="16" height="16" style="display:block;" />
+                    <x-icon.close width="16" height="16" />
                 </button>
             </div>
             <div class="drawer-divider"></div>

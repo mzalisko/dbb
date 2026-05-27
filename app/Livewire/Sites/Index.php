@@ -33,10 +33,16 @@ class Index extends Component
             'createStatus' => 'in:active,maintenance,offline',
         ]);
 
+        $client = Client::first();
+        if (!$client) {
+            $this->addError('createName', 'Спочатку додайте клієнта');
+            return;
+        }
+
         $group = $this->createGroupId ? SiteGroup::find($this->createGroupId) : null;
 
         Site::create([
-            'client_id'   => Client::first()?->id ?? 1,
+            'client_id'   => $client->id,
             'name'        => $this->createName,
             'url'         => $this->createUrl ?: null,
             'group'       => $group?->name,

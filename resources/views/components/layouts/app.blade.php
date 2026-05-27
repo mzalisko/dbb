@@ -47,28 +47,28 @@
                :class="{ 'active': path.startsWith('/sites') }">
                 <x-icon.sites width="14" height="14" />
                 <span style="flex:1;">Сайти</span>
-                <span class="mono" style="font:11px var(--font-mono); color:var(--ink-4);">{{ \App\Models\Site::count() }}</span>
+                <span class="mono" style="font:11px var(--font-mono); color:var(--ink-4);">{{ Cache::remember('nav:sites', 60, fn() => \App\Models\Site::count()) }}</span>
             </a>
             <a href="{{ route('groups.index') }}" wire:navigate.hover
                class="sidebar-link {{ request()->routeIs('groups.*') ? 'active' : '' }}"
                :class="{ 'active': path.startsWith('/groups') }">
                 <x-icon.groups width="14" height="14" />
                 <span style="flex:1;">Групи сайтів</span>
-                <span class="mono" style="font:11px var(--font-mono); color:var(--ink-4);">{{ \App\Models\Site::whereNotNull('group')->distinct('group')->count('group') }}</span>
+                <span class="mono" style="font:11px var(--font-mono); color:var(--ink-4);">{{ Cache::remember('nav:groups', 60, fn() => \App\Models\Site::whereNotNull('group')->distinct('group')->count('group')) }}</span>
             </a>
             <a href="{{ route('data.index') }}" wire:navigate.hover
                class="sidebar-link {{ request()->routeIs('data.*') ? 'active' : '' }}"
                :class="{ 'active': path.startsWith('/data') }">
                 <x-icon.data width="14" height="14" />
                 <span style="flex:1;">Браузер даних</span>
-                <span class="mono" style="font:11px var(--font-mono); color:var(--ink-4);">{{ \App\Models\ContactEntry::count() }}</span>
+                <span class="mono" style="font:11px var(--font-mono); color:var(--ink-4);">{{ Cache::remember('nav:entries', 60, fn() => \App\Models\ContactEntry::count()) }}</span>
             </a>
             <a href="{{ route('users.index') }}" wire:navigate.hover
                class="sidebar-link {{ request()->routeIs('users.*') ? 'active' : '' }}"
                :class="{ 'active': path.startsWith('/team') }">
                 <x-icon.team width="14" height="14" />
                 <span style="flex:1;">Команда</span>
-                <span class="mono" style="font:11px var(--font-mono); color:var(--ink-4);">{{ \App\Models\User::count() }}</span>
+                <span class="mono" style="font:11px var(--font-mono); color:var(--ink-4);">{{ Cache::remember('nav:users', 60, fn() => \App\Models\User::count()) }}</span>
             </a>
             <a href="{{ route('activity.index') }}" wire:navigate.hover
                class="sidebar-link {{ request()->routeIs('activity.*') ? 'active' : '' }}"

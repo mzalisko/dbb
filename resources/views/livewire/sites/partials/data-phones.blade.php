@@ -1,105 +1,96 @@
 {{-- ── Phones sub-section ── --}}
 {{-- ЯК ЦЕ ПРАЦЮЄ box --}}
-<div style="margin-top:16px; padding:14px 18px; border-radius:4px; background:var(--accent-soft); border:1px solid var(--accent); color:#7a3818;">
-    <div style="font:11px var(--font-mono); letter-spacing:.16em; text-transform:uppercase; margin-bottom:6px; color:var(--accent);">Як це працює</div>
-    <div style="font:13.5px/1.55 var(--font-sans);">
+<div class="howto">
+    <div class="howto__title">Як це працює</div>
+    <div class="howto__text">
         Резервні номери прив'язані до конкретного <b>головного</b> та показані з відступом під ним. Натисніть <b>+ резерв</b> щоб додати запасний до будь-якого головного.
     </div>
 </div>
 
 {{-- Phone table --}}
-<div class="card" style="margin-top:16px; overflow:hidden;">
+<div class="card ctable">
     {{-- Header --}}
-    <div style="display:grid; grid-template-columns:24px 40px 1fr 1fr 160px 120px 32px; gap:12px; padding:10px 18px; background:var(--paper-2); border-bottom:1px solid var(--ink-3);">
+    <div class="crow crow--head">
         <span></span>
-        <span class="eyebrow" style="font-size:9.5px;">#</span>
-        <span class="eyebrow" style="font-size:9.5px;">Номер</span>
-        <span class="eyebrow" style="font-size:9.5px;">Мітка</span>
-        <span class="eyebrow" style="font-size:9.5px;">Гео-правило</span>
-        <span class="eyebrow" style="font-size:9.5px;">Роль</span>
+        <span class="eyebrow eyebrow-xxs">#</span>
+        <span class="eyebrow eyebrow-xxs">Номер</span>
+        <span class="eyebrow eyebrow-xxs">Мітка</span>
+        <span class="eyebrow eyebrow-xxs">Гео-правило</span>
+        <span class="eyebrow eyebrow-xxs">Роль</span>
         <span></span>
     </div>
 
     @forelse($phonePrimaries as $i => $phone)
         @if($i > 0)
-            <div style="border-top:1px solid var(--ink-3);"></div>
+            <div class="crow-sep"></div>
         @endif
 
         {{-- Primary row --}}
-        <div wire:click="openPhone({{ $phone->id }})"
-             style="display:grid; grid-template-columns:24px 40px 1fr 1fr 160px 120px 32px; gap:12px; padding:14px 18px; align-items:center; cursor:pointer; transition:background .1s;"
-             onmouseover="this.style.background='var(--paper-2)'" onmouseout="this.style.background='transparent'">
-            <span style="color:var(--ink-3); font:14px var(--font-mono); cursor:grab;">&#x2807;</span>
-            <span style="font:11px var(--font-mono); color:var(--ink-4);">#{{ $i+1 }}</span>
-            <span class="mono" style="font:14px var(--font-mono); color:var(--ink-9);">{{ $phone->value }}</span>
-            <span style="font:13px var(--font-sans); color:var(--ink-7);">{{ $phone->label }}</span>
-            <span style="font:12.5px var(--font-sans); color:var(--ink-5);">{{ $phone->geo_label }}</span>
-            <span style="display:inline-flex; align-items:center; gap:5px; font:12.5px var(--font-sans);">
-                <span style="width:7px;height:7px;border-radius:999px;background:var(--ok);"></span> Головний
+        <div wire:click="openPhone({{ $phone->id }})" class="crow crow--main">
+            <span class="cc-drag">&#x2807;</span>
+            <span class="cc-num">#{{ $i+1 }}</span>
+            <span class="mono cc-val">{{ $phone->value }}</span>
+            <span class="cc-label">{{ $phone->label }}</span>
+            <span class="cc-geo">{{ $phone->geo_label }}</span>
+            <span class="cc-role">
+                <span class="role-dot" style="background:var(--ok);"></span> Головний
             </span>
-            <span style="color:var(--ink-4);">&rarr;</span>
+            <span class="cc-arrow">&rarr;</span>
         </div>
 
         {{-- РЕЗЕРВ section --}}
         @if($phone->backups->count() > 0)
-            <div x-data="{open:true}" style="background:var(--paper-2); border-top:1px solid var(--ink-3);">
+            <div x-data="{open:true}" class="creserve">
                 {{-- РЕЗЕРВ header --}}
-                <div style="display:flex; align-items:center; justify-content:space-between; padding:8px 18px 8px 64px; cursor:pointer;" @click="open=!open">
-                    <span style="display:inline-flex; align-items:center; gap:6px; font:11px var(--font-mono); color:var(--ink-5); letter-spacing:.06em;">
+                <div class="creserve__head" @click="open=!open">
+                    <span class="creserve__title">
                         <span x-text="open?'&#x25BE;':'&#x25B8;'"></span>
                         РЕЗЕРВ &middot; {{ $phone->backups->count() }}
                     </span>
-                    <button style="font:11.5px var(--font-sans); color:var(--ink-5); cursor:pointer;" @click.stop>
-                        + Додати резерв
-                    </button>
+                    <button class="creserve__add" @click.stop>+ Додати резерв</button>
                 </div>
                 {{-- Backup rows --}}
                 <div x-show="open">
                     @foreach($phone->backups as $j => $backup)
-                        <div style="display:grid; grid-template-columns:24px 40px 1fr 1fr 160px 120px 32px; gap:12px; padding:10px 18px 10px 64px; align-items:center; border-top:1px solid var(--ink-3); cursor:pointer; transition:background .1s;"
-                             onmouseover="this.style.background='var(--paper-2)'" onmouseout="this.style.background='transparent'">
-                            <span style="color:var(--ink-4); font:12px var(--font-mono);">&hookrightarrow;</span>
-                            <span style="font:11px var(--font-mono); color:var(--ink-4);">#{{ $j+1 }}</span>
-                            <span class="mono" style="font:13px var(--font-mono); color:var(--ink-7);">{{ $backup->value }}</span>
-                            <span style="font:12.5px var(--font-sans); color:var(--ink-5);">{{ $backup->label }}</span>
-                            <span style="font:12px var(--font-sans); color:var(--ink-5);">{{ $backup->geo_label }}</span>
-                            <span style="display:inline-flex; align-items:center; gap:5px; font:12px var(--font-sans); color:var(--ink-5);">
-                                <span style="width:7px;height:7px;border-radius:999px;background:var(--info);"></span> Резерв
+                        <div class="crow crow--backup">
+                            <span class="cc-drag" style="color:var(--ink-4); font-size:12px;">&hookrightarrow;</span>
+                            <span class="cc-num">#{{ $j+1 }}</span>
+                            <span class="mono cc-val--sub">{{ $backup->value }}</span>
+                            <span class="cc-label--muted">{{ $backup->label }}</span>
+                            <span class="cc-geo">{{ $backup->geo_label }}</span>
+                            <span class="cc-role cc-role--muted">
+                                <span class="role-dot" style="background:var(--info);"></span> Резерв
                             </span>
-                            <span style="color:var(--ink-4);">&rarr;</span>
+                            <span class="cc-arrow">&rarr;</span>
                         </div>
                     @endforeach
                 </div>
             </div>
         @endif
     @empty
-        <div style="padding:48px; text-align:center; color:var(--ink-5); font:13px var(--font-sans);">Немає телефонів для обраного гео.</div>
+        <div class="ctable__empty">Немає телефонів для обраного гео.</div>
     @endforelse
 
     {{-- Hidden entries --}}
     @foreach($allPhonesAll->filter(fn($e)=>!$e->visible && is_null($e->parent_id)) as $phone)
-        <div style="display:grid; grid-template-columns:24px 40px 1fr 1fr 160px 120px 32px; gap:12px; padding:14px 18px; align-items:center; border-top:1px solid var(--ink-3); opacity:.5;">
-            <span style="color:var(--ink-3); font:14px var(--font-mono);">&#x2807;</span>
-            <span style="font:11px var(--font-mono); color:var(--ink-4);">#{{ $loop->index+1 }}</span>
-            <span class="mono" style="font:14px var(--font-mono); color:var(--ink-7);">{{ $phone->value }}</span>
-            <span style="font:13px var(--font-sans); color:var(--ink-5);">{{ $phone->label }}</span>
-            <span style="font:12.5px var(--font-sans); color:var(--ink-5);">{{ $phone->geo_label }}</span>
-            <span style="display:inline-flex; align-items:center; gap:5px; font:12.5px var(--font-sans); color:var(--ink-5);">
-                <span style="width:7px;height:7px;border-radius:999px;background:var(--ink-4);"></span> Сховано
+        <div class="crow crow--hidden">
+            <span class="cc-drag">&#x2807;</span>
+            <span class="cc-num">#{{ $loop->index+1 }}</span>
+            <span class="mono cc-val--sub">{{ $phone->value }}</span>
+            <span class="cc-label--muted">{{ $phone->label }}</span>
+            <span class="cc-geo">{{ $phone->geo_label }}</span>
+            <span class="cc-role cc-role--muted">
+                <span class="role-dot" style="background:var(--ink-4);"></span> Сховано
             </span>
-            <span style="color:var(--ink-4);">&rarr;</span>
+            <span class="cc-arrow">&rarr;</span>
         </div>
         @if($phone->backups->count()>0)
-            <div style="padding:6px 18px 6px 64px; border-top:1px solid var(--ink-3); font:11.5px var(--font-sans); color:var(--ink-4);">
-                + Додати резерв для цього номера
-            </div>
+            <div class="ctable__hidden-add">+ Додати резерв для цього номера</div>
         @endif
     @endforeach
 
     {{-- Footer add row --}}
-    <div style="padding:12px 18px; border-top:1px solid var(--ink-3); display:flex; align-items:center;">
-        <button style="font:13px var(--font-sans); color:var(--ink-5); cursor:pointer; display:inline-flex; align-items:center; gap:6px;">
-            + Додати головний номер
-        </button>
+    <div class="ctable__foot">
+        <button class="ctable__add">+ Додати головний номер</button>
     </div>
 </div>

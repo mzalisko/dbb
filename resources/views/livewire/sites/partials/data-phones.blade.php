@@ -39,7 +39,7 @@
                         <span x-text="open?'&#x25BE;':'&#x25B8;'"></span>
                         РЕЗЕРВ &middot; {{ $phone->backups->count() }}
                     </span>
-                    <button class="creserve__add" @click.stop>+ Додати резерв</button>
+                    <button class="creserve__add" @click.stop wire:click="addEntry('phone', {{ $phone->id }})">+ Додати резерв</button>
                 </div>
                 {{-- Backup rows --}}
                 <div x-show="open">
@@ -83,6 +83,6 @@
 
     {{-- Footer add row --}}
     <div class="ctable__foot">
-        <button class="ctable__add">+ Додати головний номер</button>
+        <button class="ctable__add" wire:click="addEntry('phone')">+ Додати телефон</button>
     </div>
 </div>

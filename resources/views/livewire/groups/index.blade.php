@@ -1,6 +1,7 @@
 <div style="flex:1; display:flex; flex-direction:column; overflow-y:auto;"
-     x-data="{ showCreate: false }"
-     @group-created.window="showCreate = false">
+     x-data="{ showCreate: false, showDelete: false, deleteTarget: '', deleteConfirm: '' }"
+     @group-created.window="showCreate = false"
+     @group-deleted.window="showDelete = false; deleteTarget = ''; deleteConfirm = ''">
 
     <x-ui.topbar :crumbs="['Групи сайтів']">
         <x-ui.button size="sm" @click="showCreate = true">
@@ -45,12 +46,23 @@
                                 {{ $group->sites_count }} {{ ua_word($group->sites_count, 'сайт', 'сайти', 'сайтів') }}
                             </span>
                         </div>
-                        {{-- Dots menu — z-index:1 to be above overlay --}}
-                        <button style="position:relative; z-index:1; color:var(--ink-4); padding:4px;
-                                       border-radius:4px; flex-shrink:0; transition:color .12s;"
-                                onmouseover="this.style.color='var(--ink-9)'" onmouseout="this.style.color='var(--ink-4)'">
-                            <x-icon.more-v width="14" height="14" />
-                        </button>
+                        {{-- Dots menu — z-index:1 to be above overlay; only for users who can manage groups --}}
+                        @if ($canManageGroups)
+                            <div style="position:relative; z-index:2; flex-shrink:0;" x-data="{ open: false }">
+                                <button style="color:var(--ink-4); padding:4px; border-radius:4px; transition:color .12s; display:block;"
+                                        @click.stop.prevent="open = !open"
+                                        onmouseover="this.style.color='var(--ink-9)'" onmouseout="this.style.color='var(--ink-4)'">
+                                    <x-icon.more-v width="14" height="14" />
+                                </button>
+                                <div class="dropdown" x-show="open" x-cloak style="top:calc(100% + 4px); right:0;"
+                                     @click.outside="open = false">
+                                    <button class="dropdown-item dropdown-item--danger"
+                                            @click.stop.prevent="open = false; deleteTarget = '{{ $group->group }}'; deleteConfirm = ''; showDelete = true">
+                                        Видалити групу
+                                    </button>
+                                </div>
+                            </div>
+                        @endif
                     </div>
 
                     {{-- Sites list — scrollable, z-index:1 for inner links --}}
@@ -204,6 +216,57 @@
             <x-ui.button wire:click="createGroup" wire:loading.attr="disabled">
                 <span wire:loading.remove wire:target="createGroup">Створити</span>
                 <span wire:loading wire:target="createGroup">Збереження…</span>
+            </x-ui.button>
+        </div>
+    </div>
+
+    {{-- ══ Delete Group Confirmation Drawer ══ --}}
+    <div class="drawer-backdrop" x-show="showDelete" x-cloak
+         x-transition:enter="transition ease-out duration-200"
+         x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
+         x-transition:leave="transition ease-in duration-150"
+         x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
+         @click="showDelete = false"></div>
+
+    <div class="drawer-panel drawer-panel--narrow" x-show="showDelete" x-cloak
+         x-transition:enter="transition ease-out duration-250"
+         x-transition:enter-start="opacity-0 translate-x-5" x-transition:enter-end="opacity-100 translate-x-0"
+         x-transition:leave="transition ease-in duration-200"
+         x-transition:leave-start="opacity-100 translate-x-0" x-transition:leave-end="opacity-0 translate-x-5"
+         @keydown.escape.window="showDelete = false">
+
+        <div class="drawer-head">
+            <div class="drawer-head__row">
+                <h2 class="drawer-title">Видалити групу</h2>
+                <button class="drawer-close" @click="showDelete = false">
+                    <x-icon.close width="16" height="16" style="display:block;" />
+                </button>
+            </div>
+            <div class="drawer-divider"></div>
+        </div>
+
+        <div class="drawer-body">
+            <p style="font:14px/1.6 var(--font-sans); color:var(--ink-7); margin-bottom:20px;">
+                Групу <strong style="color:var(--ink-9);" x-text="deleteTarget"></strong> буде видалено.
+                Сайти НЕ видаляються — вони лишаться без групи.
+            </p>
+
+            <div class="field">
+                <label class="label">Для підтвердження введіть назву групи</label>
+                <input type="text" class="input" x-model="deleteConfirm"
+                       :placeholder="deleteTarget"
+                       @keydown.enter="deleteConfirm === deleteTarget && $wire.deleteGroup(deleteTarget)" />
+            </div>
+        </div>
+
+        <div class="drawer-foot">
+            <x-ui.button variant="ghost" @click="showDelete = false">Скасувати</x-ui.button>
+            <x-ui.button variant="danger"
+                         x-bind:disabled="deleteConfirm !== deleteTarget"
+                         @click="$wire.deleteGroup(deleteTarget)"
+                         wire:loading.attr="disabled">
+                <span wire:loading.remove wire:target="deleteGroup">Видалити</span>
+                <span wire:loading wire:target="deleteGroup">Видалення…</span>
             </x-ui.button>
         </div>
     </div>

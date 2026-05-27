@@ -4,6 +4,7 @@ namespace App\Livewire\Groups;
 
 use App\Models\Site;
 use App\Models\SiteGroup;
+use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Livewire\Component;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Title;
@@ -12,6 +13,8 @@ use Livewire\Attributes\Title;
 #[Title('Групи сайтів')]
 class Index extends Component
 {
+    use AuthorizesRequests;
+
     public string $createGroupName  = '';
     public string $createGroupColor = '#5a8a3c';
 
@@ -30,6 +33,23 @@ class Index extends Component
         $this->reset('createGroupName', 'createGroupColor');
         $this->createGroupColor = '#5a8a3c';
         $this->dispatch('group-created');
+    }
+
+    /**
+     * Delete a group: requires delete permission (owner/admin/manager).
+     * The typed-name confirmation is enforced client-side (anti-accident);
+     * here we re-verify permission and ungroup the affected sites.
+     */
+    public function deleteGroup(string $name): void
+    {
+        $this->authorize('delete', SiteGroup::class);
+
+        // Ungroup sites that belonged to this group (sites are NOT deleted).
+        Site::where('group', $name)->update(['group' => null, 'group_color' => null]);
+
+        SiteGroup::where('name', $name)->delete();
+
+        $this->dispatch('group-deleted');
     }
 
     public function render()
@@ -64,6 +84,8 @@ class Index extends Component
 
         $groups = $defined->concat($orphaned)->sortBy('group')->values();
 
-        return view('livewire.groups.index', compact('groups'));
+        $canManageGroups = auth()->user()?->can('delete', SiteGroup::class) ?? false;
+
+        return view('livewire.groups.index', compact('groups', 'canManageGroups'));
     }
 }

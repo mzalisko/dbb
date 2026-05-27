@@ -1,12 +1,10 @@
 {{-- ─── Tab: Активність ─────────────────────────────────── --}}
-<div x-show="tab==='activity'" style="padding:32px 40px 64px;">
+<div x-show="tab==='activity'" class="tab-pane">
 
-    <header style="display:flex; align-items:flex-end; margin-bottom:24px;">
+    <header class="act-head">
         <div style="flex:1;">
-            <h3 style="font:400 22px/1 var(--font-sans); color:var(--ink-9);">Журнал змін</h3>
-            <p style="margin-top:8px; font:14px var(--font-sans); color:var(--ink-5);">
-                Усі зміни на сайті — старі дані, нові, хто змінив і коли.
-            </p>
+            <h3 class="act-head__title">Журнал змін</h3>
+            <p class="act-head__sub">Усі зміни на сайті — старі дані, нові, хто змінив і коли.</p>
         </div>
         <button class="btn btn-secondary btn-sm">
             <x-icon.export width="12" height="12" /> Експорт
@@ -24,12 +22,11 @@
             ['k'=>'alert',    'l'=>'Сповіщення',   'n'=>0],
         ];
     @endphp
-    <div style="display:flex; gap:6px; margin-bottom:20px; flex-wrap:wrap;">
+    <div class="act-filters">
         @foreach ($filterTypes as $f)
-            <button @click="actFilter='{{ $f['k'] }}'" style="display:inline-flex; align-items:center; gap:6px; height:30px; padding:0 12px; border-radius:999px; font:12.5px var(--font-sans); cursor:pointer;"
-                :style="actFilter==='{{ $f['k'] }}' ? 'background:var(--ink-9);color:var(--paper);' : 'background:var(--card);color:var(--ink-7);box-shadow:inset 0 0 0 1px var(--ink-3);'">
+            <button class="filter-pill" :class="actFilter==='{{ $f['k'] }}' ? 'is-active' : ''" @click="actFilter='{{ $f['k'] }}'">
                 {{ $f['l'] }}
-                <span style="font:10.5px var(--font-mono); opacity:.7;">{{ $f['n'] }}</span>
+                <span class="pill-count">{{ $f['n'] }}</span>
             </button>
         @endforeach
     </div>
@@ -74,15 +71,15 @@
         @endphp
 
         {{-- Card in timeline --}}
-        <div x-show="actFilter === 'all' || actFilter === '{{ $type }}'" style="position:relative; margin-bottom:12px;">
+        <div x-show="actFilter === 'all' || actFilter === '{{ $type }}'" class="tl-item">
 
             {{-- Vertical timeline line (only between cards) --}}
             @if (!$loop->last)
-                <div style="position:absolute; left:19px; top:46px; bottom:-12px; width:1px; background:var(--ink-3); z-index:0;"></div>
+                <div class="tl-line"></div>
             @endif
 
             {{-- Circle marker --}}
-            <span style="position:absolute; left:6px; top:18px; width:28px; height:28px; border-radius:999px; background:{{ $typeBg }}; color:{{ $typeColor }}; display:inline-flex; align-items:center; justify-content:center; border:2px solid var(--paper); z-index:1;">
+            <span class="tl-marker" style="background:{{ $typeBg }}; color:{{ $typeColor }};">
                 @if ($isCreate)
                     <x-icon.plus width="13" height="13" />
                 @elseif ($isDelete)
@@ -95,60 +92,58 @@
             </span>
 
             {{-- Card --}}
-            <article class="card" style="position:relative; padding:0; margin-left:48px; overflow:hidden;">
+            <article class="card tl-card">
 
                 {{-- Card header --}}
-                <header style="padding:14px 18px; display:flex; align-items:center; gap:12px; border-bottom:1px solid var(--ink-3);">
+                <header class="tl-card__head">
                     <span class="pill" style="background:{{ $typeBg }}; color:{{ $typeColor }};">
                         <span class="dot" style="margin:0; background:{{ $typeColor }};"></span>
                         {{ $typeLabel }}
                     </span>
-                    <span style="font:12px var(--font-mono); color:var(--ink-5);">{{ $scope }}</span>
-                    <span style="font:13.5px var(--font-mono); color:var(--ink-9);">{{ $target }}</span>
+                    <span class="tl-scope">{{ $scope }}</span>
+                    <span class="tl-target">{{ $target }}</span>
                     <div style="flex:1;"></div>
-                    <span style="font:11.5px var(--font-mono); color:var(--ink-4);">{{ $log->created_at->diffForHumans(null, true) }}</span>
+                    <span class="tl-time">{{ $log->created_at->diffForHumans(null, true) }}</span>
                 </header>
 
                 {{-- Card body — diff grid --}}
-                <div style="padding:16px 18px;">
+                <div class="tl-body">
                     @if (!empty($properties))
-                        <div style="display:flex; flex-direction:column; gap:8px;">
+                        <div class="tl-diffs">
                             @foreach ($properties as $field => $change)
                                 @php
                                     $from = is_array($change) ? ($change['old'] ?? null) : null;
                                     $to   = is_array($change) ? ($change['new'] ?? $change) : $change;
                                 @endphp
-                                <div style="display:grid; grid-template-columns:140px 1fr 20px 1fr; gap:12px; align-items:center;">
-                                    <span class="eyebrow" style="font-size:10px;">{{ $field }}</span>
-                                    <span style="padding:4px 10px; border-radius:4px; font:12.5px var(--font-mono);
-                                        {{ $from === null ? 'background:transparent; color:var(--ink-4); border:1px dashed var(--ink-3); text-align:center;' : 'background:var(--bad-soft); color:var(--bad); text-decoration:line-through;' }}">
+                                <div class="tl-diff">
+                                    <span class="eyebrow eyebrow-xs">{{ $field }}</span>
+                                    <span class="diff-val {{ $from === null ? 'diff-val--empty' : 'diff-val--old' }}">
                                         {{ $from === null ? 'пусто' : $from }}
                                     </span>
-                                    <span style="color:var(--ink-4); text-align:center;">→</span>
-                                    <span style="padding:4px 10px; border-radius:4px; font:12.5px var(--font-mono);
-                                        {{ $to === null ? 'background:transparent; color:var(--ink-4); border:1px dashed var(--ink-3); text-align:center;' : 'background:var(--ok-soft); color:var(--ok);' }}">
+                                    <span class="tl-arrow">→</span>
+                                    <span class="diff-val {{ $to === null ? 'diff-val--empty' : 'diff-val--new' }}">
                                         {{ $to === null ? 'видалено' : $to }}
                                     </span>
                                 </div>
                             @endforeach
                         </div>
                     @else
-                        <p style="font:13px var(--font-sans); color:var(--ink-5);">{{ ucfirst($action) }}</p>
+                        <p class="tl-plain">{{ ucfirst($action) }}</p>
                     @endif
                 </div>
 
                 {{-- Card footer — actor + meta --}}
-                <footer style="padding:12px 18px; display:flex; align-items:center; gap:12px; border-top:1px solid var(--ink-3); background:var(--paper-2);">
-                    <span class="avatar" style="width:22px; height:22px; font-size:10px; background:{{ $avatarBg }}; color:var(--paper);">{{ $avatarText }}</span>
-                    <span style="font:12.5px var(--font-sans); color:var(--ink-9);">{{ $log->user?->name ?? 'System · auto' }}</span>
-                    <span style="font:11px var(--font-mono); color:var(--ink-4);">{{ $isSystem ? 'system' : 'user' }}</span>
+                <footer class="tl-card__foot">
+                    <span class="avatar avatar-xs" style="background:{{ $avatarBg }}; color:var(--paper);">{{ $avatarText }}</span>
+                    <span class="tl-actor">{{ $log->user?->name ?? 'System · auto' }}</span>
+                    <span class="tl-meta">{{ $isSystem ? 'system' : 'user' }}</span>
                     <div style="flex:1;"></div>
                     @if ($log->ip_address)
-                        <span style="font:11px var(--font-mono); color:var(--ink-4);">IP {{ $log->ip_address }}</span>
+                        <span class="tl-meta">IP {{ $log->ip_address }}</span>
                     @endif
-                    <span style="font:11px var(--font-mono); color:var(--ink-5);">{{ $log->created_at->format('d M Y · H:i:s') }}</span>
+                    <span class="tl-meta--mid">{{ $log->created_at->format('d M Y · H:i:s') }}</span>
                     @if (in_array($type, ['update', 'delete', 'failover']))
-                        <button class="btn btn-ghost btn-sm" style="height:24px; padding:0 10px; font-size:11px;">
+                        <button class="btn btn-ghost btn-sm btn-xs">
                             <x-icon.refresh width="10" height="10" /> Rollback
                         </button>
                     @endif
@@ -157,13 +152,11 @@
             </article>
         </div>
     @empty
-        <div style="padding:64px; text-align:center; color:var(--ink-5); font:13.5px var(--font-sans);">
-            Немає подій для цього сайту.
-        </div>
+        <div class="tl-empty">Немає подій для цього сайту.</div>
     @endforelse
 
     @if ($activityLogs->count() > 0)
-        <div style="text-align:center; margin-top:20px;">
+        <div class="tl-loadmore">
             <button class="btn btn-secondary btn-sm">Завантажити старіші</button>
         </div>
     @endif

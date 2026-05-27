@@ -25,3 +25,10 @@ _ide_helper.php
 Homestead.json
 Homestead.yaml
 Thumbs.db
+
+# Local tooling / scratch
+/cloudflared.exe
+/cf-*.txt
+/nul
+/.claude/worktrees/
+/screenshot-audit.mjs

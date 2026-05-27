@@ -3,11 +3,17 @@ $sitesForAlpine = $sites->map(fn($s) => [
     'group' => $s->group ?? '',
     'name'  => strtolower($s->name),
 ])->values();
+
+// Server-side initial state — eliminates FOUC: URL is the single source of truth.
+$initialGroup = $urlGroup ?: 'all';
+$initialCount = $initialGroup === 'all'
+    ? $sites->count()
+    : $sites->filter(fn($s) => ($s->group ?? '') === $initialGroup)->count();
 @endphp
 
 <div x-data="{
         sites: {{ json_encode($sitesForAlpine) }},
-        activeGroup: {{ $urlGroup ? json_encode($urlGroup) : "localStorage.getItem('db-sites-group') || 'all'" }},
+        activeGroup: {{ json_encode($initialGroup) }},
         search: '',
         showCreate: false,
         visibleCount() {
@@ -17,7 +23,13 @@ $sitesForAlpine = $sites->map(fn($s) => [
                 (q === '' || s.name.includes(q))
             ).length;
         },
-        setGroup(g) { this.activeGroup = g; localStorage.setItem('db-sites-group', g); },
+        setGroup(g) {
+            this.activeGroup = g;
+            const url = new URL(window.location);
+            if (g === 'all') url.searchParams.delete('group');
+            else url.searchParams.set('group', g);
+            history.replaceState(null, '', url);
+        },
         uaWord(n, one, few, many) {
             const a = Math.abs(n), m = a % 100, d = a % 10;
             if (m >= 11 && m <= 19) return many;
@@ -46,17 +58,17 @@ $sitesForAlpine = $sites->map(fn($s) => [
     {{-- Page head with reactive count --}}
     <header style="padding:40px 40px 28px; flex-shrink:0;">
         <h1 style="font:400 36px/1.05 var(--font-sans); letter-spacing:-0.03em;">
-            <span x-text="visibleCount()" style="color:var(--ink-9);">{{ $sites->count() }}</span><span x-text="' ' + uaWord(visibleCount(), 'сайт', 'сайти', 'сайтів')" style="color:var(--ink-5);"> {{ ua_word($sites->count(), 'сайт', 'сайти', 'сайтів') }}</span>
+            <span x-text="visibleCount()" style="color:var(--ink-9);">{{ $initialCount }}</span><span x-text="' ' + uaWord(visibleCount(), 'сайт', 'сайти', 'сайтів')" style="color:var(--ink-5);"> {{ ua_word($initialCount, 'сайт', 'сайти', 'сайтів') }}</span>
         </h1>
     </header>
 
     {{-- Group filter --}}
     <div style="padding:0 40px 16px; display:flex; gap:8px; flex-wrap:wrap;">
-        <button class="filter-pill" :class="activeGroup === 'all' ? 'is-active' : ''" x-on:click="setGroup('all')">
+        <button class="filter-pill {{ $initialGroup === 'all' ? 'is-active' : '' }}" :class="activeGroup === 'all' ? 'is-active' : ''" x-on:click="setGroup('all')">
             Усі
         </button>
         @foreach ($groups as $group)
-            <button class="filter-pill" :class="activeGroup === '{{ $group->group }}' ? 'is-active' : ''" x-on:click="setGroup('{{ $group->group }}')">
+            <button class="filter-pill {{ $initialGroup === $group->group ? 'is-active' : '' }}" :class="activeGroup === '{{ $group->group }}' ? 'is-active' : ''" x-on:click="setGroup('{{ $group->group }}')">
                 <span style="width:6px; height:6px; border-radius:999px; background:{{ $group->group_color }};"></span>
                 {{ ucfirst($group->group) }}
             </button>
@@ -107,12 +119,13 @@ $sitesForAlpine = $sites->map(fn($s) => [
                     default       => 'Помилка',
                 };
             @endphp
+            @php $hiddenInit = $initialGroup !== 'all' && ($site->group ?? '') !== $initialGroup; @endphp
             <div class="sites-card-wrap"
                  data-group="{{ $site->group }}"
                  data-name="{{ strtolower($site->name) }}"
                  x-show="(activeGroup === 'all' || $el.dataset.group === activeGroup) &&
                           (search === '' || $el.dataset.name.includes(search.toLowerCase()))"
-                 style="height:100%; position:relative;">
+                 style="height:100%; position:relative;{{ $hiddenInit ? ' display:none;' : '' }}">
 
                 {{-- Star: optimistic toggle — Alpine updates instantly, $wire saves to DB without re-render --}}
                 <button x-data="{ isFav: {{ $site->is_favourite ? 'true' : 'false' }} }"
@@ -186,9 +199,9 @@ $sitesForAlpine = $sites->map(fn($s) => [
         @endforelse
     </div>
 
-    {{-- Empty search state --}}
+    {{-- Empty search state — display:none initially (search always empty on load) so it never flashes --}}
     <div x-show="search !== '' && visibleCount() === 0"
-         style="padding:0 40px 64px; text-align:center; color:var(--ink-5); font:13.5px var(--font-sans);">
+         style="padding:0 40px 64px; text-align:center; color:var(--ink-5); font:13.5px var(--font-sans); display:none;">
         Нічого не знайдено за запитом «<span x-text="search" style="color:var(--ink-7);"></span>»
     </div>
 

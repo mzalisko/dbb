@@ -20,6 +20,24 @@ class Show extends Component
     public string $failoverInterval = '5min';
     public int $failoverThreshold = 3;
 
+    // ContactEntry CRUD state
+    public bool $editingEntry = false;
+    public bool $addingEntry = false;
+    public ?int $editEntryId = null;
+    public string $entryType = 'phone';
+    public string $entryValue = '';
+    public string $entryLabel = '';
+    public string $entryRole = 'primary';
+    public string $entryGeoMode = 'all';
+    public array $entryCountries = [];
+    public ?int $entryParentId = null;
+    public string $entryKind = '';
+    public string $entryCurrency = 'EUR';
+    public ?float $entryPrice = null;
+    public ?float $entryOldPrice = null;
+    public string $entryPriceUnit = '';
+    public string $entrySku = '';
+
     public function openPhone(int $id): void
     {
         $this->openPhoneId = $id;
@@ -62,6 +80,133 @@ class Show extends Component
         $this->authorize('update', $this->site);
         $this->failoverEnabled = !$this->failoverEnabled;
         $this->site->update(['failover_enabled' => $this->failoverEnabled]);
+    }
+
+    public function editEntry(int $id): void
+    {
+        $entry = \App\Models\ContactEntry::findOrFail($id);
+        $this->authorize('update', $entry);
+        $this->editEntryId    = $entry->id;
+        $this->entryType      = $entry->type;
+        $this->entryValue     = $entry->value ?? '';
+        $this->entryLabel     = $entry->label ?? '';
+        $this->entryRole      = $entry->role;
+        $this->entryGeoMode   = $entry->geo_mode;
+        $this->entryCountries = $entry->countries ?? [];
+        $this->entryParentId  = $entry->parent_id;
+        $this->entryKind      = $entry->kind ?? '';
+        $this->entryCurrency  = $entry->currency ?? 'EUR';
+        $this->entryPrice     = $entry->price;
+        $this->entryOldPrice  = $entry->old_price;
+        $this->entryPriceUnit = $entry->price_unit ?? '';
+        $this->entrySku       = $entry->sku ?? '';
+        $this->editingEntry   = true;
+        $this->addingEntry    = false;
+    }
+
+    public function addEntry(string $type, ?int $parentId = null): void
+    {
+        $this->authorize('create', \App\Models\ContactEntry::class);
+        $this->resetEntryForm();
+        $this->entryType    = $type;
+        $this->entryParentId = $parentId;
+        if ($parentId) {
+            $this->entryRole = 'backup';
+        }
+        $this->addingEntry  = true;
+        $this->editingEntry = false;
+    }
+
+    public function saveEntry(): void
+    {
+        $rules = [
+            'entryRole'    => 'required|in:primary,backup,hidden',
+            'entryGeoMode' => 'required|in:all,only,except',
+            'entryCountries' => 'required_if:entryGeoMode,only|required_if:entryGeoMode,except|array',
+        ];
+
+        if ($this->entryType === 'phone') {
+            $rules['entryValue'] = 'required|max:500';
+            $rules['entryLabel'] = 'nullable|max:255';
+        } elseif ($this->entryType === 'messenger') {
+            $rules['entryValue'] = 'required|max:500';
+            $rules['entryKind']  = 'required|in:telegram,whatsapp,viber,messenger,signal,skype';
+        } elseif ($this->entryType === 'price') {
+            $rules['entryPrice']    = 'required|numeric|min:0';
+            $rules['entryCurrency'] = 'required|size:3';
+            $rules['entrySku']      = 'required|max:255';
+        }
+
+        $this->validate($rules);
+
+        $data = [
+            'site_id'    => $this->site->id,
+            'type'       => $this->entryType,
+            'kind'       => $this->entryKind ?: null,
+            'value'      => $this->entryValue,
+            'label'      => $this->entryLabel ?: null,
+            'role'       => $this->entryRole,
+            'geo_mode'   => $this->entryGeoMode,
+            'countries'  => $this->entryCountries ?: null,
+            'parent_id'  => $this->entryParentId,
+            'currency'   => $this->entryCurrency ?: null,
+            'price'      => $this->entryPrice,
+            'old_price'  => $this->entryOldPrice,
+            'price_unit' => $this->entryPriceUnit ?: null,
+            'sku'        => $this->entrySku ?: null,
+            'visible'    => true,
+            'order'      => 1,
+        ];
+
+        if ($this->editEntryId) {
+            $entry = \App\Models\ContactEntry::findOrFail($this->editEntryId);
+            $this->authorize('update', $entry);
+            $entry->update($data);
+        } else {
+            $this->authorize('create', \App\Models\ContactEntry::class);
+            $data['order'] = $this->site->contactEntries()->where('type', $this->entryType)->max('order') + 1;
+            \App\Models\ContactEntry::create($data);
+        }
+
+        $this->resetEntryForm();
+        $this->dispatch('toast', type: 'success', message: 'Збережено');
+    }
+
+    public function deleteEntry(int $id): void
+    {
+        $entry = \App\Models\ContactEntry::findOrFail($id);
+        $this->authorize('delete', $entry);
+        $entry->delete();
+        $this->resetEntryForm();
+        $this->closePhone();
+        $this->dispatch('toast', type: 'success', message: 'Видалено');
+    }
+
+    public function toggleEntryVisibility(int $id): void
+    {
+        $entry = \App\Models\ContactEntry::findOrFail($id);
+        $this->authorize('update', $entry);
+        $entry->update(['visible' => !$entry->visible]);
+    }
+
+    public function resetEntryForm(): void
+    {
+        $this->editingEntry   = false;
+        $this->addingEntry    = false;
+        $this->editEntryId    = null;
+        $this->entryType      = 'phone';
+        $this->entryValue     = '';
+        $this->entryLabel     = '';
+        $this->entryRole      = 'primary';
+        $this->entryGeoMode   = 'all';
+        $this->entryCountries = [];
+        $this->entryParentId  = null;
+        $this->entryKind      = '';
+        $this->entryCurrency  = 'EUR';
+        $this->entryPrice     = null;
+        $this->entryOldPrice  = null;
+        $this->entryPriceUnit = '';
+        $this->entrySku       = '';
     }
 
     public function render()

@@ -25,37 +25,48 @@
                         $phones   = $fav->contactEntries->where('type', 'phone')->where('visible', true)->count();
                         $msgs     = $fav->contactEntries->where('type', 'messenger')->where('visible', true)->count();
                     @endphp
-                    <a href="{{ route('sites.show', $fav) }}" wire:navigate
-                       style="flex-shrink:0; width:168px; display:flex; flex-direction:column; gap:10px;
-                              padding:12px; background:var(--card); border:1px solid var(--ink-3); border-radius:4px;
-                              cursor:pointer; transition:border-color .15s; text-decoration:none;"
-                       onmouseover="this.style.borderColor='var(--ink-9)'"
-                       onmouseout="this.style.borderColor='var(--ink-3)'">
-                        <div style="display:flex; align-items:center; gap:8px; min-width:0;">
-                            <span class="avatar avatar-sq" style="width:26px; height:26px; font-size:11px; flex-shrink:0;">{{ strtoupper(substr($fav->name, 0, 1)) }}</span>
-                            <div style="min-width:0; flex:1;">
-                                <div class="mono" style="font:12px var(--font-mono); color:var(--ink-9); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ $fav->name }}</div>
-                                <div style="margin-top:2px; font:11px var(--font-sans); color:var(--ink-5); white-space:nowrap;">
-                                    <span class="dot {{ $favDot }}"></span>{{ $favLabel }}
+                    {{-- Wrapper: relative so star sits outside <a>; x-show hides card instantly on un-favourite --}}
+                    <div x-data="{ isFav: true }" x-show="isFav"
+                         style="position:relative; flex-shrink:0;">
+                        {{-- Star toggle — outside <a>, removes from favourites (optimistic) --}}
+                        <button @click.stop="isFav = false; $wire.toggleFavourite({{ $fav->id }})"
+                                title="Прибрати з обраних"
+                                style="position:absolute; top:9px; right:9px; z-index:1; padding:2px; cursor:pointer; transition:opacity .12s;"
+                                onmouseover="this.style.opacity='.7'" onmouseout="this.style.opacity='1'">
+                            <x-icon.star width="15" height="15" style="color:var(--warn); display:block;" />
+                        </button>
+
+                        <a href="{{ route('sites.show', $fav) }}" wire:navigate
+                           style="width:168px; display:flex; flex-direction:column; gap:10px;
+                                  padding:12px; background:var(--card); border:1px solid var(--ink-3); border-radius:4px;
+                                  cursor:pointer; transition:border-color .15s; text-decoration:none;"
+                           onmouseover="this.style.borderColor='var(--ink-9)'"
+                           onmouseout="this.style.borderColor='var(--ink-3)'">
+                            <div style="display:flex; align-items:center; gap:8px; min-width:0; padding-right:18px;">
+                                <span class="avatar avatar-sq" style="width:26px; height:26px; font-size:11px; flex-shrink:0;">{{ strtoupper(substr($fav->name, 0, 1)) }}</span>
+                                <div style="min-width:0; flex:1;">
+                                    <div class="mono" style="font:12px var(--font-mono); color:var(--ink-9); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ $fav->name }}</div>
+                                    <div style="margin-top:2px; font:11px var(--font-sans); color:var(--ink-5); white-space:nowrap;">
+                                        <span class="dot {{ $favDot }}"></span>{{ $favLabel }}
+                                    </div>
                                 </div>
                             </div>
-                            <x-icon.star width="11" height="11" style="color:var(--warn); flex-shrink:0;" />
-                        </div>
-                        <div style="padding-top:8px; border-top:1px solid var(--ink-3); display:flex; align-items:center; gap:10px; font:11px var(--font-mono); color:var(--ink-5);">
-                            @if ($fav->group)
-                                <span style="display:inline-flex; align-items:center; gap:4px; flex:1; min-width:0; overflow:hidden;">
-                                    <span style="width:5px; height:5px; border-radius:999px; background:{{ $fav->group_color ?? '#a39d8c' }}; flex-shrink:0;"></span>
-                                    <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ ucfirst($fav->group) }}</span>
+                            <div style="padding-top:8px; border-top:1px solid var(--ink-3); display:flex; align-items:center; gap:10px; font:11px var(--font-mono); color:var(--ink-5);">
+                                @if ($fav->group)
+                                    <span style="display:inline-flex; align-items:center; gap:4px; flex:1; min-width:0; overflow:hidden;">
+                                        <span style="width:5px; height:5px; border-radius:999px; background:{{ $fav->group_color ?? '#a39d8c' }}; flex-shrink:0;"></span>
+                                        <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ ucfirst($fav->group) }}</span>
+                                    </span>
+                                @endif
+                                <span style="display:inline-flex; align-items:center; gap:3px; flex-shrink:0;">
+                                    <x-icon.phone width="10" height="10" /> {{ $phones }}
                                 </span>
-                            @endif
-                            <span style="display:inline-flex; align-items:center; gap:3px; flex-shrink:0;">
-                                <x-icon.phone width="10" height="10" /> {{ $phones }}
-                            </span>
-                            <span style="display:inline-flex; align-items:center; gap:3px; flex-shrink:0;">
-                                <x-icon.chat width="10" height="10" /> {{ $msgs }}
-                            </span>
-                        </div>
-                    </a>
+                                <span style="display:inline-flex; align-items:center; gap:3px; flex-shrink:0;">
+                                    <x-icon.chat width="10" height="10" /> {{ $msgs }}
+                                </span>
+                            </div>
+                        </a>
+                    </div>
                 @endforeach
             </div>
         </div>

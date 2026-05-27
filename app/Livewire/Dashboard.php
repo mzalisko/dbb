@@ -7,11 +7,19 @@ use App\Models\ActivityLog;
 use Livewire\Component;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Title;
+use Livewire\Attributes\Renderless;
 
 #[Layout('components.layouts.app')]
 #[Title('Dashboard')]
 class Dashboard extends Component
 {
+    #[Renderless]
+    public function toggleFavourite(int $id): void
+    {
+        $site = Site::findOrFail($id);
+        $site->update(['is_favourite' => !$site->is_favourite]);
+    }
+
     public function render()
     {
         $totalSites = Site::count();

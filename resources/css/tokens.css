@@ -628,6 +628,80 @@ svg { display: block; }
 .pill-menu-item:hover { background: var(--paper-2); color: var(--ink-9); }
 .pill-menu-item.is-active { background: var(--ink-9); color: var(--paper); }
 
+/* ============================================================
+   Dashboard (extracted from inline styles 2026-05-27)
+   ============================================================ */
+.dash-body { padding: 0 40px 64px; }
+.dash-section { margin-bottom: 36px; }
+.dash-grid { margin-top: 8px; display: grid; grid-template-columns: 1.5fr 1fr; gap: 48px; }
+
+/* Section header (Обрані / Сайти / Логи) */
+.section-head {
+  display: flex; align-items: baseline; gap: 12px;
+  margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px solid var(--ink-3);
+}
+.section-head__title { font: 400 19px/1 var(--font-sans); color: var(--ink-9); flex: 1; }
+.section-head__meta { font: 12px var(--font-mono); color: var(--ink-4); }
+
+/* Favourites carousel */
+.fav-strip {
+  display: flex; gap: 10px; overflow-x: auto; padding-bottom: 4px; cursor: grab;
+  scrollbar-width: none; -ms-overflow-style: none;
+}
+.fav-strip::-webkit-scrollbar { display: none; }
+.fav-card { position: relative; flex-shrink: 0; }
+.fav-card__star {
+  position: absolute; top: 9px; right: 9px; z-index: 1;
+  padding: 2px; cursor: pointer; transition: opacity .12s;
+}
+.fav-card__star:hover { opacity: .7; }
+.fav-card__link {
+  width: 168px; display: flex; flex-direction: column; gap: 10px; padding: 12px;
+  background: var(--card); border: 1px solid var(--ink-3); border-radius: 4px;
+  cursor: pointer; transition: border-color .15s; text-decoration: none;
+}
+.fav-card__link:hover { border-color: var(--ink-9); }
+.fav-card__head { display: flex; align-items: center; gap: 8px; min-width: 0; padding-right: 18px; }
+.fav-card__name {
+  font: 13px var(--font-mono); color: var(--ink-9);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.fav-card__status { margin-top: 2px; font: 12px var(--font-sans); color: var(--ink-5); white-space: nowrap; }
+.fav-card__foot {
+  padding-top: 8px; border-top: 1px solid var(--ink-3);
+  display: flex; align-items: center; gap: 10px;
+  font: 12px var(--font-mono); color: var(--ink-5);
+}
+.fav-card__group { display: inline-flex; align-items: center; gap: 4px; flex: 1; min-width: 0; overflow: hidden; }
+.fav-card__group span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fav-card__chip { display: inline-flex; align-items: center; gap: 3px; flex-shrink: 0; }
+
+.avatar-sm { width: 26px; height: 26px; font-size: 11px; }
+
+/* Dashboard sites list */
+.dash-filter { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; padding: 8px 0 14px; }
+.dash-list { max-height: 427px; overflow-y: auto; padding-right: 10px; }
+.dash-site-row__link {
+  display: grid; grid-template-columns: 32px 1fr auto auto; gap: 14px;
+  padding: 14px 0; border-bottom: 1px solid var(--ink-3); align-items: center;
+  cursor: pointer; text-align: left; background: transparent; transition: background .12s;
+}
+.dash-site-row__link:hover { background: var(--paper-2); }
+.dash-site-row__name { font: 14.5px var(--font-mono); color: var(--ink-9); }
+.dash-site-row__status { margin-top: 3px; font: 13px var(--font-sans); color: var(--ink-5); }
+.dash-site-row__status.is-offline { color: var(--bad); }
+.dash-site-row__when { font: 12.5px var(--font-mono); color: var(--ink-4); }
+
+/* System logs */
+.log-row { padding: 12px 0; border-bottom: 1px solid var(--ink-3); }
+.log-row__inner { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.log-row__text { font: 14px/1.4 var(--font-sans); color: var(--ink-8); }
+.log-row__subj { color: var(--ink-9); font-size: 13.5px; }
+.log-row__action { color: var(--ink-5); margin-left: 6px; }
+.log-row__time { font: 12px var(--font-mono); color: var(--ink-4); white-space: nowrap; }
+
+.dash-empty { padding: 48px 0; text-align: center; color: var(--ink-5); font: 14.5px var(--font-sans); }
+
 /* --- Search bar --- */
 .search-row { padding: 0 40px 24px; }
 .search-box {

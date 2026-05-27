@@ -14,8 +14,6 @@ use Illuminate\Database\Eloquent\Collection;
 class Show extends Component
 {
     public Site $site;
-    public string $geoFilter = 'all';
-    public string $category = 'phones';
     public ?int $openPhoneId = null;
 
     public function openPhone(int $id): void
@@ -33,8 +31,6 @@ class Show extends Component
         $this->authorize('view', $site);
         $this->site = $site->load('client');
     }
-
-    public function updatedGeoFilter(): void {}
 
     private function filterForGeo(Collection $entries, string $geo): Collection
     {
@@ -67,13 +63,18 @@ class Show extends Component
         }
         unset($geo);
 
-        // Data tab: filter by selected geo
-        $phonePrimaries = $this->filterForGeo($allPhones, $this->geoFilter)
-            ->filter(fn($e) => is_null($e->parent_id))
-            ->values();
-        $msgPrimaries = $this->filterForGeo($allMsgs, $this->geoFilter)
-            ->filter(fn($e) => is_null($e->parent_id))
-            ->values();
+        // Pre-render all 4 geo variants so category/geo switching is pure Alpine (no Livewire round-trip)
+        $phonePrimariesByGeo = [];
+        $msgPrimariesByGeo   = [];
+        foreach (['all', 'world', 'PL', 'UA'] as $gk) {
+            $fp = $gk === 'all' ? $allPhones : $this->filterForGeo($allPhones, $gk);
+            $phonePrimariesByGeo[$gk] = $fp->filter(fn($e) => is_null($e->parent_id))->values();
+            $fm = $gk === 'all' ? $allMsgs : $this->filterForGeo($allMsgs, $gk);
+            $msgPrimariesByGeo[$gk] = $fm->filter(fn($e) => is_null($e->parent_id))->values();
+        }
+        // Settings tab still uses $phonePrimaries (all geo, visible primaries)
+        $phonePrimaries = $phonePrimariesByGeo['all'];
+        $msgPrimaries   = $msgPrimariesByGeo['all'];
 
         // Prices
         $allPrices = $this->site->contactEntries()->where('type', 'price')->where('visible', true)->get();
@@ -111,6 +112,7 @@ class Show extends Component
             'geos',
             'allPhones', 'allMsgs', 'allPhonesAll', 'allMsgsAll', 'allPricesAll',
             'phonePrimaries', 'msgPrimaries',
+            'phonePrimariesByGeo', 'msgPrimariesByGeo',
             'msgByKind',
             'priceBySku', 'priceBySkuAll',
             'activityLogs',

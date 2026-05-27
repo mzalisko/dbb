@@ -1,4 +1,4 @@
-<div class="page" x-data="{ tab: 'data', settingsSub: 'failover', actFilter: 'all' }">
+<div class="page" x-data="{ tab: 'data', cat: 'phones', geo: 'all', settingsSub: 'failover', actFilter: 'all' }">
 
     <x-ui.topbar :crumbs="['Сайти', $site->name]" :back="true">
         <button class="btn btn-ghost btn-sm">

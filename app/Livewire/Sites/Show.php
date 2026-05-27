@@ -209,6 +209,17 @@ class Show extends Component
         $this->entrySku       = '';
     }
 
+    public function toggleCountry(string $code): void
+    {
+        if (in_array($code, $this->entryCountries)) {
+            $this->entryCountries = array_values(
+                array_filter($this->entryCountries, fn($c) => $c !== $code)
+            );
+        } else {
+            $this->entryCountries[] = $code;
+        }
+    }
+
     public function render()
     {
         $allPhones = $this->site->contactEntries()->where('type', 'phone')->where('visible', true)->orderBy('order')->with('backups')->get();

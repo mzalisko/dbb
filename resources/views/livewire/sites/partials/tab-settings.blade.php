@@ -42,27 +42,48 @@
                 <span class="eyebrow eyebrow-xs">Правила перемикання</span>
                 <button class="btn btn-sm btn-danger-fill">&#x26A1; Тригер вручну</button>
             </div>
-            @foreach([
-                ['title'=>'Авто-failover','desc'=>'Перемикати на резерв без участі оператора, коли health-check провалює поріг.','toggle'=>true],
-                ['title'=>'Інтервал перевірки','desc'=>'Як часто пінгуємо головний номер. Менший інтервал = швидша реакція, більше навантаження.','toggle'=>false,'options'=>['1 хв','5 хв','15 хв'],'active'=>'5 хв'],
-                ['title'=>'Поріг провалів','desc'=>'Кількість невдалих перевірок поспіль перед failover.','toggle'=>false,'options'=>['2','3','5'],'active'=>'3'],
-            ] as $row)
-                <div class="set-row">
-                    <div class="set-row__info">
-                        <div class="set-row__title">{{ $row['title'] }}</div>
-                        <div class="set-row__desc">{{ $row['desc'] }}</div>
-                    </div>
-                    @if($row['toggle'])
-                        <div class="toggle"><span class="toggle__knob"></span></div>
-                    @else
-                        <div class="set-opts">
-                            @foreach($row['options'] as $opt)
-                                <button class="set-opt {{ $opt===$row['active'] ? 'is-active' : '' }}">{{ $opt }}</button>
-                            @endforeach
-                        </div>
-                    @endif
+            {{-- Row 1: Авто-failover toggle --}}
+            <div class="set-row">
+                <div class="set-row__info">
+                    <div class="set-row__title">Авто-failover</div>
+                    <div class="set-row__desc">Перемикати на резерв без участі оператора, коли health-check провалює поріг.</div>
                 </div>
-            @endforeach
+                <div class="toggle {{ $failoverEnabled ? 'is-on' : '' }}" wire:click="toggleFailover" style="cursor:pointer;">
+                    <span class="toggle__knob"></span>
+                </div>
+            </div>
+
+            {{-- Row 2: Інтервал перевірки --}}
+            <div class="set-row">
+                <div class="set-row__info">
+                    <div class="set-row__title">Інтервал перевірки</div>
+                    <div class="set-row__desc">Як часто пінгуємо головний номер. Менший інтервал = швидша реакція, більше навантаження.</div>
+                </div>
+                <div class="set-opts">
+                    @foreach(['1min'=>'1 хв','5min'=>'5 хв','15min'=>'15 хв'] as $val=>$label)
+                        <button class="set-opt {{ $failoverInterval===$val ? 'is-active' : '' }}"
+                                wire:click="$set('failoverInterval','{{ $val }}')">{{ $label }}</button>
+                    @endforeach
+                </div>
+            </div>
+
+            {{-- Row 3: Поріг провалів --}}
+            <div class="set-row">
+                <div class="set-row__info">
+                    <div class="set-row__title">Поріг провалів</div>
+                    <div class="set-row__desc">Кількість невдалих перевірок поспіль перед failover.</div>
+                </div>
+                <div class="set-opts">
+                    @foreach([2,3,5] as $t)
+                        <button class="set-opt {{ $failoverThreshold===$t ? 'is-active' : '' }}"
+                                wire:click="$set('failoverThreshold',{{ $t }})">{{ $t }}</button>
+                    @endforeach
+                </div>
+            </div>
+
+            <div class="set-rules__foot">
+                <button class="btn btn-primary btn-sm" wire:click="saveFailover">Зберегти</button>
+            </div>
         </div>
     </div>
 

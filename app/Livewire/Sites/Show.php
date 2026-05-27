@@ -16,6 +16,10 @@ class Show extends Component
     public Site $site;
     public ?int $openPhoneId = null;
 
+    public bool $failoverEnabled = true;
+    public string $failoverInterval = '5min';
+    public int $failoverThreshold = 3;
+
     public function openPhone(int $id): void
     {
         $this->openPhoneId = $id;
@@ -30,12 +34,34 @@ class Show extends Component
     {
         $this->authorize('view', $site);
         $this->site = $site->load('client');
+
+        $this->failoverEnabled   = $this->site->failover_enabled ?? true;
+        $this->failoverInterval  = $this->site->failover_interval ?? '5min';
+        $this->failoverThreshold = $this->site->failover_threshold ?? 3;
     }
 
     private function filterForGeo(Collection $entries, string $geo): Collection
     {
         if ($geo === 'all') return $entries;
         return $entries->filter(fn($e) => $e->visibleForGeo($geo))->values();
+    }
+
+    public function saveFailover(): void
+    {
+        $this->authorize('update', $this->site);
+        $this->site->update([
+            'failover_enabled'   => $this->failoverEnabled,
+            'failover_interval'  => $this->failoverInterval,
+            'failover_threshold' => $this->failoverThreshold,
+        ]);
+        $this->dispatch('toast', message: 'Налаштування збережено');
+    }
+
+    public function toggleFailover(): void
+    {
+        $this->authorize('update', $this->site);
+        $this->failoverEnabled = !$this->failoverEnabled;
+        $this->site->update(['failover_enabled' => $this->failoverEnabled]);
     }
 
     public function render()

@@ -36,7 +36,7 @@
         {{-- Nav — active state driven client-side so it stays correct inside @persist --}}
         <nav class="sidebar-nav"
              x-data="{ path: window.location.pathname }"
-             @livewire:navigated.window="path = window.location.pathname">
+             x-on:livewire:navigated.window="path = window.location.pathname">
             <a href="{{ route('dashboard') }}" wire:navigate.hover
                class="sidebar-link {{ request()->routeIs('dashboard') ? 'active' : '' }}"
                :class="{ 'active': path === '/dashboard' }">

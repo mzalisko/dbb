@@ -702,6 +702,73 @@ svg { display: block; }
 
 .dash-empty { padding: 48px 0; text-align: center; color: var(--ink-5); font: 14.5px var(--font-sans); }
 
+/* ============================================================
+   Site detail (sites/show) — shell
+   ============================================================ */
+.site-head { padding: 28px 40px 0; flex-shrink: 0; }
+.site-head__meta {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 14px;
+  font: 12px var(--font-mono); letter-spacing: .08em; color: var(--ink-5);
+}
+.site-head__meta-item { display: inline-flex; align-items: center; gap: 5px; }
+.site-head__sep { color: var(--ink-3); }
+.site-head__dot { width: 7px; height: 7px; border-radius: 999px; }
+.site-head__title { font: 400 36px/1.05 var(--font-sans); letter-spacing: -0.03em; color: var(--ink-9); }
+.site-head__sub { margin-top: 12px; font: 15px/1.6 var(--font-sans); color: var(--ink-5); max-width: 640px; }
+.site-tabs { padding: 0 40px; margin-top: 24px; flex-shrink: 0; }
+
+/* Tab pane wrapper (shared) */
+.tab-pane { padding: 32px 40px 64px; }
+.eyebrow-xs { font-size: 10.5px; }
+
+/* Overview tab — geo cards */
+.geo-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+.geo-card { padding: 18px; }
+.geo-card__head { display: flex; align-items: center; gap: 10px; }
+.geo-flag { font: 20px var(--font-sans); }
+.geo-name { font: 14.5px var(--font-sans); color: var(--ink-9); }
+.geo-iso { font: 12px var(--font-mono); color: var(--ink-4); letter-spacing: .06em; }
+.geo-sect { margin-top: 18px; }
+.geo-sect--msg { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--ink-3); }
+.geo-row { margin-top: 8px; display: flex; align-items: center; gap: 8px; }
+.geo-phone { font: 400 18px var(--font-mono); color: var(--ink-9); flex: 1; }
+.geo-msg { font: 400 15px var(--font-mono); color: var(--ink-9); }
+.geo-msg-tag { font: 11px var(--font-mono); padding: 2px 6px; border-radius: 3px; background: var(--ink-2); color: var(--ink-5); }
+.geo-label { margin-top: 4px; font: 12.5px var(--font-sans); color: var(--ink-5); padding-left: 22px; }
+.geo-more {
+  display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px;
+  border-radius: 999px; font: 11px var(--font-mono); cursor: pointer;
+  transition: background .12s, color .12s, box-shadow .12s;
+  background: var(--paper-2); color: var(--ink-7); box-shadow: inset 0 0 0 1px var(--ink-3);
+}
+.geo-more.is-open { background: var(--ink-9); color: var(--paper); box-shadow: none; }
+.geo-more__chev { display: inline-flex; transition: transform .15s; }
+.geo-more.is-open .geo-more__chev { transform: rotate(180deg); }
+.geo-backup {
+  margin-top: 10px; margin-left: 22px; padding: 10px 12px;
+  background: var(--paper-2); border-radius: 4px; border: 1px solid var(--ink-3);
+}
+.geo-backup__row { display: flex; align-items: center; gap: 8px; padding: 5px 0; }
+.geo-backup__num { font: 11px var(--font-mono); color: var(--ink-4); width: 16px; }
+.geo-backup__val { font: 13px var(--font-mono); color: var(--ink-7); }
+.geo-backup__label { font: 12px var(--font-sans); color: var(--ink-5); margin-left: auto; }
+.geo-backup__tag { font: 11px var(--font-mono); padding: 1px 5px; border-radius: 3px; background: var(--ink-2); color: var(--ink-5); margin-left: auto; }
+.geo-stats { margin-top: 24px; display: grid; grid-template-columns: repeat(4, 1fr); }
+.geo-stat { padding: 16px 20px; }
+.geo-stat + .geo-stat { border-left: 1px solid var(--ink-3); }
+.geo-stat__val { font: 15px var(--font-mono); color: var(--ink-9); }
+
+/* Phone drawer (read-only details) */
+.drawer-stack { display: flex; flex-direction: column; gap: 20px; }
+.field-value-lg { font: 20px var(--font-mono); color: var(--ink-9); margin-top: 8px; }
+.field-value { margin-top: 8px; font: 14px var(--font-sans); color: var(--ink-7); }
+.role-pills { display: flex; gap: 8px; margin-top: 8px; }
+.role-pill {
+  flex: 1; padding: 10px; text-align: center; border-radius: 4px;
+  font: 13.5px var(--font-sans); border: 1px solid var(--ink-3); color: var(--ink-7);
+}
+.role-pill.is-active { border-color: var(--ink-9); background: var(--ink-9); color: var(--paper); }
+
 /* --- Search bar --- */
 .search-row { padding: 0 40px 24px; }
 .search-box {

@@ -1,9 +1,5 @@
 <div style="flex:1; display:flex; flex-direction:column; overflow-y:auto;">
-    <x-ui.topbar :crumbs="['Дашборд']">
-        <a href="{{ route('sites.index') }}" wire:navigate class="btn btn-primary btn-sm">
-            <x-icon.plus width="13" height="13" /> Додати сайт
-        </a>
-    </x-ui.topbar>
+    <x-ui.topbar :crumbs="['Дашборд']" :bell="false" />
 
     <x-ui.page-head :title="'Привіт, ' . (auth()->user()->name ? explode(' ', auth()->user()->name)[0] : 'друже')" />
 

@@ -32,13 +32,6 @@
             </div>
         </div>
 
-        {{-- Search --}}
-        <div class="sidebar-search">
-            <x-icon.search width="13" height="13" />
-            <span style="flex:1; font:12.5px var(--font-sans);">Знайти…</span>
-            <span style="font:10.5px var(--font-mono); padding:2px 5px; border-radius:3px; background:var(--paper);">⌘K</span>
-        </div>
-
         {{-- Nav --}}
         <nav class="sidebar-nav">
             <a href="{{ route('dashboard') }}" wire:navigate

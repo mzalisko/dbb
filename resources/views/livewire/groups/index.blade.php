@@ -1,6 +1,6 @@
 <div style="flex:1; display:flex; flex-direction:column; overflow-y:auto;"
-     x-data="{ showCreate: false, showDelete: false, deleteTarget: '', deleteConfirm: '' }"
-     @group-created.window="showCreate = false"
+     x-data="{ showCreate: false, gName: '', gColor: '#5a8a3c', showDelete: false, deleteTarget: '', deleteConfirm: '' }"
+     @group-created.window="showCreate = false; gName = ''; gColor = '#5a8a3c'"
      @group-deleted.window="showDelete = false; deleteTarget = ''; deleteConfirm = ''">
 
     <x-ui.topbar :crumbs="['Групи сайтів']">
@@ -178,9 +178,9 @@
 
             <div style="margin-bottom:24px;">
                 <label class="label">Назва групи</label>
-                <input type="text" wire:model="createGroupName" class="input"
+                <input type="text" class="input" x-model="gName"
                        placeholder="production, staging, demo…"
-                       @keydown.enter="$wire.createGroup()" />
+                       @keydown.enter="$wire.createGroup(gName, gColor)" />
                 @error('createGroupName')
                     <span style="font:12px var(--font-sans); color:var(--bad); margin-top:6px; display:block;">{{ $message }}</span>
                 @enderror
@@ -189,21 +189,19 @@
             <div style="margin-bottom:24px;">
                 <label class="label">Колір</label>
                 <div style="display:flex; align-items:center; gap:14px; margin-top:8px;">
-                    <input type="color" wire:model="createGroupColor"
+                    <input type="color" x-model="gColor"
                            style="width:40px; height:40px; border:1px solid var(--ink-3);
                                   border-radius:6px; cursor:pointer; padding:2px;" />
-                    <span style="font:13px var(--font-mono); color:var(--ink-5);">{{ $createGroupColor }}</span>
+                    <span style="font:13px var(--font-mono); color:var(--ink-5);" x-text="gColor">#5a8a3c</span>
                 </div>
             </div>
 
-            {{-- Live preview --}}
+            {{-- Live preview (client-side Alpine — instant) --}}
             <div style="padding:14px 16px; background:var(--paper-2); border:1px solid var(--ink-3); border-radius:6px;">
                 <span style="font:11px var(--font-mono); color:var(--ink-5); letter-spacing:.08em; text-transform:uppercase;">Попередній перегляд</span>
                 <div style="display:flex; align-items:center; gap:10px; margin-top:10px;">
-                    <div style="width:3px; height:28px; border-radius:2px; background:{{ $createGroupColor }};"></div>
-                    <span style="font:16px var(--font-sans); color:var(--ink-9);">
-                        {{ $createGroupName ?: 'Назва групи' }}
-                    </span>
+                    <div style="width:3px; height:28px; border-radius:2px;" :style="{ background: gColor }"></div>
+                    <span style="font:16px var(--font-sans); color:var(--ink-9);" x-text="gName || 'Назва групи'">Назва групи</span>
                 </div>
             </div>
 
@@ -213,7 +211,7 @@
                     display:flex; align-items:center; justify-content:flex-end; gap:8px;
                     background:var(--paper-2);">
             <x-ui.button variant="ghost" @click="showCreate = false">Скасувати</x-ui.button>
-            <x-ui.button wire:click="createGroup" wire:loading.attr="disabled">
+            <x-ui.button @click="$wire.createGroup(gName, gColor)" wire:loading.attr="disabled">
                 <span wire:loading.remove wire:target="createGroup">Створити</span>
                 <span wire:loading wire:target="createGroup">Збереження…</span>
             </x-ui.button>

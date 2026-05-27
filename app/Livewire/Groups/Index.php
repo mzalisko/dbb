@@ -18,15 +18,19 @@ class Index extends Component
     public string $createGroupName  = '';
     public string $createGroupColor = '#5a8a3c';
 
-    public function createGroup(): void
+    public function createGroup(string $name = '', string $color = '#5a8a3c'): void
     {
+        // Live preview is client-side (Alpine); values arrive as args on submit.
+        $this->createGroupName  = strtolower(trim($name));
+        $this->createGroupColor = $color;
+
         $this->validate([
             'createGroupName'  => 'required|string|max:60|unique:site_groups,name',
             'createGroupColor' => 'required|string|max:10',
         ]);
 
         SiteGroup::create([
-            'name'  => strtolower(trim($this->createGroupName)),
+            'name'  => $this->createGroupName,
             'color' => $this->createGroupColor,
         ]);
 

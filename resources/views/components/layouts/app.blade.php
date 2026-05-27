@@ -19,7 +19,8 @@
 </head>
 <body style="display:flex; height:100vh; overflow:hidden;">
 
-    {{-- Sidebar --}}
+    {{-- Sidebar (persisted across wire:navigate — no re-render, no count re-queries) --}}
+    @persist('sidebar')
     <aside class="sidebar">
         {{-- Logo --}}
         <div style="display:flex; align-items:center; gap:12px; padding:0 4px 26px;">
@@ -32,44 +33,53 @@
             </div>
         </div>
 
-        {{-- Nav --}}
-        <nav class="sidebar-nav">
-            <a href="{{ route('dashboard') }}" wire:navigate
-               class="sidebar-link {{ request()->routeIs('dashboard') ? 'active' : '' }}">
+        {{-- Nav — active state driven client-side so it stays correct inside @persist --}}
+        <nav class="sidebar-nav"
+             x-data="{ path: window.location.pathname }"
+             @livewire:navigated.window="path = window.location.pathname">
+            <a href="{{ route('dashboard') }}" wire:navigate.hover
+               class="sidebar-link {{ request()->routeIs('dashboard') ? 'active' : '' }}"
+               :class="{ 'active': path === '/dashboard' }">
                 <x-icon.dash width="14" height="14" />
                 <span style="flex:1;">Дашборд</span>
             </a>
-            <a href="{{ route('sites.index') }}" wire:navigate
-               class="sidebar-link {{ request()->routeIs('sites.*') ? 'active' : '' }}">
+            <a href="{{ route('sites.index') }}" wire:navigate.hover
+               class="sidebar-link {{ request()->routeIs('sites.*') ? 'active' : '' }}"
+               :class="{ 'active': path.startsWith('/sites') }">
                 <x-icon.sites width="14" height="14" />
                 <span style="flex:1;">Сайти</span>
                 <span class="mono" style="font:11px var(--font-mono); color:var(--ink-4);">{{ \App\Models\Site::count() }}</span>
             </a>
-            <a href="{{ route('groups.index') }}" wire:navigate
-               class="sidebar-link {{ request()->routeIs('groups.*') ? 'active' : '' }}">
+            <a href="{{ route('groups.index') }}" wire:navigate.hover
+               class="sidebar-link {{ request()->routeIs('groups.*') ? 'active' : '' }}"
+               :class="{ 'active': path.startsWith('/groups') }">
                 <x-icon.groups width="14" height="14" />
                 <span style="flex:1;">Групи сайтів</span>
                 <span class="mono" style="font:11px var(--font-mono); color:var(--ink-4);">{{ \App\Models\Site::whereNotNull('group')->distinct('group')->count('group') }}</span>
             </a>
-            <a href="{{ route('data.index') }}" wire:navigate
-               class="sidebar-link {{ request()->routeIs('data.*') ? 'active' : '' }}">
+            <a href="{{ route('data.index') }}" wire:navigate.hover
+               class="sidebar-link {{ request()->routeIs('data.*') ? 'active' : '' }}"
+               :class="{ 'active': path.startsWith('/data') }">
                 <x-icon.data width="14" height="14" />
                 <span style="flex:1;">Браузер даних</span>
                 <span class="mono" style="font:11px var(--font-mono); color:var(--ink-4);">{{ \App\Models\ContactEntry::count() }}</span>
             </a>
-            <a href="{{ route('users.index') }}" wire:navigate
-               class="sidebar-link {{ request()->routeIs('users.*') ? 'active' : '' }}">
+            <a href="{{ route('users.index') }}" wire:navigate.hover
+               class="sidebar-link {{ request()->routeIs('users.*') ? 'active' : '' }}"
+               :class="{ 'active': path.startsWith('/team') }">
                 <x-icon.team width="14" height="14" />
                 <span style="flex:1;">Команда</span>
                 <span class="mono" style="font:11px var(--font-mono); color:var(--ink-4);">{{ \App\Models\User::count() }}</span>
             </a>
-            <a href="{{ route('activity.index') }}" wire:navigate
-               class="sidebar-link {{ request()->routeIs('activity.*') ? 'active' : '' }}">
+            <a href="{{ route('activity.index') }}" wire:navigate.hover
+               class="sidebar-link {{ request()->routeIs('activity.*') ? 'active' : '' }}"
+               :class="{ 'active': path.startsWith('/activity') }">
                 <x-icon.logs width="14" height="14" />
                 <span style="flex:1;">Логи</span>
             </a>
-            <a href="{{ route('settings') }}" wire:navigate
-               class="sidebar-link {{ request()->routeIs('settings') ? 'active' : '' }}">
+            <a href="{{ route('settings') }}" wire:navigate.hover
+               class="sidebar-link {{ request()->routeIs('settings') ? 'active' : '' }}"
+               :class="{ 'active': path.startsWith('/settings') }">
                 <x-icon.settings width="14" height="14" />
                 <span style="flex:1;">Налаштування</span>
             </a>
@@ -99,6 +109,7 @@
             </button>
         </div>
     </aside>
+    @endpersist
 
     {{-- Main content --}}
     <main style="flex:1; min-width:0; display:flex; flex-direction:column; overflow-y:auto;">

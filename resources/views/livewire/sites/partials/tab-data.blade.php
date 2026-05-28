@@ -28,17 +28,32 @@
         <span class="eyebrow eyebrow-xs">Перегляд</span>
         <div class="seg">
             <button @click="geo='all'" :class="geo==='all' ? 'is-active' : ''" class="seg__btn">
-                Усі <span x-text="cat==='phones' ? {{ $allPhonesAll->count() }} : (cat==='messengers' ? {{ $allMsgsAll->count() }} : {{ $priceCount }})"></span>
+                Всі <span x-text="cat==='phones' ? {{ $allPhonesAll->count() }} : (cat==='messengers' ? {{ $allMsgsAll->count() }} : {{ $priceCount }})"></span>
             </button>
-            <button @click="geo='world'" :class="geo==='world' ? 'is-active' : ''" class="seg__btn">🌐 Світ</button>
-            <button @click="geo='PL'" :class="geo==='PL' ? 'is-active' : ''" class="seg__btn">🇵🇱 PL</button>
-            <button @click="geo='UA'" :class="geo==='UA' ? 'is-active' : ''" class="seg__btn">🇺🇦 UA</button>
+            @foreach($geoTabs as $geoCode)
+                <span class="seg__tab">
+                    <button @click="geo='{{ $geoCode }}'" :class="geo==='{{ $geoCode }}' ? 'is-active' : ''" class="seg__btn">{{ $geoCode }}</button>
+                    <button wire:click="removeGeoTab('{{ $geoCode }}')" class="seg__tab-x" @click.stop title="Видалити вкладку">×</button>
+                </span>
+            @endforeach
+            <span class="seg__add" x-data="{open:false}">
+                <button @click="open=!open" class="seg__add-btn" :class="open?'is-active':''" title="Додати країну">+</button>
+                <div x-show="open" x-cloak class="seg__add-pop" @click.outside="open=false">
+                    <input wire:model="newGeoTab"
+                           class="seg__add-input"
+                           placeholder="PL"
+                           maxlength="3"
+                           @keydown.enter.prevent="$wire.addGeoTab(); open=false"
+                           @keydown.escape="open=false">
+                    <button wire:click="addGeoTab()" @click="open=false" class="seg__add-ok">OK</button>
+                </div>
+            </span>
         </div>
     </div>
 
     {{-- ── ТЕЛЕФОНИ ── --}}
     <div x-show="cat==='phones'">
-        @foreach(['all', 'world', 'PL', 'UA'] as $geoKey)
+        @foreach(array_merge(['all'], $geoTabs) as $geoKey)
             <div x-show="geo==='{{ $geoKey }}'">
                 @include('livewire.sites.partials.data-phones', ['phonePrimaries' => $phonePrimariesByGeo[$geoKey]])
             </div>
@@ -47,7 +62,7 @@
 
     {{-- ── МЕСЕНДЖЕРИ ── --}}
     <div x-show="cat==='messengers'">
-        @foreach(['all', 'world', 'PL', 'UA'] as $geoKey)
+        @foreach(array_merge(['all'], $geoTabs) as $geoKey)
             <div x-show="geo==='{{ $geoKey }}'">
                 @include('livewire.sites.partials.data-messengers', ['msgPrimaries' => $msgPrimariesByGeo[$geoKey]])
             </div>

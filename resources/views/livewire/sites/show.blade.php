@@ -1,10 +1,27 @@
-<div class="page" x-data="{ tab: 'data', cat: 'phones', geo: 'all', settingsSub: 'failover', actFilter: 'all' }">
+<div class="page"
+     x-data="{
+         tab:         (['overview','data','activity','settings'].includes((location.hash.slice(1)||'').split('/')[0]) ? location.hash.slice(1).split('/')[0] : 'data'),
+         settingsSub: (location.hash.slice(1).split('/')[1] || 'failover'),
+         cat: 'phones', geo: 'all', actFilter: 'all'
+     }"
+     x-init="
+         $watch('tab',         t => history.replaceState(null,'',location.pathname+'#'+t+(t==='settings'?'/'+settingsSub:'')));
+         $watch('settingsSub', s => { if(tab==='settings') history.replaceState(null,'',location.pathname+'#settings/'+s); });
+     ">
 
     <x-ui.topbar :crumbs="['Сайти', $site->name]" :back="true">
         <button class="btn btn-ghost btn-sm">
             <x-icon.refresh width="13" height="13" /> Sync
         </button>
-        <button class="btn btn-primary btn-sm">
+        <button class="btn btn-primary btn-sm"
+                x-show="tab === 'data'"
+                x-cloak
+                x-on:click="
+                    const tag = (geo && geo !== 'all') ? geo : null;
+                    if (cat === 'phones') $wire.addEntry('phone', null, tag);
+                    else if (cat === 'messengers') $wire.addEntry('messenger', null, tag);
+                    else if (cat === 'prices') $wire.addEntry('price');
+                ">
             <x-icon.plus width="13" height="13" /> Додати
         </button>
     </x-ui.topbar>

@@ -1,5 +1,4 @@
 {{-- ── Phones sub-section ── --}}
-{{-- Phone table --}}
 <div class="card ctable">
     {{-- Header --}}
     <div class="crow crow--head">
@@ -12,77 +11,104 @@
         <span></span>
     </div>
 
-    @forelse($phonePrimaries as $i => $phone)
-        @if($i > 0)
-            <div class="crow-sep"></div>
-        @endif
+    {{-- Sortable primary entries --}}
+    <div x-data="sortable()">
+        @forelse($phonePrimaries as $i => $phone)
+            <div class="ctable-group" data-entry-id="{{ $phone->id }}">
 
-        {{-- Primary row --}}
-        <div wire:click="openPhone({{ $phone->id }})" class="crow crow--main">
-            <span class="cc-drag">&#x2807;</span>
-            <span class="cc-num">#{{ $i+1 }}</span>
-            <span class="mono cc-val">{{ $phone->value }}</span>
-            <span class="cc-label">{{ $phone->label }}</span>
-            <span class="cc-geo">{{ $phone->geo_label }}</span>
-            <span class="cc-role">
-                <span class="role-dot" style="background:var(--ok);"></span> Головний
-            </span>
-            <span class="cc-arrow">&rarr;</span>
-        </div>
-
-        {{-- РЕЗЕРВ section --}}
-        @if($phone->backups->count() > 0)
-            <div x-data="{open:false}" class="creserve">
-                {{-- РЕЗЕРВ header --}}
-                <div class="creserve__head" @click="open=!open">
-                    <span class="creserve__title">
-                        <span x-text="open?'&#x25BE;':'&#x25B8;'"></span>
-                        РЕЗЕРВ &middot; {{ $phone->backups->count() }}
+                {{-- Primary row --}}
+                <div wire:click="editEntry({{ $phone->id }})" class="crow crow--main">
+                    <span class="cc-drag" @click.stop>&#x2807;</span>
+                    <span class="cc-num">#{{ $i+1 }}</span>
+                    <span class="mono cc-val">{{ $phone->value }}</span>
+                    <span class="cc-label">{{ $phone->label }}</span>
+                    <span class="cc-geo">{{ $phone->geo_label }}</span>
+                    <span class="cc-role {{ $phone->role !== 'primary' ? 'cc-role--muted' : '' }}">
+                        @if($phone->role === 'backup')
+                            <span class="role-dot" style="background:var(--warn);"></span> Резерв
+                        @elseif($phone->role === 'hidden')
+                            <span class="role-dot" style="background:var(--ink-4);"></span> Приховано
+                        @else
+                            <span class="role-dot" style="background:var(--ok);"></span> Активний
+                        @endif
                     </span>
-                    <button class="creserve__add" @click.stop wire:click="addEntry('phone', {{ $phone->id }})">+ Додати резерв</button>
+                    {{-- Остання колонка: assign-кнопка для orphan/без-резервів; edit-кнопка для активних з резервами --}}
+                    @if($phone->role === 'backup' || ($phone->role === 'primary' && $phone->backups->count() === 0))
+                        <button class="cc-assign"
+                                wire:click.stop="openAssignModal({{ $phone->id }})"
+                                title="Зробити резервом іншого номера">→</button>
+                    @else
+                        <button class="cc-edit"
+                                wire:click.stop="editEntry({{ $phone->id }})"
+                                title="Редагувати">
+                            <x-icon.edit width="13" height="13" />
+                        </button>
+                    @endif
                 </div>
-                {{-- Backup rows --}}
-                <div x-show="open">
-                    @foreach($phone->backups as $j => $backup)
-                        <div class="crow crow--backup">
-                            <span class="cc-drag" style="color:var(--ink-4); font-size:12px;">&hookrightarrow;</span>
-                            <span class="cc-num">#{{ $j+1 }}</span>
-                            <span class="mono cc-val--sub">{{ $backup->value }}</span>
-                            <span class="cc-label--muted">{{ $backup->label }}</span>
-                            <span class="cc-geo">{{ $backup->geo_label }}</span>
-                            <span class="cc-role cc-role--muted">
-                                <span class="role-dot" style="background:var(--info);"></span> Резерв
+
+                {{-- РЕЗЕРВ section --}}
+                @if($phone->backups->count() > 0)
+                    <div x-data="{open:false}" class="creserve">
+                        <div class="creserve__head" @click="open=!open">
+                            <span class="creserve__title">
+                                <span x-text="open?'&#x25BE;':'&#x25B8;'"></span>
+                                РЕЗЕРВ &middot; {{ $phone->backups->count() }}
                             </span>
-                            <span class="cc-arrow">&rarr;</span>
+                            <button class="creserve__add" wire:click.stop="addEntry('phone', {{ $phone->id }})">+ Додати резерв</button>
                         </div>
-                    @endforeach
-                </div>
+                        {{-- Backup rows — sortable --}}
+                        <div x-show="open" x-data="backupSortable({{ $phone->id }})">
+                            @foreach($phone->backups as $j => $backup)
+                                <div class="crow crow--backup" data-backup-id="{{ $backup->id }}">
+                                    <span class="cc-drag" @click.stop style="color:var(--ink-4);">&#x2807;</span>
+                                    <span class="cc-num">#{{ $j+1 }}</span>
+                                    <span wire:click="editEntry({{ $backup->id }})" class="mono cc-val--sub" style="cursor:pointer;">{{ $backup->value }}</span>
+                                    <span class="cc-label--muted">{{ $backup->label }}</span>
+                                    <span class="cc-geo">—</span>
+                                    <span class="cc-role cc-role--muted">
+                                        <span class="role-dot" style="background:var(--info);"></span> Резерв
+                                    </span>
+                                    <button class="cc-promote" wire:click.stop="promoteEntry({{ $backup->id }})" title="Зробити активним">↑</button>
+                                </div>
+                            @endforeach
+                        </div>
+                    </div>
+                @else
+                    <div class="creserve creserve--empty">
+                        <button class="creserve__add-inline" wire:click.stop="addEntry('phone', {{ $phone->id }})">+ Додати резерв</button>
+                    </div>
+                @endif
+
             </div>
-        @endif
-    @empty
-        <div class="ctable__empty">Немає телефонів для обраного гео.</div>
-    @endforelse
+        @empty
+            <div class="ctable__empty">Немає телефонів для обраного гео.</div>
+        @endforelse
+    </div>
 
     {{-- Hidden entries --}}
     @foreach($allPhonesAll->filter(fn($e)=>!$e->visible && is_null($e->parent_id)) as $phone)
-        <div class="crow crow--hidden">
-            <span class="cc-drag">&#x2807;</span>
+        <div wire:click="editEntry({{ $phone->id }})" class="crow crow--hidden" style="cursor:pointer;">
+            <span style="color:var(--ink-4);">&#x2807;</span>
             <span class="cc-num">#{{ $loop->index+1 }}</span>
             <span class="mono cc-val--sub">{{ $phone->value }}</span>
             <span class="cc-label--muted">{{ $phone->label }}</span>
             <span class="cc-geo">{{ $phone->geo_label }}</span>
             <span class="cc-role cc-role--muted">
-                <span class="role-dot" style="background:var(--ink-4);"></span> Сховано
+                <span class="role-dot" style="background:var(--ink-4);"></span> Приховано
             </span>
-            <span class="cc-arrow">&rarr;</span>
+            <button class="cc-edit" wire:click.stop="editEntry({{ $phone->id }})" title="Редагувати">
+                <x-icon.edit width="13" height="13" />
+            </button>
         </div>
-        @if($phone->backups->count()>0)
-            <div class="ctable__hidden-add">+ Додати резерв для цього номера</div>
-        @endif
     @endforeach
 
-    {{-- Footer add row --}}
+    {{-- Footer --}}
     <div class="ctable__foot">
-        <button class="ctable__add" wire:click="addEntry('phone')">+ Додати телефон</button>
+        @php $gkParam = isset($geoKey) && $geoKey !== 'all' ? "'{$geoKey}'" : 'null'; @endphp
+        <button class="ctable__add" wire:click="addEntry('phone', null, {{ $gkParam }})">
+            + Додати {{ isset($geoKey) && $geoKey !== 'all' ? $geoKey : '' }} телефон
+        </button>
     </div>
 </div>
+
+@include('livewire.sites.partials.assign-backup-modal')

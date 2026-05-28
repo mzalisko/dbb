@@ -39,7 +39,7 @@
             <span class="cc-label">{{ $msg->label }}</span>
             <span class="cc-geo">{{ $msg->geo_label }}</span>
             <span class="cc-role">
-                <span class="role-dot" style="background:var(--ok);"></span> Головний
+                <span class="role-dot" style="background:var(--ok);"></span> Активний
             </span>
             <span class="cc-arrow">&rarr;</span>
         </div>
@@ -80,6 +80,6 @@
         <div class="ctable__empty">Немає месенджерів.</div>
     @endforelse
     <div class="ctable__foot">
-        <button class="ctable__add">+ Додати головний месенджер</button>
+        <button class="ctable__add" wire:click="addEntry('messenger')">+ Додати месенджер</button>
     </div>
 </div>

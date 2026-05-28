@@ -63,17 +63,12 @@ class ContactEntry extends Model
 
     public function getGeoLabelAttribute(): string
     {
-        $flags = collect($this->countries ?? [])
-            ->map(fn($c) => match ($c) {
-                'PL' => '🇵🇱', 'UA' => '🇺🇦', 'DE' => '🇩🇪',
-                'US' => '🇺🇸', 'GB' => '🇬🇧', 'FR' => '🇫🇷',
-                default => $c,
-            })->implode('');
+        $codes = collect($this->countries ?? [])->implode(' · ');
 
         return match ($this->geo_mode) {
-            'all'    => '🌐 Усім',
-            'only'   => 'Тільки ' . $flags,
-            'except' => 'Крім ' . $flags,
+            'all'    => 'Усім',
+            'only'   => 'Тільки ' . ($codes ?: '—'),
+            'except' => 'Крім ' . ($codes ?: '—'),
             default  => '—',
         };
     }

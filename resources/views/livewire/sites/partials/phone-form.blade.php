@@ -1,80 +1,122 @@
 {{-- ─── Phone entry form (shared by edit + add modes) ─── --}}
 <div class="drawer-stack">
 
+    {{-- БАТЬКІВСЬКИЙ НОМЕР --}}
+    @if(!is_null($entryParentId))
+        @php $parentPhone = $allPhonesAll->firstWhere('id', $entryParentId); @endphp
+        <div class="drawer-context">
+            <div class="eyebrow eyebrow-xxs">Резерв для</div>
+            <div class="drawer-context__row">
+                <span class="mono drawer-context__val">{{ $parentPhone?->value ?? '—' }}</span>
+                <span class="drawer-context__label">{{ $parentPhone?->label }}</span>
+            </div>
+            @if($parentPhone?->geo_label)
+                <div class="drawer-context__geo">Гео-правило: {{ $parentPhone->geo_label }}</div>
+            @endif
+        </div>
+    @endif
+
     {{-- НОМЕР --}}
     <div>
         <label class="label">Номер</label>
-        <input class="input mono phone-input" wire:model="entryValue" placeholder="+48 ...">
+        <input class="input mono phone-input" wire:model="entryValue" placeholder="+48 ..."
+               inputmode="tel"
+               @input="$el.value = $el.value.replace(/[^0-9+\-()\s.]/g, '')">
         @error('entryValue') <div class="field-error">{{ $message }}</div> @enderror
     </div>
 
     {{-- МІТКА --}}
     <div>
         <label class="label">Мітка</label>
-        <input class="input" wire:model="entryLabel" placeholder="напр. PL головний">
+        <input class="input" wire:model="entryLabel" placeholder="напр. Польща">
         @error('entryLabel') <div class="field-error">{{ $message }}</div> @enderror
     </div>
 
-    {{-- ГЕО-ПРАВИЛО --}}
-    <div>
-        <label class="label">Гео-правило</label>
-        <p class="field-hint">Сайт показує номер лише тим відвідувачам, що відповідають правилу.</p>
-        <div class="geo-opts">
-            @foreach([
-                ['k'=>'all',    'l'=>'Усім',             'd'=>'Будь-яка країна'],
-                ['k'=>'only',   'l'=>'Тільки в обраних', 'd'=>'Лише вказаним країнам'],
-                ['k'=>'except', 'l'=>'Крім обраних',     'd'=>'Усім окрім вказаних'],
-            ] as $geo)
-                <label class="geo-opt {{ $entryGeoMode===$geo['k'] ? 'is-active' : '' }}" wire:click="$set('entryGeoMode','{{ $geo['k'] }}')">
-                    <span class="geo-opt__radio">
-                        @if($entryGeoMode===$geo['k'])<span class="geo-opt__dot"></span>@endif
-                    </span>
-                    <div>
-                        <div class="geo-opt__label">{{ $geo['l'] }}</div>
-                        <div class="geo-opt__desc">{{ $geo['d'] }}</div>
-                    </div>
-                </label>
+    {{-- ГЕО (hidden for backup — inherits parent's geo) --}}
+    <div x-show="$wire.entryRole !== 'backup'" x-cloak>
+        <label class="label">Країни</label>
+        <p class="field-hint">Без вибору — показується всім. Познач країни для фільтру.</p>
+        <div class="country-pills">
+            <button type="button"
+                    class="country-pill {{ $entryGeoMode === 'all' ? 'is-active' : '' }}"
+                    wire:click="setGeoAll()">Усі</button>
+            @foreach(array_unique(array_merge($geoTabs, ['PL', 'DE', 'US', 'GB', 'FR'])) as $code)
+                @php $sel = in_array($code, $entryCountries ?? []); @endphp
+                <button type="button"
+                        class="country-pill {{ $sel ? 'is-active' : '' }}"
+                        wire:click="toggleCountry('{{ $code }}')">{{ $code }}</button>
             @endforeach
         </div>
-
-        {{-- Country pills — show when only/except --}}
-        @if(in_array($entryGeoMode, ['only', 'except']))
-            <div class="country-section">
-                <div class="eyebrow eyebrow-xxs">Країни</div>
-                <div class="country-pills">
-                    @foreach(['PL'=>'PL','UA'=>'UA','DE'=>'DE','US'=>'US','GB'=>'GB','FR'=>'FR'] as $code=>$label)
-                        @php $sel = in_array($code, $entryCountries ?? []); @endphp
-                        <button type="button"
-                            class="country-pill {{ $sel ? 'is-active' : '' }}"
-                            wire:click="toggleCountry('{{ $code }}')">
-                            {{ $label }}
-                        </button>
-                    @endforeach
+        @if(!empty($entryCountries))
+            <div class="geo-mode-row">
+                <span class="eyebrow eyebrow-xxs">Режим:</span>
+                <div class="seg seg--xs">
+                    <button type="button"
+                            class="seg__btn {{ $entryGeoMode === 'only' ? 'is-active' : '' }}"
+                            wire:click="setEntryGeoMode('only')">Тільки</button>
+                    <button type="button"
+                            class="seg__btn {{ $entryGeoMode === 'except' ? 'is-active' : '' }}"
+                            wire:click="setEntryGeoMode('except')">Крім</button>
                 </div>
             </div>
         @endif
     </div>
 
     {{-- РОЛЬ --}}
+    @php
+        $editedPhone  = $editEntryId ? $allPhonesAll->firstWhere('id', $editEntryId) : null;
+        $hasOwnBackups = $editedPhone && $editedPhone->backups->count() > 0;
+    @endphp
     <div>
         <label class="label">Роль</label>
         <div class="role-cards">
             @foreach([
-                ['k'=>'primary', 'l'=>'Головний', 'd'=>'Показуємо першим'],
-                ['k'=>'backup',  'l'=>'Резерв',   'd'=>'На випадок блокування головного'],
-                ['k'=>'hidden',  'l'=>'Сховано',  'd'=>'У базі, але не показуємо'],
+                ['k'=>'primary', 'l'=>'Активний',  'd'=>'Показується відвідувачам'],
+                ['k'=>'backup',  'l'=>'Резерв',     'd'=>'Якщо активний недоступний'],
+                ['k'=>'hidden',  'l'=>'Приховано',  'd'=>'У базі, але не показується'],
             ] as $role)
-                <label class="role-card {{ $entryRole===$role['k'] ? 'is-active' : '' }}" wire:click="$set('entryRole','{{ $role['k'] }}')">
-                    <span class="role-card__radio">
-                        @if($entryRole===$role['k'])<span class="role-card__dot"></span>@endif
-                    </span>
-                    <div>
-                        <div class="role-card__label">{{ $role['l'] }}</div>
-                        <div class="role-card__desc">{{ $role['d'] }}</div>
+                @php
+                    $isBackupDisabled = $role['k'] === 'backup' && (
+                        ($addingEntry && is_null($entryParentId)) ||
+                        $hasOwnBackups
+                    );
+                    $isActive = $entryRole === $role['k'];
+                @endphp
+                @if($isBackupDisabled)
+                    <div class="role-card role-card--disabled"
+                         title="{{ $hasOwnBackups ? 'Номер має власні резерви — не може бути резервом' : 'Додайте через + Додати резерв' }}">
+                        <span class="role-card__radio"></span>
+                        <div>
+                            <div class="role-card__label">{{ $role['l'] }}</div>
+                            <div class="role-card__desc">{{ $hasOwnBackups ? 'Має власні резерви' : 'Додайте через "+ Додати резерв"' }}</div>
+                        </div>
                     </div>
-                </label>
+                @else
+                    <div class="role-card {{ $isActive ? 'is-active' : '' }}"
+                         wire:click="setEntryRole('{{ $role['k'] }}')">
+                        <span class="role-card__radio">
+                            @if($isActive)<span class="role-card__dot"></span>@endif
+                        </span>
+                        <div>
+                            <div class="role-card__label">{{ $role['l'] }}</div>
+                            <div class="role-card__desc">{{ $role['d'] }}</div>
+                        </div>
+                    </div>
+                @endif
             @endforeach
         </div>
+    </div>
+
+    {{-- ПРИВ'ЯЗАТИ ДО — коли роль=backup і немає батька --}}
+    <div x-show="$wire.entryRole === 'backup' && !$wire.entryParentId" x-cloak>
+        <label class="label">Прив'язати до активного</label>
+        <select class="input" wire:model.live="entryParentId">
+            <option value="">— оберіть номер —</option>
+            @foreach($allPhonesAll->filter(fn($p) => $p->role === 'primary' && is_null($p->parent_id) && $p->id !== $editEntryId) as $primary)
+                <option value="{{ $primary->id }}">{{ $primary->value }}{{ $primary->label ? ' · '.$primary->label : '' }}</option>
+            @endforeach
+        </select>
+        <p class="field-hint">Або скористайтесь кнопкою → в таблиці для швидкого вибору.</p>
     </div>
 
 </div>

@@ -37,6 +37,21 @@ class Show extends Component
     public ?float $entryOldPrice = null;
     public string $entryPriceUnit = '';
     public string $entrySku = '';
+    public int $entryFormKey = 0;
+
+    // Geo filter tabs (dynamic, per session)
+    public array $geoTabs = ['UA', 'RU', 'BY'];
+    public string $newGeoTab = '';
+
+    // Geo isolation rules for conflict detection
+    public array $geoRules = [['id' => 1, 'groups' => [['UA'], ['RU', 'BY']]]];
+    public int $nextRuleId = 2;
+    public string $newRuleA = '';
+    public string $newRuleB = '';
+
+    // Assign-backup modal state
+    public bool $assigningBackup = false;
+    public ?int $assignBackupPhoneId = null;
 
     public function openPhone(int $id): void
     {
@@ -64,6 +79,15 @@ class Show extends Component
         return $entries->filter(fn($e) => $e->visibleForGeo($geo))->values();
     }
 
+    /** Tag-based filter: only entries where geo_mode='only' and $geo in countries. */
+    private function filterByGeoTag(Collection $entries, string $geo): Collection
+    {
+        if ($geo === 'all') return $entries;
+        return $entries->filter(
+            fn($e) => $e->geo_mode === 'only' && in_array($geo, $e->countries ?? [])
+        )->values();
+    }
+
     public function saveFailover(): void
     {
         $this->authorize('update', $this->site);
@@ -86,6 +110,7 @@ class Show extends Component
     {
         $entry = \App\Models\ContactEntry::findOrFail($id);
         $this->authorize('update', $entry);
+        $this->entryFormKey++;
         $this->editEntryId    = $entry->id;
         $this->entryType      = $entry->type;
         $this->entryValue     = $entry->value ?? '';
@@ -104,17 +129,22 @@ class Show extends Component
         $this->addingEntry    = false;
     }
 
-    public function addEntry(string $type, ?int $parentId = null): void
+    public function addEntry(string $type, ?int $parentId = null, ?string $geoTag = null): void
     {
         $this->authorize('create', \App\Models\ContactEntry::class);
         $this->resetEntryForm();
-        $this->entryType    = $type;
+        $this->entryType     = $type;
         $this->entryParentId = $parentId;
         if ($parentId) {
             $this->entryRole = 'backup';
         }
+        if ($geoTag) {
+            $this->entryCountries = [$geoTag];
+            $this->entryGeoMode   = 'only';
+        }
         $this->addingEntry  = true;
         $this->editingEntry = false;
+        $this->entryFormKey++;
     }
 
     public function saveEntry(): void
@@ -148,13 +178,13 @@ class Show extends Component
             'role'       => $this->entryRole,
             'geo_mode'   => $this->entryGeoMode,
             'countries'  => $this->entryCountries ?: null,
-            'parent_id'  => $this->entryParentId,
+            'parent_id'  => $this->entryRole === 'backup' ? $this->entryParentId : null,
             'currency'   => $this->entryCurrency ?: null,
             'price'      => $this->entryPrice,
             'old_price'  => $this->entryOldPrice,
             'price_unit' => $this->entryPriceUnit ?: null,
             'sku'        => $this->entrySku ?: null,
-            'visible'    => true,
+            'visible'    => $this->entryRole !== 'hidden',
             'order'      => 1,
         ];
 
@@ -168,18 +198,41 @@ class Show extends Component
             \App\Models\ContactEntry::create($data);
         }
 
+        $savedType = $this->entryType;
         $this->resetEntryForm();
         $this->dispatch('toast', type: 'success', message: 'Збережено');
+        if ($savedType === 'phone') {
+            $this->dispatch('phones-updated');
+        }
+    }
+
+    public function promoteEntry(int $id): void
+    {
+        $entry = \App\Models\ContactEntry::findOrFail($id);
+        $this->authorize('update', $entry);
+        $entry->update([
+            'role'      => 'primary',
+            'parent_id' => null,
+            'visible'   => true,
+        ]);
+        $this->dispatch('toast', type: 'success', message: 'Переведено в активні');
+        if ($entry->type === 'phone') {
+            $this->dispatch('phones-updated');
+        }
     }
 
     public function deleteEntry(int $id): void
     {
         $entry = \App\Models\ContactEntry::findOrFail($id);
         $this->authorize('delete', $entry);
+        $isPhone = $entry->type === 'phone';
         $entry->delete();
         $this->resetEntryForm();
         $this->closePhone();
         $this->dispatch('toast', type: 'success', message: 'Видалено');
+        if ($isPhone) {
+            $this->dispatch('phones-updated');
+        }
     }
 
     public function toggleEntryVisibility(int $id): void
@@ -209,15 +262,124 @@ class Show extends Component
         $this->entrySku       = '';
     }
 
+    public function reorderBackups(int $parentId, array $orderedIds): void
+    {
+        $this->authorize('update', $this->site);
+        foreach ($orderedIds as $order => $id) {
+            \App\Models\ContactEntry::where('id', $id)
+                ->where('parent_id', $parentId)
+                ->where('site_id', $this->site->id)
+                ->update(['order' => $order + 1]);
+        }
+    }
+
+    public function reorderEntries(array $orderedIds): void
+    {
+        $this->authorize('update', $this->site);
+        foreach ($orderedIds as $order => $id) {
+            \App\Models\ContactEntry::where('id', $id)
+                ->where('site_id', $this->site->id)
+                ->update(['order' => $order + 1]);
+        }
+    }
+
+    public function openAssignModal(int $id): void
+    {
+        $entry = \App\Models\ContactEntry::findOrFail($id);
+        $this->authorize('update', $entry);
+        $this->assignBackupPhoneId = $id;
+        $this->assigningBackup = true;
+    }
+
+    public function closeAssignModal(): void
+    {
+        $this->assigningBackup = false;
+        $this->assignBackupPhoneId = null;
+    }
+
+    public function setEntryRole(string $role): void
+    {
+        if (!in_array($role, ['primary', 'backup', 'hidden'])) return;
+        $this->entryRole = $role;
+        if ($role !== 'backup') {
+            $this->entryParentId = null;
+        }
+    }
+
+    public function setEntryGeoMode(string $mode): void
+    {
+        if (!in_array($mode, ['all', 'only', 'except'])) return;
+        $this->entryGeoMode = $mode;
+    }
+
+    public function assignAsBackup(int $id, int $parentId): void
+    {
+        $entry = \App\Models\ContactEntry::findOrFail($id);
+        $this->authorize('update', $entry);
+        \App\Models\ContactEntry::where('id', $parentId)
+            ->where('site_id', $this->site->id)
+            ->firstOrFail();
+        $entry->update([
+            'role'      => 'backup',
+            'parent_id' => $parentId,
+            'visible'   => true,
+        ]);
+        $this->assigningBackup = false;
+        $this->assignBackupPhoneId = null;
+        $this->dispatch('toast', type: 'success', message: 'Переведено в резерв');
+    }
+
     public function toggleCountry(string $code): void
     {
         if (in_array($code, $this->entryCountries)) {
             $this->entryCountries = array_values(
                 array_filter($this->entryCountries, fn($c) => $c !== $code)
             );
+            if (empty($this->entryCountries)) {
+                $this->entryGeoMode = 'all';
+            }
         } else {
             $this->entryCountries[] = $code;
+            $this->entryGeoMode = 'only';
         }
+    }
+
+    public function setGeoAll(): void
+    {
+        $this->entryGeoMode = 'all';
+        $this->entryCountries = [];
+    }
+
+    public function addGeoTab(): void
+    {
+        $code = strtoupper(trim($this->newGeoTab));
+        if (!$code || in_array($code, $this->geoTabs) || strlen($code) > 3) {
+            $this->newGeoTab = '';
+            return;
+        }
+        $this->geoTabs[] = $code;
+        $this->newGeoTab = '';
+    }
+
+    public function removeGeoTab(string $code): void
+    {
+        $this->geoTabs = array_values(array_filter($this->geoTabs, fn($t) => $t !== $code));
+    }
+
+    public function addGeoRule(): void
+    {
+        if (!$this->newRuleA || !$this->newRuleB || $this->newRuleA === $this->newRuleB) return;
+        $this->geoRules[] = [
+            'id'     => $this->nextRuleId++,
+            'groups' => [[$this->newRuleA], [$this->newRuleB]],
+        ];
+        $this->newRuleA = '';
+        $this->newRuleB = '';
+    }
+
+    public function removeGeoRule(int $id): void
+    {
+        $this->geoRules = array_values(array_filter($this->geoRules, fn($r) => $r['id'] !== $id));
     }
 
     public function render()
@@ -225,33 +387,69 @@ class Show extends Component
         $allPhones = $this->site->contactEntries()->where('type', 'phone')->where('visible', true)->orderBy('order')->with('backups')->get();
         $allMsgs   = $this->site->contactEntries()->where('type', 'messenger')->where('visible', true)->orderBy('order')->with('backups')->get();
 
-        // Overview: 3 geo pools with their primaries and backups
-        $geos = [
-            ['key' => 'PL',    'flag' => '🇵🇱', 'label' => 'Польща'],
-            ['key' => 'UA',    'flag' => '🇺🇦', 'label' => 'Україна'],
-            ['key' => 'world', 'flag' => '🌐',  'label' => 'Світ'],
+        // Overview: what each geo group sees + "all" universal column
+        $overviewByGeo = [];
+        // "Всі" — universal phones (geo_mode=all)
+        $univPhone = $allPhones->filter(fn($e) => is_null($e->parent_id) && $e->geo_mode === 'all')->firstWhere('role', 'primary');
+        $univMsg   = $allMsgs->filter(fn($e) => is_null($e->parent_id) && $e->geo_mode === 'all')->firstWhere('role', 'primary');
+        $overviewByGeo['all'] = [
+            'label'        => 'Всі',
+            'primaryPhone' => $univPhone,
+            'primaryMsg'   => $univMsg,
+            'backupCount'  => $univPhone ? $allPhones->where('parent_id', $univPhone->id)->count() : 0,
         ];
-        foreach ($geos as &$geo) {
-            $geoPhones = $this->filterForGeo($allPhones, $geo['key']);
-            $geoMsgs   = $this->filterForGeo($allMsgs,   $geo['key']);
-            $geo['primaryPhone'] = $geoPhones->firstWhere('role', 'primary');
-            $geo['primaryMsg']   = $geoMsgs->firstWhere('role', 'primary');
-            $geo['backupPhones'] = $geo['primaryPhone']
-                ? $allPhones->where('parent_id', $geo['primaryPhone']->id)->values()
-                : collect();
-            $geo['backupMsgs']   = $geo['primaryMsg']
-                ? $allMsgs->where('parent_id', $geo['primaryMsg']->id)->values()
-                : collect();
+        // One column per geoTab — tag-based
+        foreach ($this->geoTabs as $geoCode) {
+            $fp = $this->filterByGeoTag($allPhones, $geoCode)->filter(fn($e) => is_null($e->parent_id));
+            $fm = $this->filterByGeoTag($allMsgs,   $geoCode)->filter(fn($e) => is_null($e->parent_id));
+            $pp = $fp->firstWhere('role', 'primary');
+            $pm = $fm->firstWhere('role', 'primary');
+            $overviewByGeo[$geoCode] = [
+                'label'        => $geoCode,
+                'primaryPhone' => $pp,
+                'primaryMsg'   => $pm,
+                'backupCount'  => $pp ? $allPhones->where('parent_id', $pp->id)->count() : 0,
+            ];
         }
-        unset($geo);
 
-        // Pre-render all 4 geo variants so category/geo switching is pure Alpine (no Livewire round-trip)
+        // Geo visibility matrix — tag-based (geo_mode=only + country tag)
+        $primaryPhones = $allPhones->filter(fn($e) => is_null($e->parent_id));
+        $geoMatrix = $primaryPhones->map(function ($phone) {
+            $vis = [];
+            foreach ($this->geoTabs as $gc) {
+                $vis[$gc] = $phone->geo_mode === 'only' && in_array($gc, $phone->countries ?? []);
+            }
+            return ['phone' => $phone, 'vis' => $vis];
+        })->values();
+
+        // Conflict detection
+        $conflicts = [];
+        $conflictPhoneIds = [];
+        $seenConflicts = [];
+        foreach ($this->geoRules as $rule) {
+            [$groupA, $groupB] = $rule['groups'];
+            foreach ($primaryPhones as $phone) {
+                $seenByA = collect($groupA)->some(fn($c) => $phone->visibleForGeo($c));
+                $seenByB = collect($groupB)->some(fn($c) => $phone->visibleForGeo($c));
+                if ($seenByA && $seenByB) {
+                    $key = $phone->id . '_' . $rule['id'];
+                    if (!isset($seenConflicts[$key])) {
+                        $conflicts[] = ['rule' => $rule, 'phone' => $phone];
+                        $conflictPhoneIds[$phone->id] = true;
+                        $seenConflicts[$key] = true;
+                    }
+                }
+            }
+        }
+        $conflictPhoneIds = array_keys($conflictPhoneIds);
+
+        // Pre-render geo variants for Data tab — tag-based: 'all'=все, 'UA'=тільки geo_mode=only+UA
         $phonePrimariesByGeo = [];
         $msgPrimariesByGeo   = [];
-        foreach (['all', 'world', 'PL', 'UA'] as $gk) {
-            $fp = $gk === 'all' ? $allPhones : $this->filterForGeo($allPhones, $gk);
+        foreach (array_merge(['all'], $this->geoTabs) as $gk) {
+            $fp = $this->filterByGeoTag($allPhones, $gk);
             $phonePrimariesByGeo[$gk] = $fp->filter(fn($e) => is_null($e->parent_id))->values();
-            $fm = $gk === 'all' ? $allMsgs : $this->filterForGeo($allMsgs, $gk);
+            $fm = $this->filterByGeoTag($allMsgs, $gk);
             $msgPrimariesByGeo[$gk] = $fm->filter(fn($e) => is_null($e->parent_id))->values();
         }
         // Settings tab still uses $phonePrimaries (all geo, visible primaries)
@@ -290,8 +488,14 @@ class Show extends Component
         $msgCount   = $allMsgs->count();
         $priceCount = $allPrices->count();
 
+        $geoTabs = $this->geoTabs;
+
+        $geoRules = $this->geoRules;
+        $newRuleA = $this->newRuleA;
+        $newRuleB = $this->newRuleB;
+
         return view('livewire.sites.show', compact(
-            'geos',
+            'overviewByGeo', 'geoMatrix', 'conflicts', 'conflictPhoneIds',
             'allPhones', 'allMsgs', 'allPhonesAll', 'allMsgsAll', 'allPricesAll',
             'phonePrimaries', 'msgPrimaries',
             'phonePrimariesByGeo', 'msgPrimariesByGeo',
@@ -300,6 +504,7 @@ class Show extends Component
             'activityLogs',
             'phoneCount', 'msgCount', 'priceCount',
             'addressCount', 'socialCount',
+            'geoTabs', 'geoRules', 'newRuleA', 'newRuleB',
         ));
     }
 }

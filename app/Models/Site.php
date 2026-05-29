@@ -20,7 +20,7 @@ class Site extends Model
         'php_version', 'status', 'group', 'group_color',
         'last_checked_at', 'notes', 'is_favourite',
         'failover_enabled', 'failover_interval', 'failover_threshold',
-        'geo_tabs', 'geo_rules',
+        'geo_tabs', 'geo_rules', 'data_categories',
     ];
 
     protected function casts(): array
@@ -31,6 +31,7 @@ class Site extends Model
             'failover_enabled' => 'boolean',
             'geo_tabs'         => 'array',
             'geo_rules'        => 'array',
+            'data_categories'  => 'array',
         ];
     }
 

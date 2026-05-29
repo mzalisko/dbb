@@ -7,6 +7,7 @@
 
 <div x-data="{ show: false }" x-init="$nextTick(() => { show = @js($open) })"
      @keydown.escape.window="show = false; $dispatch('drawer-close')"
+     {{ $attributes }}
      style="display:contents;">
 
     {{-- Backdrop --}}

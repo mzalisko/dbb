@@ -15,8 +15,16 @@ class Show extends Component
 {
     private const DEFAULT_GEO_TABS = ['UA', 'RU', 'BY'];
 
+    /** Phones + messengers are always present; the rest can be toggled per-site. */
+    public const REQUIRED_CATEGORIES = ['phones', 'messengers'];
+    private const OPTIONAL_CATEGORIES = ['prices', 'addresses', 'socials', 'custom'];
+    private const DEFAULT_CATEGORIES = ['phones', 'messengers', 'prices'];
+
     public Site $site;
     public ?int $openPhoneId = null;
+
+    /** Enabled data categories shown in the Data tab (Settings → Категорії даних). */
+    public array $dataCategories = self::DEFAULT_CATEGORIES;
 
     public bool $failoverEnabled = true;
     public string $failoverInterval = '5min';
@@ -88,6 +96,10 @@ class Show extends Component
         $this->geoRules = $this->site->geo_rules ?? $this->geoRules;
         $this->nextRuleId = (int) collect($this->geoRules)->max('id') + 1;
 
+        $this->dataCategories = $this->normalizeCategories(
+            $this->site->data_categories ?? self::DEFAULT_CATEGORIES
+        );
+
         $this->failoverEnabled   = $this->site->failover_enabled ?? true;
         $this->failoverInterval  = $this->site->failover_interval ?? '5min';
         $this->failoverThreshold = $this->site->failover_threshold ?? 3;
@@ -114,6 +126,37 @@ class Show extends Component
     {
         $this->authorize('update', $this->site);
         $this->site->forceFill(['geo_rules' => $this->geoRules])->save();
+    }
+
+    /** Keep required categories, drop unknown ones, preserve canonical order. */
+    private function normalizeCategories(array $cats): array
+    {
+        $all = array_merge(self::REQUIRED_CATEGORIES, self::OPTIONAL_CATEGORIES);
+        $enabled = array_merge(self::REQUIRED_CATEGORIES, $cats);
+
+        return collect($all)
+            ->filter(fn($key) => in_array($key, $enabled, true))
+            ->values()
+            ->all();
+    }
+
+    public function toggleDataCategory(string $key): void
+    {
+        $this->authorize('update', $this->site);
+
+        // Required categories cannot be turned off; unknown keys are ignored.
+        if (in_array($key, self::REQUIRED_CATEGORIES, true) || !in_array($key, self::OPTIONAL_CATEGORIES, true)) {
+            return;
+        }
+
+        if (in_array($key, $this->dataCategories, true)) {
+            $this->dataCategories = array_values(array_filter($this->dataCategories, fn($c) => $c !== $key));
+        } else {
+            $this->dataCategories[] = $key;
+        }
+
+        $this->dataCategories = $this->normalizeCategories($this->dataCategories);
+        $this->site->forceFill(['data_categories' => $this->dataCategories])->save();
     }
 
     private function defaultGeoTabsFromEntries(): array
@@ -215,6 +258,13 @@ class Show extends Component
         $this->entryParentId = $parentId;
         if ($parentId) {
             $this->entryRole = 'backup';
+            // A messenger reserve must be the same platform as its primary (e.g. Telegram → Telegram).
+            if ($type === 'messenger') {
+                $parent = \App\Models\ContactEntry::where('id', $parentId)
+                    ->where('site_id', $this->site->id)
+                    ->first();
+                $this->entryKind = $parent?->kind ?? '';
+            }
         }
         if ($geoTag) {
             $this->entryGeoTag = $geoTag;
@@ -256,11 +306,13 @@ class Show extends Component
         $entryGeoTag = $this->entryGeoTag ?: ($parentEntry?->geo_tag);
         $entryGeoMode = $parentEntry?->geo_mode ?? $this->entryGeoMode;
         $entryCountries = $parentEntry ? ($parentEntry->countries ?? []) : $this->entryCountries;
+        // Messenger reserves inherit the platform of their primary (Telegram can't reserve to Viber).
+        $entryKind = ($parentEntry && $this->entryType === 'messenger') ? $parentEntry->kind : $this->entryKind;
 
         $data = [
             'site_id'    => $this->site->id,
             'type'       => $this->entryType,
-            'kind'       => $this->entryKind ?: null,
+            'kind'       => $entryKind ?: null,
             'value'      => $this->entryValue,
             'label'      => $this->entryLabel ?: null,
             'role'       => $this->entryRole,
@@ -499,6 +551,19 @@ class Show extends Component
         $this->entryGeoMode = $mode;
     }
 
+    /** When a messenger reserve is linked to a primary, inherit its platform (2.1). */
+    public function updatedEntryParentId($value): void
+    {
+        if ($this->entryType === 'messenger' && $value) {
+            $parent = \App\Models\ContactEntry::where('id', $value)
+                ->where('site_id', $this->site->id)
+                ->first();
+            if ($parent) {
+                $this->entryKind = $parent->kind;
+            }
+        }
+    }
+
     public function setEntryGeoTag(?string $code = null): void
     {
         $code = $code ? strtoupper(trim($code)) : '';
@@ -648,6 +713,11 @@ class Show extends Component
         foreach ($this->geoRules as $rule) {
             [$groupA, $groupB] = $rule['groups'];
             foreach ($primaryPhones as $phone) {
+                // Global numbers (geo_mode all/except) are intentionally world-visible — never a conflict.
+                // Only numbers explicitly restricted to specific countries ("Тільки") can clash with isolation rules.
+                if ($phone->geo_mode !== 'only') {
+                    continue;
+                }
                 $seenByA = collect($groupA)->some(fn($c) => $phone->visibleForGeo($c));
                 $seenByB = collect($groupB)->some(fn($c) => $phone->visibleForGeo($c));
                 if ($seenByA && $seenByB) {
@@ -670,6 +740,7 @@ class Show extends Component
         $phonePrimariesByGeo = [];
         $hiddenPhonesByGeo = [];
         $msgPrimariesByGeo   = [];
+        $hiddenMsgsByGeo   = [];
         foreach (array_merge(['all'], $this->geoTabs) as $gk) {
             $fp = $this->filterByPreviewTab($allPhones, $gk);
             $phonePrimariesByGeo[$gk] = $fp->filter(fn($e) => is_null($e->parent_id))->values();
@@ -677,6 +748,8 @@ class Show extends Component
             $hiddenPhonesByGeo[$gk] = $fh->filter(fn($e) => !$e->visible && is_null($e->parent_id))->values();
             $fm = $this->filterByPreviewTab($allMsgs, $gk);
             $msgPrimariesByGeo[$gk] = $fm->filter(fn($e) => is_null($e->parent_id))->values();
+            $fmh = $this->filterByPreviewTab($allMsgsAll, $gk);
+            $hiddenMsgsByGeo[$gk] = $fmh->filter(fn($e) => !$e->visible && is_null($e->parent_id))->values();
         }
         // Settings tab still uses $phonePrimaries (all geo, visible primaries)
         $phonePrimaries = $allPhonesAll
@@ -713,6 +786,7 @@ class Show extends Component
         $priceCount = $allPrices->count();
 
         $geoTabs = $this->geoTabs;
+        $dataCategories = $this->dataCategories;
 
         $geoRules = $this->geoRules;
         $newRuleA = $this->newRuleA;
@@ -722,13 +796,13 @@ class Show extends Component
             'overviewByGeo', 'geoMatrix', 'conflicts', 'conflictPhoneIds',
             'allPhones', 'allMsgs', 'allPhonesAll', 'allMsgsAll', 'allPricesAll',
             'phonePrimaries', 'msgPrimaries',
-            'phonePrimariesByGeo', 'hiddenPhonesByGeo', 'msgPrimariesByGeo',
+            'phonePrimariesByGeo', 'hiddenPhonesByGeo', 'msgPrimariesByGeo', 'hiddenMsgsByGeo',
             'msgByKind',
             'priceBySku', 'priceBySkuAll',
             'activityLogs',
             'phoneCount', 'msgCount', 'priceCount',
             'addressCount', 'socialCount',
-            'geoTabs', 'geoRules', 'newRuleA', 'newRuleB',
+            'geoTabs', 'dataCategories', 'geoRules', 'newRuleA', 'newRuleB',
         ));
     }
 }

@@ -1,5 +1,5 @@
 {{-- ─── Tab: Активність ─────────────────────────────────── --}}
-<div x-show="tab==='activity'" class="tab-pane">
+<div x-show="tab==='activity'" x-cloak class="tab-pane">
 
     <header class="act-head">
         <div style="flex:1;">

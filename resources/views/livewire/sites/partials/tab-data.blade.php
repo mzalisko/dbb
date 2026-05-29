@@ -1,5 +1,5 @@
 {{-- ─── Tab: Дані ───────────────────────────────────────── --}}
-<div x-show="tab==='data'" class="tab-pane">
+<div x-show="tab==='data'" x-cloak class="tab-pane">
 
     {{-- КАТЕГОРІЯ ДАНИХ --}}
     <div class="eyebrow eyebrow-xs" style="margin-bottom:12px;">Категорія даних</div>
@@ -11,16 +11,20 @@
             ['key'=>'addresses',  'label'=>'Адреси',     'count'=>$addressCount],
             ['key'=>'socials',    'label'=>'Соц. мережі','count'=>$socialCount],
         ] as $cat)
-            <button @click="cat='{{ $cat['key'] }}'"
-                    :class="cat==='{{ $cat['key'] }}' ? 'is-active' : ''"
-                    class="filter-pill">
-                {{ $cat['label'] }}
-                <span class="pill-count">{{ $cat['count'] }}</span>
-            </button>
+            @if(in_array($cat['key'], $dataCategories, true))
+                <button @click="cat='{{ $cat['key'] }}'"
+                        :class="cat==='{{ $cat['key'] }}' ? 'is-active' : ''"
+                        class="filter-pill">
+                    {{ $cat['label'] }}
+                    <span class="pill-count">{{ $cat['count'] }}</span>
+                </button>
+            @endif
         @endforeach
-        <button @click="cat='custom'" :class="cat==='custom' ? 'is-active' : ''" class="filter-pill">
-            + Custom <span class="pill-count">0</span>
-        </button>
+        @if(in_array('custom', $dataCategories, true))
+            <button @click="cat='custom'" :class="cat==='custom' ? 'is-active' : ''" class="filter-pill">
+                + Custom <span class="pill-count">0</span>
+            </button>
+        @endif
     </div>
 
     {{-- ПЕРЕГЛЯД + geo filter --}}
@@ -54,7 +58,7 @@
     </div>
 
     {{-- ── ТЕЛЕФОНИ ── --}}
-    <div x-show="cat==='phones'">
+    <div x-show="cat==='phones'" x-cloak>
         @foreach(array_merge(['all'], $geoTabs) as $geoKey)
             <div x-show="geo==='{{ $geoKey }}'">
                 @include('livewire.sites.partials.data-phones', [
@@ -66,20 +70,23 @@
     </div>
 
     {{-- ── МЕСЕНДЖЕРИ ── --}}
-    <div x-show="cat==='messengers'">
+    <div x-show="cat==='messengers'" x-cloak>
         @foreach(array_merge(['all'], $geoTabs) as $geoKey)
             <div x-show="geo==='{{ $geoKey }}'">
-                @include('livewire.sites.partials.data-messengers', ['msgPrimaries' => $msgPrimariesByGeo[$geoKey]])
+                @include('livewire.sites.partials.data-messengers', [
+                    'msgPrimaries' => $msgPrimariesByGeo[$geoKey],
+                    'hiddenMsgs' => $hiddenMsgsByGeo[$geoKey],
+                ])
             </div>
         @endforeach
     </div>
 
     {{-- ── ЦІНИ ── --}}
-    <div x-show="cat==='prices'">
+    <div x-show="cat==='prices'" x-cloak>
         @include('livewire.sites.partials.data-prices')
     </div>
 
     {{-- Адреси / Соц. мережі / Custom --}}
-    <div x-show="['addresses','socials','custom'].includes(cat)" class="data-empty">Цей розділ у розробці.</div>
+    <div x-show="['addresses','socials','custom'].includes(cat)" x-cloak class="data-empty">Цей розділ у розробці.</div>
 
 </div>

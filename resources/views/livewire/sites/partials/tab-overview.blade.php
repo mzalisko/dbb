@@ -1,5 +1,5 @@
 {{-- ─── Tab: Огляд ─────────────────────────────────────── --}}
-<div x-show="tab==='overview'" class="tab-pane">
+<div x-show="tab==='overview'" x-cloak class="tab-pane">
 
     {{-- ── Що бачать відвідувачі ── --}}
     <div class="card ov-card">

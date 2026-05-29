@@ -1304,6 +1304,29 @@ svg { display: block; }
 .msg-kind { font: 12px var(--font-sans); color: var(--ink-5); }
 .creserve__kinds { font: 11.5px var(--font-mono); color: var(--ink-4); }
 
+/* Messenger platform picker (drawer form) */
+.msg-kind-pills { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.msg-kind-pill {
+    display: inline-flex; align-items: center; gap: 8px;
+    height: 38px; padding: 0 14px 0 10px;
+    border-radius: 8px; cursor: pointer;
+    background: var(--card); border: 1px solid var(--ink-3);
+    font: 13.5px var(--font-sans); color: var(--ink-7);
+    transition: border-color .12s, background .12s, color .12s;
+}
+.msg-kind-pill:hover:not(.is-active):not(.is-locked) { border-color: var(--ink-5); background: var(--paper-2); }
+.msg-kind-pill.is-active {
+    border-color: var(--mk, var(--ink-9));
+    box-shadow: inset 0 0 0 1px var(--mk, var(--ink-9));
+    color: var(--ink-9);
+}
+.msg-kind-pill.is-locked { cursor: default; }
+.msg-kind-pill__badge {
+    width: 24px; height: 24px; border-radius: 5px;
+    display: inline-flex; align-items: center; justify-content: center;
+    font: bold 9px var(--font-mono); color: #fff; flex-shrink: 0;
+}
+
 /* Prices table specifics */
 .crow--price { grid-template-columns: 24px 40px 1.4fr 1fr 180px 160px 80px 64px; }
 .price-stats { margin-top: 10px; font: 12px var(--font-mono); color: var(--ink-5); }

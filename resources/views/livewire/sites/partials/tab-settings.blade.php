@@ -1,10 +1,10 @@
 {{-- ─── Tab: Налаштування ───────────────────────────────── --}}
-<div x-show="tab==='settings'" class="tab-pane" style="padding-top:24px;">
+<div x-show="tab==='settings'" x-cloak class="tab-pane" style="padding-top:24px;">
     {{-- Sub-tabs --}}
     <div class="tabs sub-tabs">
         @foreach([
             ['key'=>'failover','label'=>'Failover','count'=>$phonePrimaries->count()],
-            ['key'=>'categories','label'=>'Категорії даних','count'=>6],
+            ['key'=>'categories','label'=>'Категорії даних','count'=>count($dataCategories)],
             ['key'=>'api','label'=>'API доступ','count'=>1],
         ] as $st)
             <button class="tab" :class="settingsSub==='{{ $st['key'] }}' ? 'active' : ''" @click="settingsSub='{{ $st['key'] }}'">
@@ -30,7 +30,7 @@
             $queueGroups[] = $group;
         }
     @endphp
-    <div x-show="settingsSub==='failover'" class="set-section"
+    <div x-show="settingsSub==='failover'" x-cloak class="set-section"
          @phones-updated.window="groups = @js($queueGroups)"
          x-data="{
            jTab: 'queue',
@@ -253,9 +253,10 @@
     </div>
 
     {{-- Категорії --}}
-    <div x-show="settingsSub==='categories'" class="set-section">
+    <div x-show="settingsSub==='categories'" x-cloak class="set-section">
         <div class="eyebrow eyebrow-xs" style="margin-bottom:10px;">02 &middot; Категорії даних</div>
         <h3 class="set-title">Що саме зберігаємо для цього сайту</h3>
+        <p class="set-lead">Вимкнені категорії зникають із вкладки «Дані» — менше візуального шуму. Телефони та месенджери обов'язкові.</p>
         <div class="card" style="overflow:hidden;">
             @foreach([
                 ['id'=>'phones','label'=>'Телефони','n'=>$phoneCount,'req'=>true],
@@ -265,6 +266,7 @@
                 ['id'=>'socials','label'=>'Соц. мережі','n'=>$socialCount,'req'=>false],
                 ['id'=>'custom','label'=>'Custom','n'=>0,'req'=>false],
             ] as $cat)
+                @php $isOn = in_array($cat['id'], $dataCategories, true); @endphp
                 <div class="cat-row">
                     <div class="cat-row__name">
                         <span class="cat-label">{{ $cat['label'] }}</span>
@@ -275,7 +277,12 @@
                         <span class="cat-lock"><x-icon.lock width="14" height="14" /></span>
                     @else
                         <span class="cat-toggle-wrap">
-                            <span class="toggle-sm {{ $cat['n']>0 ? 'is-on' : '' }}"><span class="toggle-sm__knob"></span></span>
+                            <span class="toggle-sm {{ $isOn ? 'is-on' : '' }}"
+                                  wire:click="toggleDataCategory('{{ $cat['id'] }}')"
+                                  title="{{ $isOn ? 'Сховати з вкладки Дані' : 'Показати у вкладці Дані' }}"
+                                  style="cursor:pointer;">
+                                <span class="toggle-sm__knob"></span>
+                            </span>
                         </span>
                     @endif
                 </div>
@@ -284,7 +291,7 @@
     </div>
 
     {{-- API --}}
-    <div x-show="settingsSub==='api'" class="set-section">
+    <div x-show="settingsSub==='api'" x-cloak class="set-section">
         <div class="eyebrow eyebrow-xs" style="margin-bottom:10px;">03 &middot; API доступ</div>
         <h3 class="set-title">Ключ цього сайту</h3>
         <div class="card api-card">

@@ -114,6 +114,7 @@
         @endphp
 
         <x-ui.drawer
+            wire:key="user-drawer-{{ $openUserId }}"
             :open="true"
             :title="$openUser->name"
             :sub="$subLine"

@@ -18,38 +18,23 @@
     @php
         $queueGroups = [];
         foreach ($phonePrimaries as $primary) {
-            $geo = ($primary->geo_mode === 'only' && !empty($primary->countries))
-                ? implode('/', array_slice($primary->countries, 0, 2)) : '';
+            $geo = $primary->preview_geo_label ?? (($primary->geo_mode === 'all') ? 'ALL' : '');
             $group = ['items' => [
                 ['id' => 'p' . $primary->id, 'num' => $primary->value ?? '—', 'geo' => $geo, 'status' => 'active', 'label' => 'АКТИВНИЙ'],
             ]];
             $rn = 1;
-            foreach ($primary->backups->sortBy('order') as $backup) {
-                $bgeo = ($backup->geo_mode === 'only' && !empty($backup->countries))
-                    ? implode('/', array_slice($backup->countries, 0, 2)) : '';
+            foreach ($primary->backups->where('visible', true)->sortBy('order') as $backup) {
+                $bgeo = $backup->preview_geo_label ?? $geo;
                 $group['items'][] = ['id' => 'b' . $backup->id, 'num' => $backup->value ?? '—', 'geo' => $bgeo, 'status' => 'reserve', 'label' => 'РЕЗЕРВ ' . $rn++];
             }
             $queueGroups[] = $group;
         }
-        if (empty($queueGroups)) {
-            $queueGroups = [
-                ['items' => [
-                    ['id' => 'd1', 'num' => '+48 00 000 00 00', 'geo' => 'PL', 'status' => 'active',  'label' => 'АКТИВНИЙ'],
-                    ['id' => 'd2', 'num' => '063 000-00-00',    'geo' => '',   'status' => 'reserve', 'label' => 'РЕЗЕРВ 1'],
-                    ['id' => 'd3', 'num' => '+48 99 999 99 99', 'geo' => 'PL', 'status' => 'reserve', 'label' => 'РЕЗЕРВ 2'],
-                ]],
-                ['items' => [
-                    ['id' => 'd4', 'num' => '+48 71 222 11 00', 'geo' => 'PL', 'status' => 'active',  'label' => 'АКТИВНИЙ'],
-                ]],
-            ];
-        }
     @endphp
     <div x-show="settingsSub==='failover'" class="set-section"
-         data-queue="{{ e(json_encode($queueGroups, JSON_UNESCAPED_UNICODE)) }}"
-         @phones-updated.window="groups = JSON.parse($el.dataset.queue)"
+         @phones-updated.window="groups = @js($queueGroups)"
          x-data="{
-           jTab: 'log',
-           groups: JSON.parse($el.dataset.queue),
+           jTab: 'queue',
+           groups: @js($queueGroups),
            sortGroup(gi) {
              const ord = { active: 0, reserve: 1, waiting: 2 };
              this.groups[gi].items.sort((a, b) => ord[a.status] - ord[b.status]);
@@ -220,6 +205,7 @@
                         <span class="set-journal__meta">поточний стан</span>
                     </div>
                     {{-- Групи: кожен активний + його резерви --}}
+                    <div x-show="groups.length === 0" class="ctable__empty">Р§РµСЂРіР° РїРѕСЂРѕР¶РЅСЏ: РЅРµРјР°С” Р°РєС‚РёРІРЅРёС… С‚РµР»РµС„РѕРЅС–РІ.</div>
                     <template x-for="(group, gi) in groups" :key="gi">
                         <div class="set-qgroup">
                             <template x-for="(item, ii) in group.items" :key="item.id">

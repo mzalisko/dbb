@@ -17,7 +17,7 @@ class ContactEntry extends Model
 
     protected $fillable = [
         'site_id', 'type', 'kind', 'value', 'label',
-        'role', 'geo_mode', 'countries', 'visible', 'order', 'parent_id',
+        'role', 'geo_tag', 'geo_mode', 'countries', 'visible', 'order', 'parent_id',
         'currency', 'price', 'old_price', 'price_unit', 'sku',
     ];
 
@@ -49,21 +49,46 @@ class ContactEntry extends Model
     /** Returns true when this entry is visible for a given geo code (ISO-2 or 'world'). */
     public function visibleForGeo(string $geo): bool
     {
-        if (!$this->visible) return false;
+        $visible = $this->getAttribute('visible');
+        if ($visible === false || $visible === 0 || $visible === '0') return false;
         if ($this->geo_mode === 'all') return true;
-        $countries = $this->countries ?? [];
         if ($geo === 'world') {
             // "world" matches geoMode=all (above) and geoMode=except (catch-all)
             return $this->geo_mode === 'except';
         }
-        if ($this->geo_mode === 'only')   return in_array($geo, $countries);
-        if ($this->geo_mode === 'except') return !in_array($geo, $countries);
+        $geo = strtoupper($geo);
+        if ($this->geo_tag && strtoupper($this->geo_tag) === $geo) {
+            return $this->geo_mode !== 'except';
+        }
+        $countries = $this->visibilityCountries();
+        if ($this->geo_tag && !in_array(strtoupper($this->geo_tag), $countries, true)) {
+            $countries[] = strtoupper($this->geo_tag);
+        }
+        if ($this->geo_mode === 'only')   return in_array($geo, $countries, true);
+        if ($this->geo_mode === 'except') return !in_array($geo, $countries, true);
         return false;
+    }
+
+    private function visibilityCountries(): array
+    {
+        $countries = collect($this->countries ?? [])
+            ->map(fn($code) => strtoupper(trim((string) $code)))
+            ->filter(fn($code) => preg_match('/^[A-Z]{2,3}$/', $code))
+            ->values()
+            ->all();
+
+        if (empty($countries) && $this->geo_tag) {
+            $countries[] = strtoupper($this->geo_tag);
+        }
+
+        return $countries;
     }
 
     public function getGeoLabelAttribute(): string
     {
         $codes = collect($this->countries ?? [])->implode(' · ');
+
+        $codes = collect($this->visibilityCountries())->join(' · ');
 
         return match ($this->geo_mode) {
             'all'    => 'Усім',
@@ -71,6 +96,20 @@ class ContactEntry extends Model
             'except' => 'Крім ' . ($codes ?: '—'),
             default  => '—',
         };
+    }
+
+    public function getPreviewGeoLabelAttribute(): ?string
+    {
+        if ($this->geo_tag) {
+            return strtoupper($this->geo_tag);
+        }
+
+        $countries = $this->countries ?? [];
+        if ($this->geo_mode === 'only' && count($countries) === 1) {
+            return strtoupper((string) $countries[0]);
+        }
+
+        return null;
     }
 
     /** Filter a collection by geo. */

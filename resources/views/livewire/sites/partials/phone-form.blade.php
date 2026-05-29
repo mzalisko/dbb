@@ -32,15 +32,31 @@
         @error('entryLabel') <div class="field-error">{{ $message }}</div> @enderror
     </div>
 
+    {{-- НАЛЕЖНІСТЬ ДО ВКЛАДКИ ПЕРЕГЛЯДУ --}}
+    <div x-show="$wire.entryRole !== 'backup'" x-cloak>
+        <label class="label">Належність</label>
+        <p class="field-hint">Це категорія номера у вкладці Перегляд. Вона не керує видимістю для відвідувачів.</p>
+        <div class="country-pills">
+            <button type="button"
+                    class="country-pill {{ $entryGeoTag === '' ? 'is-active' : '' }}"
+                    wire:click="setEntryGeoTag(null)">Без прив'язки</button>
+            @foreach($geoTabs as $code)
+                <button type="button"
+                        class="country-pill {{ $entryGeoTag === $code ? 'is-active' : '' }}"
+                        wire:click="setEntryGeoTag('{{ $code }}')">{{ $code }}</button>
+            @endforeach
+        </div>
+    </div>
+
     {{-- ГЕО (hidden for backup — inherits parent's geo) --}}
     <div x-show="$wire.entryRole !== 'backup'" x-cloak>
-        <label class="label">Країни</label>
-        <p class="field-hint">Без вибору — показується всім. Познач країни для фільтру.</p>
+        <label class="label">Правило видимості</label>
+        <p class="field-hint">Окремо від належності: показувати всім, тільки вибраним країнам або всім крім вибраних.</p>
         <div class="country-pills">
             <button type="button"
                     class="country-pill {{ $entryGeoMode === 'all' ? 'is-active' : '' }}"
                     wire:click="setGeoAll()">Усі</button>
-            @foreach(array_unique(array_merge($geoTabs, ['PL', 'DE', 'US', 'GB', 'FR'])) as $code)
+            @foreach($geoTabs as $code)
                 @php $sel = in_array($code, $entryCountries ?? []); @endphp
                 <button type="button"
                         class="country-pill {{ $sel ? 'is-active' : '' }}"

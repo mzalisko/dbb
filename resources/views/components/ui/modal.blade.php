@@ -13,19 +13,24 @@
 @endphp
 
 <div
+    wire:ignore.self
     x-data="{ open: false }"
-    x-on:open-modal.window="if ($event.detail === '{{ $name }}') open = true"
-    x-on:close-modal.window="if ($event.detail === '{{ $name }}') open = false"
+    x-on:open-modal.window="const _n='{{ $name }}'; const _d=$event.detail; if(_d===_n||(Array.isArray(_d)&&_d[0]===_n)) open = true"
+    x-on:close-modal.window="const _n='{{ $name }}'; const _d=$event.detail; if(_d===_n||(Array.isArray(_d)&&_d[0]===_n)) open = false"
     @keydown.escape.window="open = false"
     x-show="open"
     x-cloak
-    style="display:none;"
 >
     {{-- Backdrop --}}
     <div
         class="modal-backdrop"
         x-show="open"
-        x-transition:enter="fade-in"
+        x-transition:enter="transition ease-out duration-200"
+        x-transition:enter-start="opacity-0"
+        x-transition:enter-end="opacity-100"
+        x-transition:leave="transition ease-in duration-150"
+        x-transition:leave-start="opacity-100"
+        x-transition:leave-end="opacity-0"
         @click="open = false"
     >
         {{-- Modal --}}
@@ -33,7 +38,12 @@
             class="modal"
             style="max-width:{{ $maxWidthPx }};"
             x-show="open"
-            x-transition:enter="fade-in"
+            x-transition:enter="transition ease-out duration-200"
+            x-transition:enter-start="opacity-0 scale-[.97]"
+            x-transition:enter-end="opacity-100 scale-100"
+            x-transition:leave="transition ease-in duration-150"
+            x-transition:leave-start="opacity-100 scale-100"
+            x-transition:leave-end="opacity-0 scale-[.97]"
             @click.stop
         >
             @if (isset($title))

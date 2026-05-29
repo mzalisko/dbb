@@ -253,10 +253,10 @@ class Phase3LivewireTest extends TestCase
             ->test(\App\Livewire\Users\InviteForm::class)
             ->set('name', 'New User')
             ->set('email', 'newuser@test.com')
-            ->set('role', 'member')
+            ->set('role', 'viewer')
             ->call('save')
             ->assertDispatched('user-saved');
 
-        $this->assertDatabaseHas('users', ['email' => 'newuser@test.com', 'role' => 'member']);
+        $this->assertDatabaseHas('users', ['email' => 'newuser@test.com', 'role' => 'viewer']);
     }
 }

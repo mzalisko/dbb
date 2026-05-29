@@ -32,3 +32,5 @@ Thumbs.db
 /nul
 /.claude/worktrees/
 /screenshot-audit.mjs
+/verify_*.mjs
+/public/verify_shots/

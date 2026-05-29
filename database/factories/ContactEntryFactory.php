@@ -22,6 +22,7 @@ class ContactEntryFactory extends Factory
             'value'      => $this->faker->numerify('+48 ## ### ## ##'),
             'label'      => $this->faker->word(),
             'role'       => 'primary',
+            'geo_tag'    => null,
             'geo_mode'   => 'all',
             'countries'  => null,
             'visible'    => true,

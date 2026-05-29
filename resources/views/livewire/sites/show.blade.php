@@ -47,6 +47,20 @@
         <h1 class="site-head__title">{{ $site->name }}</h1>
     </div>
 
+    <div class="card geo-stats site-top-stats">
+        @foreach([
+            ['l' => 'WordPress', 'v' => $site->wp_version ?? 'Unknown'],
+            ['l' => 'PHP', 'v' => $site->php_version ?? 'Unknown'],
+            ['l' => '&#1057;&#1090;&#1072;&#1090;&#1091;&#1089;', 'v' => ucfirst($site->status)],
+            ['l' => '&#1054;&#1089;&#1090;&#1072;&#1085;&#1085;&#1103; &#1087;&#1077;&#1088;&#1077;&#1074;&#1110;&#1088;&#1082;&#1072;', 'v' => $site->last_checked_at?->format('d M H:i') ?? html_entity_decode('&#1053;&#1110;&#1082;&#1086;&#1083;&#1080;', ENT_QUOTES, 'UTF-8')],
+        ] as $info)
+            <div class="geo-stat">
+                <div class="eyebrow eyebrow-xs" style="margin-bottom:8px;">{!! $info['l'] !!}</div>
+                <div class="geo-stat__val">{{ $info['v'] }}</div>
+            </div>
+        @endforeach
+    </div>
+
     {{-- Tabs --}}
     @php $dataCount = $phoneCount + $msgCount; @endphp
     <div class="tabs site-tabs">
@@ -70,5 +84,6 @@
     @include('livewire.sites.partials.tab-activity')
     @include('livewire.sites.partials.tab-settings')
     @include('livewire.sites.partials.phone-drawer')
+    @include('livewire.sites.partials.confirm-action-modal')
 
 </div>

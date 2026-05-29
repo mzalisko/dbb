@@ -33,7 +33,9 @@
             @foreach($geoTabs as $geoCode)
                 <span class="seg__tab">
                     <button @click="geo='{{ $geoCode }}'" :class="geo==='{{ $geoCode }}' ? 'is-active' : ''" class="seg__btn">{{ $geoCode }}</button>
-                    <button wire:click="removeGeoTab('{{ $geoCode }}')" class="seg__tab-x" @click.stop title="Видалити вкладку">×</button>
+                    <button class="seg__tab-x"
+                            @click.stop="if (geo === '{{ $geoCode }}') geo = 'all'; $wire.requestRemoveGeoTab('{{ $geoCode }}');"
+                            title="Видалити вкладку">×</button>
                 </span>
             @endforeach
             <span class="seg__add" x-data="{open:false}">
@@ -55,7 +57,10 @@
     <div x-show="cat==='phones'">
         @foreach(array_merge(['all'], $geoTabs) as $geoKey)
             <div x-show="geo==='{{ $geoKey }}'">
-                @include('livewire.sites.partials.data-phones', ['phonePrimaries' => $phonePrimariesByGeo[$geoKey]])
+                @include('livewire.sites.partials.data-phones', [
+                    'phonePrimaries' => $phonePrimariesByGeo[$geoKey],
+                    'hiddenPhones' => $hiddenPhonesByGeo[$geoKey],
+                ])
             </div>
         @endforeach
     </div>

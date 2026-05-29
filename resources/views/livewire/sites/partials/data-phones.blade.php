@@ -5,6 +5,7 @@
         <span></span>
         <span class="eyebrow eyebrow-xxs">#</span>
         <span class="eyebrow eyebrow-xxs">Номер</span>
+        <span class="eyebrow eyebrow-xxs">ISO</span>
         <span class="eyebrow eyebrow-xxs">Мітка</span>
         <span class="eyebrow eyebrow-xxs">Гео-правило</span>
         <span class="eyebrow eyebrow-xxs">Роль</span>
@@ -21,6 +22,7 @@
                     <span class="cc-drag" @click.stop>&#x2807;</span>
                     <span class="cc-num">#{{ $i+1 }}</span>
                     <span class="mono cc-val">{{ $phone->value }}</span>
+                    <span class="cc-iso">@include('livewire.sites.partials.preview-tag-badge', ['entry' => $phone])</span>
                     <span class="cc-label">{{ $phone->label }}</span>
                     <span class="cc-geo">{{ $phone->geo_label }}</span>
                     <span class="cc-role {{ $phone->role !== 'primary' ? 'cc-role--muted' : '' }}">
@@ -33,6 +35,7 @@
                         @endif
                     </span>
                     {{-- Остання колонка: assign-кнопка для orphan/без-резервів; edit-кнопка для активних з резервами --}}
+                    <span class="cc-actions">
                     @if($phone->role === 'backup' || ($phone->role === 'primary' && $phone->backups->count() === 0))
                         <button class="cc-assign"
                                 wire:click.stop="openAssignModal({{ $phone->id }})"
@@ -44,6 +47,12 @@
                             <x-icon.edit width="13" height="13" />
                         </button>
                     @endif
+                        <button class="cc-delete"
+                                wire:click.stop="requestDeleteEntry({{ $phone->id }})"
+                                title="Видалити">
+                            <x-icon.trash width="13" height="13" />
+                        </button>
+                    </span>
                 </div>
 
                 {{-- РЕЗЕРВ section --}}
@@ -61,14 +70,22 @@
                             @foreach($phone->backups as $j => $backup)
                                 <div class="crow crow--backup" data-backup-id="{{ $backup->id }}">
                                     <span class="cc-drag" @click.stop style="color:var(--ink-4);">&#x2807;</span>
-                                    <span class="cc-num">#{{ $j+1 }}</span>
+                                    <span class="cc-num cc-num--backup">#{{ $i+1 }}.{{ $j+1 }}</span>
                                     <span wire:click="editEntry({{ $backup->id }})" class="mono cc-val--sub" style="cursor:pointer;">{{ $backup->value }}</span>
+                                    <span class="cc-iso">@include('livewire.sites.partials.preview-tag-badge', ['entry' => $backup])</span>
                                     <span class="cc-label--muted">{{ $backup->label }}</span>
                                     <span class="cc-geo">—</span>
                                     <span class="cc-role cc-role--muted">
                                         <span class="role-dot" style="background:var(--info);"></span> Резерв
                                     </span>
-                                    <button class="cc-promote" wire:click.stop="promoteEntry({{ $backup->id }})" title="Зробити активним">↑</button>
+                                    <span class="cc-actions">
+                                        <button class="cc-promote" wire:click.stop="promoteEntry({{ $backup->id }})" title="Зробити активним">↑</button>
+                                        <button class="cc-delete"
+                                                wire:click.stop="requestDeleteEntry({{ $backup->id }})"
+                                                title="Видалити">
+                                            <x-icon.trash width="13" height="13" />
+                                        </button>
+                                    </span>
                                 </div>
                             @endforeach
                         </div>
@@ -86,19 +103,27 @@
     </div>
 
     {{-- Hidden entries --}}
-    @foreach($allPhonesAll->filter(fn($e)=>!$e->visible && is_null($e->parent_id)) as $phone)
+    @foreach($hiddenPhones as $phone)
         <div wire:click="editEntry({{ $phone->id }})" class="crow crow--hidden" style="cursor:pointer;">
             <span style="color:var(--ink-4);">&#x2807;</span>
             <span class="cc-num">#{{ $loop->index+1 }}</span>
             <span class="mono cc-val--sub">{{ $phone->value }}</span>
+            <span class="cc-iso">@include('livewire.sites.partials.preview-tag-badge', ['entry' => $phone])</span>
             <span class="cc-label--muted">{{ $phone->label }}</span>
             <span class="cc-geo">{{ $phone->geo_label }}</span>
             <span class="cc-role cc-role--muted">
                 <span class="role-dot" style="background:var(--ink-4);"></span> Приховано
             </span>
-            <button class="cc-edit" wire:click.stop="editEntry({{ $phone->id }})" title="Редагувати">
-                <x-icon.edit width="13" height="13" />
-            </button>
+            <span class="cc-actions">
+                <button class="cc-edit" wire:click.stop="editEntry({{ $phone->id }})" title="Редагувати">
+                    <x-icon.edit width="13" height="13" />
+                </button>
+                <button class="cc-delete"
+                        wire:click.stop="requestDeleteEntry({{ $phone->id }})"
+                        title="Видалити">
+                    <x-icon.trash width="13" height="13" />
+                </button>
+            </span>
         </div>
     @endforeach
 

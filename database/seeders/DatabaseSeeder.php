@@ -6,10 +6,10 @@ use App\Models\ActivityLog;
 use App\Models\Client;
 use App\Models\ContactEntry;
 use App\Models\Site;
+use App\Models\SiteGroup;
 use App\Models\User;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Hash;
 
 class DatabaseSeeder extends Seeder
 {
@@ -21,23 +21,38 @@ class DatabaseSeeder extends Seeder
         ActivityLog::truncate();
         DB::table('sites')->truncate();
         DB::table('clients')->truncate();
-        User::truncate();
+        SiteGroup::truncate();
         DB::statement('SET FOREIGN_KEY_CHECKS=1');
 
-        // ── Team ─────────────────────────────────────────────
-        $owner = User::create([
-            'name'              => 'Mykola Zalisko',
-            'email'             => 'zaliskomykola@gmail.com',
-            'password'          => Hash::make('admin123'),
-            'role'              => 'owner',
-            'organization_name' => 'DataBridge Agency',
-            'email_verified_at' => now(),
+        SiteGroup::insert([
+            ['name' => 'production', 'color' => '#5a8a3c', 'created_at' => now(), 'updated_at' => now()],
+            ['name' => 'staging',    'color' => '#e6a817', 'created_at' => now(), 'updated_at' => now()],
         ]);
+
+        // ── Team ─────────────────────────────────────────────
+        // updateOrCreate so re-seeding never wipes the owner account
+        $owner = User::updateOrCreate(
+            ['email' => 'admin@databridge.app'],
+            [
+                'name'              => 'Admin',
+                'password'          => 'password',
+                'role'              => 'owner',
+                'organization_name' => 'DataBridge Agency',
+                'email_verified_at' => now(),
+            ]
+        );
+
+        User::whereIn('email', [
+            'ivan@databridge.app',
+            'olha@databridge.app',
+            'sam@databridge.app',
+            'dmytro@databridge.app',
+        ])->delete();
 
         $ivan = User::create([
             'name'              => 'Іван Петренко',
             'email'             => 'ivan@databridge.app',
-            'password'          => Hash::make('password'),
+            'password'          => 'password',
             'role'              => 'admin',
             'organization_name' => 'DataBridge Agency',
             'email_verified_at' => now(),
@@ -46,8 +61,8 @@ class DatabaseSeeder extends Seeder
         $olha = User::create([
             'name'              => 'Olha Boyko',
             'email'             => 'olha@databridge.app',
-            'password'          => Hash::make('password'),
-            'role'              => 'member',
+            'password'          => 'password',
+            'role'              => 'manager',
             'organization_name' => 'DataBridge Agency',
             'email_verified_at' => now(),
         ]);
@@ -55,8 +70,8 @@ class DatabaseSeeder extends Seeder
         $sam = User::create([
             'name'              => 'Sam Cooper',
             'email'             => 'sam@databridge.app',
-            'password'          => Hash::make('password'),
-            'role'              => 'member',
+            'password'          => 'password',
+            'role'              => 'manager',
             'organization_name' => 'DataBridge Agency',
             'email_verified_at' => now(),
         ]);
@@ -64,8 +79,8 @@ class DatabaseSeeder extends Seeder
         User::create([
             'name'              => 'Дмитро К.',
             'email'             => 'dmytro@databridge.app',
-            'password'          => Hash::make('password'),
-            'role'              => 'member',
+            'password'          => 'password',
+            'role'              => 'viewer',
             'organization_name' => 'DataBridge Agency',
             'email_verified_at' => now(),
         ]);

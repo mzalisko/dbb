@@ -79,7 +79,7 @@
                     <span style="font:12px var(--font-sans); color:var(--ink-5);">{{ $entry->geo_label }}</span>
                     <span style="font:12.5px var(--font-sans);">
                         @if ($entry->role === 'primary')
-                            <span class="dot dot-ok"></span> Головний
+                            <span class="dot dot-ok"></span> Активний
                         @elseif ($entry->role === 'backup')
                             <span class="dot dot-info"></span> Резерв
                         @else

@@ -59,7 +59,13 @@
                 <span class="cc-role">
                     <span class="role-dot" style="background:{{ $price->visible?'var(--ok)':'var(--ink-4)' }};"></span>
                 </span>
-                <span class="cc-arrow">&rarr;</span>
+                <span class="cc-actions">
+                    <button class="cc-delete"
+                            wire:click.stop="requestDeleteEntry({{ $price->id }})"
+                            title="Видалити">
+                        <x-icon.trash width="13" height="13" />
+                    </button>
+                </span>
             </div>
         @endforeach
     @endforeach

@@ -41,8 +41,8 @@
                 $currSymbol = match($price->currency) {'PLN'=>'zł','UAH'=>'₴','EUR'=>'€','USD'=>'$',default=>$price->currency};
                 $currFlag = match($price->currency) {'PLN'=>'🇵🇱','UAH'=>'🇺🇦','EUR'=>'🇪🇺','USD'=>'🇺🇸',default=>''};
             @endphp
-            <div class="crow crow--price crow--main crow--bordered">
-                <span class="cc-drag">&#x2807;</span>
+            <div wire:click="editEntry({{ $price->id }})" class="crow crow--price crow--main crow--bordered" style="cursor:pointer;">
+                <span class="cc-drag" @click.stop>&#x2807;</span>
                 <span class="cc-num">#{{ $j+1 }}</span>
                 <div>
                     <div class="price-name">{{ $price->label }}</div>
@@ -60,6 +60,9 @@
                     <span class="role-dot" style="background:{{ $price->visible?'var(--ok)':'var(--ink-4)' }};"></span>
                 </span>
                 <span class="cc-actions">
+                    <button class="cc-edit" wire:click.stop="editEntry({{ $price->id }})" title="Редагувати">
+                        <x-icon.edit width="13" height="13" />
+                    </button>
                     <button class="cc-delete"
                             wire:click.stop="requestDeleteEntry({{ $price->id }})"
                             title="Видалити">
@@ -72,4 +75,7 @@
     @if($priceBySkuAll->isEmpty())
         <div class="ctable__empty">Немає цін.</div>
     @endif
+    <div class="ctable__foot">
+        <button class="ctable__add" wire:click="addEntry('price')">+ Додати ціну</button>
+    </div>
 </div>

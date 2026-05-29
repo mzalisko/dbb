@@ -173,4 +173,58 @@ class SiteContactEntriesTest extends TestCase
             ->test(Show::class, ['site' => $site])
             ->assertSet('dataCategories', ['phones', 'messengers', 'prices']);
     }
+
+    /** Task: clicking edit on a price opens the drawer (was silently broken). */
+    public function test_editing_a_price_opens_the_drawer(): void
+    {
+        [$user, $site] = $this->ownerSite();
+        $price = ContactEntry::factory()->for($site)->price()->create([
+            'label' => 'Преміум', 'sku' => 'SKU-7',
+        ]);
+
+        Livewire::actingAs($user)
+            ->test(Show::class, ['site' => $site])
+            ->call('editEntry', $price->id)
+            ->assertSet('editingEntry', true)
+            ->assertSet('entryType', 'price')
+            ->assertSee('Редагувати ціну')
+            ->assertSee('SKU-7');
+    }
+
+    /** Task: a price can be added through the drawer. */
+    public function test_price_can_be_added(): void
+    {
+        [$user, $site] = $this->ownerSite();
+
+        Livewire::actingAs($user)
+            ->test(Show::class, ['site' => $site])
+            ->call('addEntry', 'price')
+            ->assertSet('entryCurrency', 'EUR')
+            ->set('entryLabel', 'Базовий')
+            ->set('entrySku', 'SKU-100')
+            ->set('entryPrice', 100)
+            ->set('entryCurrency', 'PLN')
+            ->call('saveEntry');
+
+        $this->assertDatabaseHas('contact_entries', [
+            'site_id'  => $site->id,
+            'type'     => 'price',
+            'sku'      => 'SKU-100',
+            'currency' => 'PLN',
+            'role'     => 'primary',
+        ]);
+    }
+
+    /** Task: a price requires sku + amount + currency. */
+    public function test_price_requires_sku_and_amount(): void
+    {
+        [$user, $site] = $this->ownerSite();
+
+        Livewire::actingAs($user)
+            ->test(Show::class, ['site' => $site])
+            ->call('addEntry', 'price')
+            ->set('entrySku', '')
+            ->call('saveEntry')
+            ->assertHasErrors(['entryPrice', 'entrySku']);
+    }
 }

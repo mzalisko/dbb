@@ -85,6 +85,7 @@
     @include('livewire.sites.partials.tab-settings')
     @include('livewire.sites.partials.phone-drawer')
     @include('livewire.sites.partials.messenger-drawer')
+    @include('livewire.sites.partials.price-drawer')
     @include('livewire.sites.partials.confirm-action-modal')
 
 </div>

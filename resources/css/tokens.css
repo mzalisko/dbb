@@ -1739,6 +1739,9 @@ svg { display: block; }
 /* --- Form field helpers --- */
 .field { margin-bottom: 24px; }
 .field-error { font: 12px var(--font-sans); color: var(--bad); margin-top: 6px; display: block; }
+.label-opt { letter-spacing: 0; text-transform: none; color: var(--ink-4); }
+.field-row2 { display: flex; gap: 12px; }
+.field-row2 > * { flex: 1; min-width: 0; }
 .field-select {
   width: 100%; height: 42px; font: 15px var(--font-sans); color: var(--ink-9);
   background: transparent; border: 0; border-bottom: 1px solid var(--ink-3);

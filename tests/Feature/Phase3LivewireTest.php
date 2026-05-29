@@ -115,52 +115,9 @@ class Phase3LivewireTest extends TestCase
     }
 
     // --- Sites CRUD ---
-
-    public function test_sites_index_search(): void
-    {
-        $client = Client::factory()->for($this->admin)->create();
-        Site::factory()->for($client)->create(['name' => 'Alpha Site']);
-        Site::factory()->for($client)->create(['name' => 'Gamma Site']);
-
-        Livewire::actingAs($this->admin)
-            ->test(\App\Livewire\Sites\Index::class)
-            ->set('search', 'Alpha')
-            ->assertSee('Alpha Site')
-            ->assertDontSee('Gamma Site');
-    }
-
-    public function test_sites_index_status_filter(): void
-    {
-        $client = Client::factory()->for($this->admin)->create();
-        Site::factory()->for($client)->create([
-            'name' => 'Active WP',
-            'status' => 'active',
-        ]);
-        Site::factory()->for($client)->create([
-            'name' => 'Offline WP',
-            'status' => 'offline',
-        ]);
-
-        Livewire::actingAs($this->admin)
-            ->test(\App\Livewire\Sites\Index::class)
-            ->set('status', 'active')
-            ->assertSee('Active WP')
-            ->assertDontSee('Offline WP');
-    }
-
-    public function test_sites_index_client_filter(): void
-    {
-        $client1 = Client::factory()->for($this->admin)->create();
-        $client2 = Client::factory()->for($this->admin)->create();
-        Site::factory()->for($client1)->create(['name' => 'Client1 Site']);
-        Site::factory()->for($client2)->create(['name' => 'Client2 Site']);
-
-        Livewire::actingAs($this->admin)
-            ->test(\App\Livewire\Sites\Index::class)
-            ->set('clientId', $client1->id)
-            ->assertSee('Client1 Site')
-            ->assertDontSee('Client2 Site');
-    }
+    // Note: search / status / client filtering moved to client-side Alpine
+    // (URL-driven, FOUC refactor), so Sites\Index no longer exposes server-side
+    // filter properties to test here. Coverage lives in the rendering smoke tests.
 
     public function test_site_form_create(): void
     {

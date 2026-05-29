@@ -2,10 +2,14 @@
 
 namespace Tests\Feature;
 
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class DesignSystemTest extends TestCase
 {
+    // The app layout sidebar queries site/group counts, so the schema must exist.
+    use RefreshDatabase;
+
     public function test_design_system_page_returns_200(): void
     {
         $response = $this->get('/_design');

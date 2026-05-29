@@ -10,10 +10,10 @@ class Phase1SmokeTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_welcome_returns_200(): void
+    public function test_root_redirects_to_dashboard(): void
     {
         $response = $this->get('/');
-        $response->assertStatus(200);
+        $response->assertRedirect('/dashboard');
     }
 
     public function test_login_page_returns_200(): void

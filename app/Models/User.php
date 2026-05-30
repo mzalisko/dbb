@@ -3,23 +3,25 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
-use App\Observers\UserObserver;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
-use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use OwenIt\Auditing\Auditable;
+use OwenIt\Auditing\Contracts\Auditable as AuditableContract;
 
-#[ObservedBy(UserObserver::class)]
 #[Fillable(['name', 'email', 'password', 'role', 'permissions', 'access_scope', 'group_access', 'site_access', 'organization_name', 'phone', 'avatar_path'])]
 #[Hidden(['password', 'remember_token'])]
-class User extends Authenticatable
+class User extends Authenticatable implements AuditableContract
 {
     /** @use HasFactory<UserFactory> */
-    use HasFactory, Notifiable;
+    use HasFactory, Notifiable, Auditable;
+
+    /** Never audit secrets or login-timestamp noise. */
+    protected $auditExclude = ['password', 'remember_token', 'updated_at', 'last_login_at'];
 
     /** Resources and actions used in the permission matrix. */
     public const RESOURCES = [

@@ -2,18 +2,19 @@
 
 namespace App\Models;
 
-use App\Observers\ClientObserver;
-use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use OwenIt\Auditing\Auditable;
+use OwenIt\Auditing\Contracts\Auditable as AuditableContract;
 
-#[ObservedBy(ClientObserver::class)]
-class Client extends Model
+class Client extends Model implements AuditableContract
 {
-    use HasFactory, SoftDeletes;
+    use HasFactory, SoftDeletes, Auditable;
+
+    protected $auditExclude = ['updated_at'];
 
     protected $fillable = [
         'user_id', 'company_name', 'contact_name',

@@ -10,11 +10,15 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Collection;
+use OwenIt\Auditing\Auditable;
+use OwenIt\Auditing\Contracts\Auditable as AuditableContract;
 
 #[ObservedBy(ContactEntryObserver::class)]
-class ContactEntry extends Model
+class ContactEntry extends Model implements AuditableContract
 {
-    use HasFactory, SoftDeletes;
+    use HasFactory, SoftDeletes, Auditable;
+
+    protected $auditExclude = ['updated_at'];
 
     protected $fillable = [
         'site_id', 'type', 'kind', 'value', 'label',

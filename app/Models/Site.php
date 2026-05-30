@@ -2,18 +2,20 @@
 
 namespace App\Models;
 
-use App\Observers\SiteObserver;
-use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use OwenIt\Auditing\Auditable;
+use OwenIt\Auditing\Contracts\Auditable as AuditableContract;
 
-#[ObservedBy(SiteObserver::class)]
-class Site extends Model
+class Site extends Model implements AuditableContract
 {
-    use HasFactory, SoftDeletes;
+    use HasFactory, SoftDeletes, Auditable;
+
+    /** Noise/derived columns kept out of the audit trail. */
+    protected $auditExclude = ['updated_at', 'last_checked_at', 'is_favourite'];
 
     protected $fillable = [
         'client_id', 'name', 'url', 'wp_version',

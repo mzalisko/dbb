@@ -1,7 +1,6 @@
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}"
       x-data="themeApp()"
-      :data-theme="theme"
       x-init="initTheme()">
 <head>
     <meta charset="utf-8">
@@ -12,6 +11,12 @@
 
     <link rel="preload" href="{{ Vite::asset('resources/fonts/geist-cyrillic.woff2') }}" as="font" type="font/woff2" crossorigin>
     <link rel="preload" href="{{ Vite::asset('resources/fonts/geist-latin.woff2') }}" as="font" type="font/woff2" crossorigin>
+
+    <script>
+      (function () {
+        document.documentElement.dataset.theme = localStorage.getItem('db-theme') || 'light';
+      })();
+    </script>
 
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     @livewireStyles
@@ -106,6 +111,15 @@
                 <template x-if="theme === 'light'"><x-icon.moon width="14" height="14" /></template>
                 <template x-if="theme === 'dark'"><x-icon.sun width="14" height="14" /></template>
             </button>
+            <form method="POST" action="{{ route('logout') }}" style="margin:0; flex-shrink:0;">
+                @csrf
+                <button type="submit"
+                    title="Вийти"
+                    style="width:28px;height:28px;border-radius:999px;color:var(--ink-5);display:inline-flex;align-items:center;justify-content:center;transition:color .12s;"
+                    onmouseover="this.style.color='var(--bad)'" onmouseout="this.style.color='var(--ink-5)'">
+                    <x-icon.logout width="14" height="14" />
+                </button>
+            </form>
         </div>
     </aside>
     @endpersist
@@ -119,14 +133,25 @@
 
     <script>
     function themeApp() {
+      const applyTheme = (theme) => {
+        document.documentElement.dataset.theme = theme;
+      };
+
       return {
         theme: 'light',
         initTheme() {
           this.theme = localStorage.getItem('db-theme') || 'light';
+          applyTheme(this.theme);
+          this.$watch('theme', applyTheme);
+
+          document.addEventListener('livewire:navigated', () => {
+            applyTheme(localStorage.getItem('db-theme') || this.theme || 'light');
+          });
         },
         toggleTheme() {
           this.theme = this.theme === 'light' ? 'dark' : 'light';
           localStorage.setItem('db-theme', this.theme);
+          applyTheme(this.theme);
         }
       }
     }

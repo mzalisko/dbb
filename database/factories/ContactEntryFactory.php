@@ -65,6 +65,7 @@ class ContactEntryFactory extends Factory
             'parent_id' => $parent->id,
             'site_id'   => $parent->site_id,
             'type'      => $parent->type,
+            'kind'      => $parent->kind,
         ]);
     }
 }

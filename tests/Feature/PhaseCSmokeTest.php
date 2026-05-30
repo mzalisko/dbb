@@ -28,11 +28,15 @@ class PhaseCSmokeTest extends TestCase
         $response->assertSee('Браузер даних');
     }
 
-    public function test_data_browser_default_shows_all_types(): void
+    public function test_data_browser_defaults_to_a_single_type(): void
     {
+        // The cross-type "Всі" tab was removed — the browser always shows one
+        // entity type (default: phones) so bulk edits are never mixed-type.
         $response = $this->actingAs($this->admin)->get('/data');
         $response->assertStatus(200);
-        $response->assertSee('Всі');
+        $response->assertSee('Телефони');
+        $response->assertSee('Месенджери');
+        $response->assertSee('Ціни');
     }
 
     public function test_data_browser_type_filter(): void

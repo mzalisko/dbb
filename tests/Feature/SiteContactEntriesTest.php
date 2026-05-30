@@ -90,6 +90,20 @@ class SiteContactEntriesTest extends TestCase
         $this->assertSame('telegram', $reserve->kind);
     }
 
+    /** Task 2.1: model-level saves also normalize messenger reserve platform. */
+    public function test_messenger_reserve_kind_is_normalized_on_model_save(): void
+    {
+        [, $site] = $this->ownerSite();
+        $primary = ContactEntry::factory()->for($site)->messenger('telegram')->create();
+
+        $reserve = ContactEntry::factory()->for($site)->messenger('viber')->create([
+            'role' => 'backup',
+            'parent_id' => $primary->id,
+        ]);
+
+        $this->assertSame('telegram', $reserve->fresh()->kind);
+    }
+
     /** Task 2: a primary messenger can be created with a chosen platform. */
     public function test_primary_messenger_can_be_added(): void
     {
@@ -172,6 +186,55 @@ class SiteContactEntriesTest extends TestCase
         Livewire::actingAs($user)
             ->test(Show::class, ['site' => $site])
             ->assertSet('dataCategories', ['phones', 'messengers', 'prices']);
+    }
+
+    /** Task: messenger platform tabs can be managed per-site. */
+    public function test_messenger_kind_tabs_can_be_added_and_removed(): void
+    {
+        [$user, $site] = $this->ownerSite();
+        ContactEntry::factory()->for($site)->messenger('telegram')->create();
+
+        $component = Livewire::actingAs($user)
+            ->test(Show::class, ['site' => $site])
+            ->assertSet('messengerKinds', ['telegram']);
+
+        $component->set('newMessengerKind', 'Viber')
+            ->call('addMessengerKind')
+            ->assertSet('messengerKinds', ['telegram', 'viber']);
+
+        $this->assertSame(['telegram', 'viber'], $site->fresh()->messenger_kinds);
+
+        $component->call('removeMessengerKind', 'telegram')
+            ->assertSet('messengerKinds', ['viber']);
+
+        $this->assertSame(['viber'], $site->fresh()->messenger_kinds);
+
+        $component->set('newMessengerKind', 'Custom Chat')
+            ->call('addMessengerKind')
+            ->assertSet('messengerKinds', ['viber', 'custom-chat']);
+
+        $this->assertSame(['viber', 'custom-chat'], $site->fresh()->messenger_kinds);
+    }
+
+    public function test_custom_messenger_kind_can_be_used_when_creating_entry(): void
+    {
+        [$user, $site] = $this->ownerSite(['messenger_kinds' => ['max']]);
+
+        Livewire::actingAs($user)
+            ->test(Show::class, ['site' => $site])
+            ->assertSee('Max')
+            ->call('addEntry', 'messenger')
+            ->set('entryKind', 'max')
+            ->set('entryValue', '@max_support')
+            ->call('saveEntry')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('contact_entries', [
+            'site_id' => $site->id,
+            'type' => 'messenger',
+            'kind' => 'max',
+            'value' => '@max_support',
+        ]);
     }
 
     /** Task: clicking edit on a price opens the drawer (was silently broken). */

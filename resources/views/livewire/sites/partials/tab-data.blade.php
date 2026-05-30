@@ -76,6 +76,7 @@
                 @include('livewire.sites.partials.data-messengers', [
                     'msgPrimaries' => $msgPrimariesByGeo[$geoKey],
                     'hiddenMsgs' => $hiddenMsgsByGeo[$geoKey],
+                    'msgKindCounts' => $msgKindCountsByGeo[$geoKey],
                 ])
             </div>
         @endforeach

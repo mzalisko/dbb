@@ -53,6 +53,8 @@ class Show extends Component
     // Geo filter tabs (dynamic, per session)
     public array $geoTabs = ['UA', 'RU', 'BY'];
     public string $newGeoTab = '';
+    public array $messengerKinds = [];
+    public string $newMessengerKind = '';
 
     // Geo isolation rules for conflict detection
     public array $geoRules = [['id' => 1, 'groups' => [['UA'], ['RU', 'BY']]]];
@@ -69,9 +71,13 @@ class Show extends Component
     public string $confirmAction = '';
     public ?int $confirmEntryId = null;
     public ?string $confirmGeoCode = null;
+    public ?string $confirmSiteStatus = null;
+    public string $confirmDeleteSiteName = '';
     public string $confirmTitle = '';
     public string $confirmSubject = '';
     public string $confirmMessage = '';
+    public string $confirmButtonLabel = 'Видалити';
+    public bool $confirmIsDanger = true;
 
     public function openPhone(int $id): void
     {
@@ -99,6 +105,12 @@ class Show extends Component
         $this->dataCategories = $this->normalizeCategories(
             $this->site->data_categories ?? self::DEFAULT_CATEGORIES
         );
+        $this->messengerKinds = $this->site->messenger_kinds === null
+            ? $this->defaultMessengerKindsFromEntries()
+            : $this->normalizeMessengerKinds($this->site->messenger_kinds);
+        if ($this->site->messenger_kinds === null) {
+            $this->saveMessengerKinds();
+        }
 
         $this->failoverEnabled   = $this->site->failover_enabled ?? true;
         $this->failoverInterval  = $this->site->failover_interval ?? '5min';
@@ -126,6 +138,63 @@ class Show extends Component
     {
         $this->authorize('update', $this->site);
         $this->site->forceFill(['geo_rules' => $this->geoRules])->save();
+    }
+
+    private function normalizeMessengerKinds(?array $kinds): array
+    {
+        return collect($kinds ?? [])
+            ->map(fn($kind) => $this->resolveMessengerKind((string) $kind))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    private function saveMessengerKinds(): void
+    {
+        $this->authorize('update', $this->site);
+        $this->messengerKinds = $this->normalizeMessengerKinds($this->messengerKinds);
+        $this->site->forceFill(['messenger_kinds' => $this->messengerKinds])->save();
+    }
+
+    private function resolveMessengerKind(string $value): ?string
+    {
+        $value = strtolower(trim($value));
+        if ($value === '') {
+            return null;
+        }
+
+        $normalized = preg_replace('/[^a-z0-9]+/', '', $value);
+        $aliases = [
+            'fb' => 'messenger',
+            'facebook' => 'messenger',
+            'facebookmessenger' => 'messenger',
+            'tg' => 'telegram',
+            'wa' => 'whatsapp',
+            'vb' => 'viber',
+        ];
+
+        foreach (\App\Models\ContactEntry::MSG_KINDS as $key => $meta) {
+            $candidates = [
+                $key,
+                strtolower($meta['label'] ?? ''),
+                strtolower($meta['short'] ?? ''),
+                preg_replace('/[^a-z0-9]+/', '', strtolower($meta['label'] ?? '')),
+            ];
+
+            if (in_array($value, $candidates, true) || in_array($normalized, $candidates, true)) {
+                return $key;
+            }
+        }
+
+        if (isset($aliases[$normalized])) {
+            return $aliases[$normalized];
+        }
+
+        $slug = preg_replace('/[^a-z0-9]+/', '-', $value);
+        $slug = trim((string) $slug, '-');
+
+        return $slug !== '' && strlen($slug) <= 40 ? $slug : null;
     }
 
     /** Keep required categories, drop unknown ones, preserve canonical order. */
@@ -172,6 +241,16 @@ class Show extends Component
             ->all();
 
         return $this->normalizeGeoTabs(array_merge(self::DEFAULT_GEO_TABS, $codes));
+    }
+
+    private function defaultMessengerKindsFromEntries(): array
+    {
+        $kinds = $this->site->contactEntries()
+            ->where('type', 'messenger')
+            ->pluck('kind')
+            ->all();
+
+        return $this->normalizeMessengerKinds($kinds);
     }
 
     private function filterForGeo(Collection $entries, string $geo): Collection
@@ -286,8 +365,12 @@ class Show extends Component
             $rules['entryValue'] = 'required|max:500';
             $rules['entryLabel'] = 'nullable|max:255';
         } elseif ($this->entryType === 'messenger') {
+            $allowedMessengerKinds = $this->normalizeMessengerKinds(array_merge(
+                array_keys(\App\Models\ContactEntry::MSG_KINDS),
+                $this->messengerKinds
+            ));
             $rules['entryValue'] = 'required|max:500';
-            $rules['entryKind']  = 'required|in:telegram,whatsapp,viber,messenger,signal,skype';
+            $rules['entryKind']  = 'required|in:' . implode(',', $allowedMessengerKinds);
         } elseif ($this->entryType === 'price') {
             $rules['entryPrice']    = 'required|numeric|min:0';
             $rules['entryCurrency'] = 'required|size:3';
@@ -340,10 +423,15 @@ class Show extends Component
         }
 
         $savedType = $this->entryType;
+        $savedKind = $entryKind;
         $this->resetEntryForm();
         $this->dispatch('toast', type: 'success', message: 'Збережено');
         if ($savedType === 'phone') {
             $this->dispatch('phones-updated');
+        }
+        if ($savedType === 'messenger' && $savedKind && !in_array($savedKind, $this->messengerKinds, true)) {
+            $this->messengerKinds[] = $savedKind;
+            $this->saveMessengerKinds();
         }
     }
 
@@ -436,19 +524,84 @@ class Show extends Component
         $this->confirmMessage = 'Пункт зникне з перемикача перегляду для цього сайту і не повернеться після оновлення сторінки.';
     }
 
+    public function requestSetSiteStatus(string $status): void
+    {
+        if (!in_array($status, ['active', 'maintenance'], true)) {
+            return;
+        }
+
+        $this->authorize('update', $this->site);
+
+        if ($this->site->status === $status) {
+            return;
+        }
+
+        $label = $status === 'active' ? 'Активний' : 'Пауза';
+
+        $this->confirmingAction = true;
+        $this->confirmAction = 'set-site-status';
+        $this->confirmEntryId = null;
+        $this->confirmGeoCode = null;
+        $this->confirmSiteStatus = $status;
+        $this->confirmTitle = 'Змінити стан сайту?';
+        $this->confirmSubject = $this->site->name . ' -> ' . $label;
+        $this->confirmMessage = $status === 'active'
+            ? 'Сайт буде повернено в активний стан і він знову відображатиметься як робочий.'
+            : 'Сайт буде переведено на паузу. Це не видаляє дані, але позначить сайт як призупинений.';
+        $this->confirmButtonLabel = 'Підтвердити';
+        $this->confirmIsDanger = false;
+    }
+
+    public function requestDeleteSite(): void
+    {
+        $this->authorize('delete', $this->site);
+
+        $this->confirmingAction = true;
+        $this->confirmAction = 'delete-site';
+        $this->confirmEntryId = null;
+        $this->confirmGeoCode = null;
+        $this->confirmSiteStatus = null;
+        $this->confirmDeleteSiteName = '';
+        $this->confirmTitle = 'Видалити сайт?';
+        $this->confirmSubject = $this->site->name;
+        $this->confirmMessage = 'Щоб підтвердити видалення, введіть точну назву сайту.';
+        $this->confirmButtonLabel = 'Видалити сайт';
+        $this->confirmIsDanger = true;
+    }
+
     public function cancelConfirm(): void
     {
         $this->confirmingAction = false;
         $this->confirmAction = '';
         $this->confirmEntryId = null;
         $this->confirmGeoCode = null;
+        $this->confirmSiteStatus = null;
+        $this->confirmDeleteSiteName = '';
         $this->confirmTitle = '';
         $this->confirmSubject = '';
         $this->confirmMessage = '';
+        $this->confirmButtonLabel = 'Видалити';
+        $this->confirmIsDanger = true;
     }
 
     public function confirmPendingAction(): void
     {
+        if ($this->confirmAction === 'set-site-status' && $this->confirmSiteStatus) {
+            $status = $this->confirmSiteStatus;
+            $this->cancelConfirm();
+            $this->setSiteStatus($status);
+            return;
+        }
+
+        if ($this->confirmAction === 'delete-site') {
+            if ($this->confirmDeleteSiteName !== $this->site->name) {
+                return;
+            }
+            $this->cancelConfirm();
+            $this->deleteSite();
+            return;
+        }
+
         if ($this->confirmAction === 'delete-entry' && $this->confirmEntryId) {
             $id = $this->confirmEntryId;
             $this->cancelConfirm();
@@ -471,6 +624,27 @@ class Show extends Component
         }
 
         $this->cancelConfirm();
+    }
+
+    public function setSiteStatus(string $status): void
+    {
+        if (!in_array($status, ['active', 'maintenance'], true)) {
+            return;
+        }
+
+        $this->authorize('update', $this->site);
+        $this->site->update(['status' => $status]);
+        $this->site = $this->site->fresh('client');
+        $this->dispatch('toast', type: 'success', message: 'Стан сайту оновлено');
+    }
+
+    public function deleteSite()
+    {
+        $this->authorize('delete', $this->site);
+        $this->site->delete();
+        $this->dispatch('toast', type: 'success', message: 'Сайт видалено');
+
+        return $this->redirectRoute('sites.index', navigate: true);
     }
 
     public function toggleEntryVisibility(int $id): void
@@ -633,6 +807,26 @@ class Show extends Component
         $this->saveGeoTabs();
     }
 
+    public function addMessengerKind(): void
+    {
+        $kind = $this->resolveMessengerKind($this->newMessengerKind);
+        if (!$kind || in_array($kind, $this->messengerKinds, true)) {
+            $this->newMessengerKind = '';
+            return;
+        }
+
+        $this->messengerKinds[] = $kind;
+        $this->saveMessengerKinds();
+        $this->newMessengerKind = '';
+    }
+
+    public function removeMessengerKind(string $kind): void
+    {
+        $kind = strtolower(trim($kind));
+        $this->messengerKinds = array_values(array_filter($this->messengerKinds, fn($k) => $k !== $kind));
+        $this->saveMessengerKinds();
+    }
+
     public function addGeoRule(): void
     {
         $groupA = $this->normalizeGeoRuleGroup($this->newRuleA);
@@ -775,7 +969,16 @@ class Show extends Component
         $socialCount  = $this->site->contactEntries()->where('type', 'social')->count();
 
         // Messenger kinds grouped (for platform pills)
-        $msgByKind = $allMsgs->groupBy('kind');
+        $msgKindCountsByGeo = [];
+        foreach (array_merge(['all'], $this->geoTabs) as $gk) {
+            $msgKindCountsByGeo[$gk] = $this->filterByPreviewTab($allMsgsAll, $gk)
+                ->groupBy('kind')
+                ->map(fn($entries) => $entries->count())
+                ->all();
+        }
+        $availableMessengerKinds = collect(\App\Models\ContactEntry::MSG_KINDS)
+            ->reject(fn($_meta, $kind) => in_array($kind, $this->messengerKinds, true))
+            ->all();
 
         // Prices grouped by SKU (all including hidden)
         $priceBySkuAll = $allPricesAll->groupBy('sku');
@@ -786,6 +989,7 @@ class Show extends Component
         $priceCount = $allPrices->count();
 
         $geoTabs = $this->geoTabs;
+        $messengerKinds = $this->messengerKinds;
         $dataCategories = $this->dataCategories;
 
         $geoRules = $this->geoRules;
@@ -797,7 +1001,7 @@ class Show extends Component
             'allPhones', 'allMsgs', 'allPhonesAll', 'allMsgsAll', 'allPricesAll',
             'phonePrimaries', 'msgPrimaries',
             'phonePrimariesByGeo', 'hiddenPhonesByGeo', 'msgPrimariesByGeo', 'hiddenMsgsByGeo',
-            'msgByKind',
+            'msgKindCountsByGeo', 'messengerKinds', 'availableMessengerKinds',
             'priceBySku', 'priceBySkuAll',
             'activityLogs',
             'phoneCount', 'msgCount', 'priceCount',

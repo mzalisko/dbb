@@ -5,7 +5,7 @@
         @foreach([
             ['key'=>'failover','label'=>'Failover','count'=>$phonePrimaries->count()],
             ['key'=>'categories','label'=>'Категорії даних','count'=>count($dataCategories)],
-            ['key'=>'api','label'=>'API доступ','count'=>1],
+            ['key'=>'general','label'=>'Загальне','count'=>2],
         ] as $st)
             <button class="tab" :class="settingsSub==='{{ $st['key'] }}' ? 'active' : ''" @click="settingsSub='{{ $st['key'] }}'">
                 {{ $st['label'] }}
@@ -205,7 +205,7 @@
                         <span class="set-journal__meta">поточний стан</span>
                     </div>
                     {{-- Групи: кожен активний + його резерви --}}
-                    <div x-show="groups.length === 0" class="ctable__empty">Р§РµСЂРіР° РїРѕСЂРѕР¶РЅСЏ: РЅРµРјР°С” Р°РєС‚РёРІРЅРёС… С‚РµР»РµС„РѕРЅС–РІ.</div>
+                    <div x-show="groups.length === 0" class="ctable__empty">Черга порожня: немає активних телефонів.</div>
                     <template x-for="(group, gi) in groups" :key="gi">
                         <div class="set-qgroup">
                             <template x-for="(item, ii) in group.items" :key="item.id">
@@ -290,10 +290,49 @@
         </div>
     </div>
 
-    {{-- API --}}
-    <div x-show="settingsSub==='api'" x-cloak class="set-section">
-        <div class="eyebrow eyebrow-xs" style="margin-bottom:10px;">03 &middot; API доступ</div>
-        <h3 class="set-title">Ключ цього сайту</h3>
+    {{-- General --}}
+    <div x-show="settingsSub==='general'" x-cloak class="set-section">
+        <div class="eyebrow eyebrow-xs" style="margin-bottom:10px;">03 &middot; Загальне</div>
+        @php
+            $siteStatusLabel = match($site->status) {
+                'active' => 'Активний',
+                'maintenance' => 'Пауза',
+                default => 'Помилка',
+            };
+            $siteStatusMeta = match($site->status) {
+                'active' => 'Сайт працює у штатному режимі.',
+                'maintenance' => 'Сайт призупинено вручну.',
+                default => 'Сайт позначено як проблемний.',
+            };
+        @endphp
+        <div class="card" style="overflow:hidden; margin-bottom:18px;">
+            <div class="set-row">
+                <div class="set-row__info">
+                    <div class="set-row__title">Стан сайту</div>
+                    <div class="set-row__desc">Поточний стан: {{ $siteStatusLabel }}. {{ $siteStatusMeta }}</div>
+                </div>
+                <div class="set-opts">
+                    <button class="set-opt {{ $site->status === 'active' ? 'is-active' : '' }}"
+                            wire:click="requestSetSiteStatus('active')"
+                            @disabled($site->status === 'active')>Активний</button>
+                    <button class="set-opt {{ $site->status === 'maintenance' ? 'is-active' : '' }}"
+                            wire:click="requestSetSiteStatus('maintenance')"
+                            @disabled($site->status === 'maintenance')>Пауза</button>
+                </div>
+            </div>
+            @can('delete', $site)
+                <div class="set-row">
+                    <div class="set-row__info">
+                        <div class="set-row__title">Видалення сайту</div>
+                        <div class="set-row__desc">Видалення потребує підтвердження і прибере сайт зі списку.</div>
+                    </div>
+                    <button class="btn btn-danger btn-sm" wire:click="requestDeleteSite">
+                        <x-icon.trash width="13" height="13" /> Видалити сайт
+                    </button>
+                </div>
+            @endcan
+        </div>
+        <h3 class="set-title" style="margin-top:24px;">API доступ</h3>
         <div class="card api-card">
             <x-icon.key width="18" height="18" style="color:var(--ink-5);" />
             <span class="mono api-key">db_live_{{ substr(md5($site->id.'key'),0,10) }}…</span>

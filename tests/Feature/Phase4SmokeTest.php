@@ -184,6 +184,18 @@ class Phase4SmokeTest extends TestCase
         $this->assertGuest();
     }
 
+    public function test_authenticated_layout_has_logout_button(): void
+    {
+        $user = User::factory()->create();
+
+        $this->actingAs($user)
+            ->get('/dashboard')
+            ->assertStatus(200)
+            ->assertSee('method="POST"', false)
+            ->assertSee('/logout', false)
+            ->assertSee('title="Вийти"', false);
+    }
+
     // --- Design system / layout ---
 
     public function test_login_view_uses_guest_layout(): void

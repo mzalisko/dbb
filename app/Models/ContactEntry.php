@@ -6,6 +6,7 @@ use App\Observers\ContactEntryObserver;
 use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Collection;
@@ -13,7 +14,7 @@ use Illuminate\Database\Eloquent\Collection;
 #[ObservedBy(ContactEntryObserver::class)]
 class ContactEntry extends Model
 {
-    use HasFactory;
+    use HasFactory, SoftDeletes;
 
     protected $fillable = [
         'site_id', 'type', 'kind', 'value', 'label',
@@ -126,4 +127,34 @@ class ContactEntry extends Model
         'signal'    => ['label' => 'Signal',    'color' => '#3A76F0', 'short' => 'SG'],
         'skype'     => ['label' => 'Skype',     'color' => '#00AFF0', 'short' => 'SK'],
     ];
+
+    /**
+     * Central registry of entry types → label + optional sub-kinds. Single source
+     * of truth: add a type here (plus its factory/migration) and it surfaces in the
+     * data browser tabs, bulk actions and the value-edit guard automatically.
+     * Future, e.g.: 'social' => ['label' => 'Соцмережі', 'kinds' => self::SOCIAL_KINDS],
+     *               'address' => ['label' => 'Адреси', 'kinds' => []].
+     */
+    public const TYPES = [
+        'phone'     => ['label' => 'Телефони',   'kinds' => []],
+        'messenger' => ['label' => 'Месенджери', 'kinds' => self::MSG_KINDS],
+        'price'     => ['label' => 'Ціни',        'kinds' => []],
+    ];
+
+    /** @return array<string,string> type key → label */
+    public static function typeLabels(): array
+    {
+        return array_map(fn ($t) => $t['label'], self::TYPES);
+    }
+
+    /** @return array<string,string> kind key → label for a type ([] when the type has no kinds) */
+    public static function kindLabels(string $type): array
+    {
+        return array_map(fn ($k) => $k['label'], self::TYPES[$type]['kinds'] ?? []);
+    }
+
+    public static function hasKinds(string $type): bool
+    {
+        return ! empty(self::TYPES[$type]['kinds'] ?? []);
+    }
 }

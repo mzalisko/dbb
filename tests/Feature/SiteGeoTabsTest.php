@@ -33,6 +33,57 @@ class SiteGeoTabsTest extends TestCase
             ->assertSet('geoTabs', ['RU', 'BY']);
     }
 
+    public function test_site_settings_empty_queue_text_is_readable(): void
+    {
+        $user = User::factory()->create(['role' => 'owner']);
+        $client = Client::factory()->for($user)->create();
+        $site = Site::factory()->for($client)->create();
+
+        $this->actingAs($user)
+            ->get("/sites/{$site->id}")
+            ->assertStatus(200)
+            ->assertSee('Черга порожня: немає активних телефонів.')
+            ->assertDontSee('Р§РµСЂРіР°', false);
+    }
+
+    public function test_site_status_change_requires_confirmation(): void
+    {
+        $user = User::factory()->create(['role' => 'owner']);
+        $client = Client::factory()->for($user)->create();
+        $site = Site::factory()->for($client)->create(['status' => 'active']);
+
+        Livewire::actingAs($user)
+            ->test(Show::class, ['site' => $site])
+            ->call('requestSetSiteStatus', 'maintenance')
+            ->assertSet('confirmingAction', true)
+            ->assertSet('confirmAction', 'set-site-status')
+            ->assertSet('confirmSiteStatus', 'maintenance')
+            ->call('confirmPendingAction')
+            ->assertSet('confirmingAction', false);
+
+        $this->assertSame('maintenance', $site->fresh()->status);
+    }
+
+    public function test_site_delete_requires_confirmation(): void
+    {
+        $user = User::factory()->create(['role' => 'owner']);
+        $client = Client::factory()->for($user)->create();
+        $site = Site::factory()->for($client)->create();
+
+        Livewire::actingAs($user)
+            ->test(Show::class, ['site' => $site])
+            ->call('requestDeleteSite')
+            ->assertSet('confirmingAction', true)
+            ->assertSet('confirmAction', 'delete-site')
+            ->call('confirmPendingAction')
+            ->assertSet('confirmingAction', true)
+            ->set('confirmDeleteSiteName', $site->name)
+            ->call('confirmPendingAction')
+            ->assertRedirect(route('sites.index'));
+
+        $this->assertSoftDeleted('sites', ['id' => $site->id]);
+    }
+
     public function test_styled_delete_confirmation_removes_entry_and_backups(): void
     {
         $user = User::factory()->create(['role' => 'owner']);
@@ -49,8 +100,9 @@ class SiteGeoTabsTest extends TestCase
             ->call('confirmPendingAction')
             ->assertSet('confirmingAction', false);
 
-        $this->assertDatabaseMissing('contact_entries', ['id' => $phone->id]);
-        $this->assertDatabaseMissing('contact_entries', ['id' => $backup->id]);
+        // Entries are soft-deleted now (recoverable via Кошик / Undo).
+        $this->assertSoftDeleted('contact_entries', ['id' => $phone->id]);
+        $this->assertSoftDeleted('contact_entries', ['id' => $backup->id]);
     }
 
     public function test_preview_geo_label_marks_tab_membership(): void

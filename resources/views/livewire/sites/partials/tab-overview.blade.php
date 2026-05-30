@@ -67,7 +67,7 @@
         </div>
         <div class="ov-visitor-scroll">
             <div class="ov-visitor-table">
-                <div class="ov-visitor-title">РќРѕРјРµСЂРё</div>
+                <div class="ov-visitor-title">Номери</div>
                 <div class="ov-cols ov-cols--compact">
                     @foreach($overviewByGeo as $geoKey => $col)
                         <div class="ov-col {{ $geoKey === 'all' ? 'ov-col--all' : '' }}">
@@ -81,12 +81,12 @@
                                             <div class="ov-sub">{{ $phone->label }}</div>
                                         @endif
                                         @if($phone->backups->count() > 0)
-                                            <div class="ov-reserve-label">Р РµР·РµСЂРІРё В· {{ $phone->backups->count() }}</div>
+                                            <div class="ov-reserve-label">Резерви &middot; {{ $phone->backups->count() }}</div>
                                         @endif
                                     </div>
                                 @endforeach
                             @else
-                                <div class="ov-empty">вЂ”</div>
+                                <div class="ov-empty">&mdash;</div>
                             @endif
                         </div>
                     @endforeach
@@ -94,7 +94,7 @@
             </div>
 
             <div class="ov-visitor-table">
-                <div class="ov-visitor-title">РњРµСЃРµРЅРґР¶РµСЂРё</div>
+                <div class="ov-visitor-title">Месенджери</div>
                 <div class="ov-cols ov-cols--compact">
                     @foreach($overviewByGeo as $geoKey => $col)
                         <div class="ov-col {{ $geoKey === 'all' ? 'ov-col--all' : '' }}">
@@ -112,12 +112,12 @@
                                             @endif
                                         </div>
                                         @if($msg->backups->count() > 0)
-                                            <div class="ov-reserve-label">Р РµР·РµСЂРІРё В· {{ $msg->backups->count() }}</div>
+                                            <div class="ov-reserve-label">Резерви &middot; {{ $msg->backups->count() }}</div>
                                         @endif
                                     </div>
                                 @endforeach
                             @else
-                                <div class="ov-empty">вЂ”</div>
+                                <div class="ov-empty">&mdash;</div>
                             @endif
                         </div>
                     @endforeach

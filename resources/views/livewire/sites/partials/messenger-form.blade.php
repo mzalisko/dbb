@@ -1,6 +1,15 @@
 {{-- ─── Messenger entry form (shared by edit + add modes) ─── --}}
 @php
-    $kinds = \App\Models\ContactEntry::MSG_KINDS;
+    $baseKinds = \App\Models\ContactEntry::MSG_KINDS;
+    $kinds = $baseKinds;
+    foreach (($messengerKinds ?? []) as $customKind) {
+        if (isset($kinds[$customKind])) {
+            continue;
+        }
+        $label = ucfirst(str_replace(['-', '_'], ' ', $customKind));
+        $short = strtoupper(substr(preg_replace('/[^a-z0-9]/i', '', $customKind), 0, 2) ?: '??');
+        $kinds[$customKind] = ['label' => $label, 'color' => '#888', 'short' => $short];
+    }
     $editedMsg = $editEntryId ? $allMsgsAll->firstWhere('id', $editEntryId) : null;
     // A reserve is locked to its primary's platform (Telegram → Telegram, etc.).
     $kindLocked = !is_null($entryParentId) || ($editedMsg && $editedMsg->role === 'backup');

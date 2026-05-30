@@ -1,8 +1,8 @@
 <div class="page"
      x-data="{
-         tab:         (['overview','data','activity','settings'].includes((location.hash.slice(1)||'').split('/')[0]) ? location.hash.slice(1).split('/')[0] : 'data'),
-         settingsSub: (location.hash.slice(1).split('/')[1] || 'failover'),
-         cat: 'phones', geo: 'all', actFilter: 'all'
+         tab:         (['overview','data','activity','settings'].includes((location.hash.slice(1)||'').split('/')[0]) ? location.hash.slice(1).split('/')[0] : 'overview'),
+         settingsSub: ((location.hash.slice(1).split('/')[1] || 'failover') === 'api' ? 'general' : (location.hash.slice(1).split('/')[1] || 'failover')),
+         cat: 'phones', geo: 'all', msgKind: 'all', actFilter: 'all'
      }"
      x-init="
          $watch('tab',         t => history.replaceState(null,'',location.pathname+'#'+t+(t==='settings'?'/'+settingsSub:'')));

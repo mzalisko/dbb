@@ -2,21 +2,70 @@
 @php
     $kinds = \App\Models\ContactEntry::MSG_KINDS;
     $hiddenMsgs = $hiddenMsgs ?? collect();
+    $msgKindCounts = $msgKindCounts ?? [];
+    $messengerKinds = $messengerKinds ?? array_keys($msgKindCounts);
+    $availableMessengerKinds = $availableMessengerKinds ?? [];
     $gkParam = isset($geoKey) && $geoKey !== 'all' ? "'{$geoKey}'" : 'null';
 @endphp
 
-{{-- Platform pills --}}
-@if($msgByKind->count() > 0)
-    <div class="msg-pills">
-        @foreach($msgByKind as $kindKey => $kindEntries)
-            @php $kd = $kinds[$kindKey] ?? ['label'=>$kindKey,'color'=>'#888','short'=>'??']; @endphp
-            <span class="msg-pill" style="background:{{ $kd['color'] }}20; color:{{ $kd['color'] }}; border:1px solid {{ $kd['color'] }}40;">
+{{-- Platform tabs --}}
+<div class="msg-pills">
+    <button class="msg-pill msg-pill--all"
+            type="button"
+            @click="msgKind='all'"
+            :class="msgKind==='all' ? 'is-active' : ''">
+        Всі <span class="pill-count">{{ $msgPrimaries->count() + $hiddenMsgs->count() }}</span>
+    </button>
+
+    @foreach($messengerKinds as $kindKey)
+        @php
+            $customLabel = ucfirst(str_replace(['-', '_'], ' ', $kindKey));
+            $customShort = strtoupper(substr(preg_replace('/[^a-z0-9]/i', '', $kindKey), 0, 2) ?: '??');
+            $kd = $kinds[$kindKey] ?? ['label'=>$customLabel,'color'=>'#888','short'=>$customShort];
+            $count = $msgKindCounts[$kindKey] ?? 0;
+        @endphp
+        <span class="msg-pill-tab">
+            <button class="msg-pill"
+                    type="button"
+                    @click="msgKind=@js($kindKey)"
+                    :class="msgKind===@js($kindKey) ? 'is-active' : ''">
                 <span class="msg-pill__badge" style="background:{{ $kd['color'] }};">{{ $kd['short'] }}</span>
-                {{ $kd['label'] }} {{ $kindEntries->count() }}
+                {{ $kd['label'] }} <span class="pill-count">{{ $count }}</span>
+            </button>
+            <button class="msg-pill__remove"
+                    type="button"
+                    title="Видалити платформу"
+                    @click.stop="if (msgKind===@js($kindKey)) msgKind='all'; $wire.removeMessengerKind(@js($kindKey));">
+                &times;
+            </button>
+        </span>
+    @endforeach
+
+        <span class="msg-pill-add" x-data="{open:false}">
+            <button class="msg-pill-add__btn"
+                    type="button"
+                    title="Додати платформу"
+                    @click="open=!open"
+                    :class="open ? 'is-active' : ''">+</button>
+            <span x-show="open" x-cloak class="msg-pill-add__pop" @click.outside="open=false">
+                <input wire:model="newMessengerKind"
+                       list="messenger-kind-options-{{ $geoKey ?? 'all' }}"
+                       class="msg-pill-add__input"
+                       placeholder="Signal або Custom"
+                       @keydown.enter.prevent="$wire.addMessengerKind(); open=false"
+                       @keydown.escape="open=false">
+                <datalist id="messenger-kind-options-{{ $geoKey ?? 'all' }}">
+                    @foreach($availableMessengerKinds as $kindKey => $kindMeta)
+                        <option value="{{ $kindMeta['label'] }}"></option>
+                    @endforeach
+                </datalist>
+                <button class="msg-pill-add__ok"
+                        type="button"
+                        wire:click="addMessengerKind"
+                        @click="open=false">OK</button>
             </span>
-        @endforeach
-    </div>
-@endif
+        </span>
+</div>
 
 {{-- Messenger table --}}
 <div class="card ctable">
@@ -36,7 +85,10 @@
     <div x-data="sortable()">
         @forelse($msgPrimaries as $i => $msg)
             @php $k = $kinds[$msg->kind] ?? ['label'=>$msg->kind,'color'=>'#888','short'=>'??']; @endphp
-            <div class="ctable-group" data-entry-id="{{ $msg->id }}">
+            <div class="ctable-group"
+                 data-entry-id="{{ $msg->id }}"
+                 data-msg-kind="{{ $msg->kind }}"
+                 x-show="msgKind === 'all' || msgKind === @js($msg->kind)">
 
                 {{-- Primary row --}}
                 <div wire:click="editEntry({{ $msg->id }})" class="crow crow--msg crow--main">
@@ -121,7 +173,11 @@
     {{-- Hidden entries --}}
     @foreach($hiddenMsgs as $msg)
         @php $k = $kinds[$msg->kind] ?? ['label'=>$msg->kind,'color'=>'#888','short'=>'??']; @endphp
-        <div wire:click="editEntry({{ $msg->id }})" class="crow crow--msg crow--hidden" style="cursor:pointer;">
+        <div wire:click="editEntry({{ $msg->id }})"
+             class="crow crow--msg crow--hidden"
+             data-msg-kind="{{ $msg->kind }}"
+             x-show="msgKind === 'all' || msgKind === @js($msg->kind)"
+             style="cursor:pointer;">
             <span style="color:var(--ink-4);">&#x2807;</span>
             <span class="cc-num">#{{ $loop->index+1 }}</span>
             <div class="msg-contact">

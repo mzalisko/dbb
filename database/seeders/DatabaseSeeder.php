@@ -142,8 +142,8 @@ class DatabaseSeeder extends Seeder
             'contact_name'  => 'Demo Contact',
             'contact_email' => 'demo@demo-site.example',
             'contact_phone' => '+48 00 000 00 00',
-            'status'        => 'active',
-            'notes'         => "Демонстраційний клієнт для тестування.\n\nТелефони:\n• +48 00 000 00 00 — PL головний\n• +48 99 999 99 99 — PL резерв\n• 11111111111 — UA+World головний\n• +099 11 22 33 — UA резерв\n\nMessengers:\n• Telegram: @demo_pl (PL)\n• WhatsApp: +48 22 555 33 11 (PL резерв)\n• Telegram: @demo_main (UA+World)\n• Viber: +38 099 11 22 33 (UA)\n\nSocial:\n• Instagram: @democlient\n• Facebook: fb.com/democlientcorp",
+            'site_id'   => $demoSite->id, 'type' => 'messenger', 'kind' => 'telegram',
+            'value'     => '@demo_ua_backup', 'label' => 'UA Telegram backup',
         ]);
 
         $voltway = Client::create([
@@ -336,8 +336,8 @@ class DatabaseSeeder extends Seeder
             'visible'   => true, 'order' => 2, 'parent_id' => $worldPhone->id,
         ]);
         ContactEntry::create([
-            'site_id'   => $demoSite->id, 'type' => 'phone',
-            'value'     => '+48 22 555 33 11', 'label' => 'Універсальний резерв',
+            'site_id'   => $demoSite->id, 'type' => 'messenger', 'kind' => 'telegram',
+            'value'     => '@demo_pl_backup', 'label' => 'PL Telegram backup',
             'role'      => 'backup', 'geo_mode' => 'all', 'countries' => [],
             'visible'   => true, 'order' => 3, 'parent_id' => $worldPhone->id,
         ]);
@@ -358,14 +358,14 @@ class DatabaseSeeder extends Seeder
             'visible'  => true, 'order' => 1,
         ]);
         ContactEntry::create([
-            'site_id'   => $demoSite->id, 'type' => 'messenger', 'kind' => 'whatsapp',
-            'value'     => '+48 22 555 33 11', 'label' => 'PL · WhatsApp резерв',
+            'site_id'   => $demoSite->id, 'type' => 'messenger', 'kind' => 'telegram',
+            'value'     => '@demo_pl_backup', 'label' => 'PL Telegram backup',
             'role'      => 'backup', 'geo_mode' => 'only', 'countries' => ['PL'],
             'visible'   => true, 'order' => 1, 'parent_id' => $plTg->id,
         ]);
         ContactEntry::create([
-            'site_id'   => $demoSite->id, 'type' => 'messenger', 'kind' => 'messenger',
-            'value'     => 'm.me/demoPL', 'label' => 'PL · Facebook Messenger',
+            'site_id'   => $demoSite->id, 'type' => 'messenger', 'kind' => 'telegram',
+            'value'     => '@demo_pl_support', 'label' => 'PL Telegram backup',
             'role'      => 'backup', 'geo_mode' => 'only', 'countries' => ['PL'],
             'visible'   => true, 'order' => 2, 'parent_id' => $plTg->id,
         ]);
@@ -378,14 +378,14 @@ class DatabaseSeeder extends Seeder
             'visible'  => true, 'order' => 1,
         ]);
         ContactEntry::create([
-            'site_id'   => $demoSite->id, 'type' => 'messenger', 'kind' => 'viber',
-            'value'     => '+38 099 11 22 33', 'label' => 'UA · Viber резерв',
+            'site_id'   => $demoSite->id, 'type' => 'messenger', 'kind' => 'telegram',
+            'value'     => '@demo_ua_backup', 'label' => 'UA Telegram backup',
             'role'      => 'backup', 'geo_mode' => 'only', 'countries' => ['UA'],
             'visible'   => true, 'order' => 1, 'parent_id' => $mainTg->id,
         ]);
         ContactEntry::create([
-            'site_id'   => $demoSite->id, 'type' => 'messenger', 'kind' => 'whatsapp',
-            'value'     => '+38 073 000 11 22', 'label' => 'UA · WhatsApp резерв',
+            'site_id'   => $demoSite->id, 'type' => 'messenger', 'kind' => 'telegram',
+            'value'     => '@demo_ua_support', 'label' => 'UA Telegram backup',
             'role'      => 'backup', 'geo_mode' => 'only', 'countries' => ['UA'],
             'visible'   => true, 'order' => 2, 'parent_id' => $mainTg->id,
         ]);

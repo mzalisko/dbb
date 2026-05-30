@@ -39,13 +39,26 @@
                 @endif
 
                 <p class="confirm-dialog__text">{{ $confirmMessage }}</p>
+
+                @if($confirmAction === 'delete-site')
+                    <input class="input mono"
+                           style="margin-top:12px;"
+                           wire:model.live="confirmDeleteSiteName"
+                           placeholder="{{ $site->name }}">
+                @endif
             </div>
 
             <div class="confirm-dialog__footer">
                 <button class="btn btn-ghost" wire:click="cancelConfirm">Скасувати</button>
-                <button class="btn btn-danger-fill" wire:click="confirmPendingAction">
-                    <x-icon.trash width="13" height="13" />
-                    Видалити
+                <button class="btn {{ $confirmIsDanger ? 'btn-danger-fill' : 'btn-primary' }}"
+                        wire:click="confirmPendingAction"
+                        @disabled($confirmAction === 'delete-site' && $confirmDeleteSiteName !== $site->name)>
+                    @if($confirmIsDanger)
+                        <x-icon.trash width="13" height="13" />
+                    @else
+                        <x-icon.check width="13" height="13" />
+                    @endif
+                    {{ $confirmButtonLabel }}
                 </button>
             </div>
         </div>

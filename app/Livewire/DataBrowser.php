@@ -227,12 +227,21 @@ class DataBrowser extends Component
         return $this->kindLabelsForType($type)[$kind] ?? null;
     }
 
-    /** @return array<string,string> */
+    /**
+     * Kinds that actually occur in the (authorised) data for a type — not the whole
+     * static registry. The canonical labels/order come from ContactEntry::kindLabels,
+     * but a kind only appears once at least one entry uses it, so the sub-filter never
+     * shows platforms that aren't present on any site (custom kinds surface too).
+     *
+     * @return array<string,string>
+     */
     private function kindLabelsForType(string $type): array
     {
-        $labels = ContactEntry::kindLabels($type);
+        if (! ContactEntry::hasKinds($type)) {
+            return [];
+        }
 
-        $dynamicKinds = $this->applyVisibility(ContactEntry::query())
+        $present = $this->applyVisibility(ContactEntry::query())
             ->when($this->trashed, fn ($q) => $q->onlyTrashed())
             ->where('type', $type)
             ->whereNotNull('kind')
@@ -240,10 +249,18 @@ class DataBrowser extends Component
             ->pluck('kind')
             ->map(fn ($kind) => trim((string) $kind))
             ->filter()
-            ->unique()
-            ->values();
+            ->unique();
 
-        foreach ($dynamicKinds as $kind) {
+        $static = ContactEntry::kindLabels($type);
+        $labels = [];
+
+        // Canonical kinds first (in registry order), then any custom kinds in use.
+        foreach ($static as $key => $label) {
+            if ($present->contains($key)) {
+                $labels[$key] = $label;
+            }
+        }
+        foreach ($present as $kind) {
             $labels[$kind] ??= $this->humanKindLabel($kind);
         }
 
@@ -734,22 +751,6 @@ class DataBrowser extends Component
         $this->dispatch('toast', type: 'success', message: "Відновлено: {$done}");
     }
 
-    // ─── Bulk: visibility (explicit show / hide) ──────────────────────────
-
-    public function bulkSetVisible(bool $visible): void
-    {
-        $result = BulkActionService::apply(
-            ContactEntry::class,
-            $this->bulkTargetIds(),
-            'update',
-            fn (ContactEntry $e) => $e->update(['visible' => $visible]),
-        );
-
-        $this->clearSelected();
-        $verb = $visible ? 'Показано' : 'Сховано';
-        $this->dispatch('toast', type: 'success', message: $this->withSkipped("{$verb}: {$result['done']}", $result['skipped']));
-    }
-
     // ─── Bulk: delete (soft) + undo ───────────────────────────────────────
 
     public function bulkDelete(): void
@@ -885,6 +886,15 @@ class DataBrowser extends Component
             ? $this->selectedQuery()->with('site')->orderBy('site_id')->get()
             : collect();
 
+        // Type tabs show only types present in the (authorised) data, plus the
+        // active one — empty types (e.g. Prices with no rows anywhere) drop out.
+        $presentTypes = $this->applyVisibility(ContactEntry::query())
+            ->when($this->trashed, fn ($q) => $q->onlyTrashed())
+            ->distinct()->pluck('type');
+        $typeLabels = collect(ContactEntry::typeLabels())
+            ->filter(fn ($label, $key) => $key === $this->typeFilter || $presentTypes->contains($key))
+            ->all();
+
         return view('livewire.data-browser', [
             'entries' => $entries,
             'totalCount' => $this->applyVisibility(ContactEntry::query())
@@ -894,7 +904,7 @@ class DataBrowser extends Component
             'sites' => Site::orderBy('name')->get(['id', 'name']),
             'selectionPreview' => $selectionPreview,
             'reviewItems' => $reviewItems,
-            'types' => ContactEntry::typeLabels(),
+            'types' => $typeLabels,
             'kinds' => $this->kindLabelsForType($this->typeFilter),
             'selectionEntities' => $this->selectionEntityLabels(),
         ]);

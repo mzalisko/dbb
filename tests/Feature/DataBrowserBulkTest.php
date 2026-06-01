@@ -93,6 +93,41 @@ class DataBrowserBulkTest extends TestCase
             ->assertDontSee('@telegram_support');
     }
 
+    public function test_kind_filter_lists_only_kinds_present_in_data(): void
+    {
+        $owner = User::factory()->create(['role' => 'owner']);
+        $site = $this->siteForOwner($owner);
+        ContactEntry::factory()->for($site)->messenger('telegram')->create();
+        ContactEntry::factory()->for($site)->messenger('max')->create(); // custom platform
+
+        $kinds = Livewire::actingAs($owner)
+            ->test(DataBrowser::class, ['typeFilter' => 'messenger'])
+            ->viewData('kinds');
+
+        $this->assertArrayHasKey('telegram', $kinds);   // present (canonical)
+        $this->assertArrayHasKey('max', $kinds);        // present (custom)
+        $this->assertArrayNotHasKey('viber', $kinds);   // not on any site → not shown
+        $this->assertArrayNotHasKey('whatsapp', $kinds);
+    }
+
+    public function test_type_tabs_show_only_present_types_plus_active(): void
+    {
+        $owner = User::factory()->create(['role' => 'owner']);
+        $site = $this->siteForOwner($owner);
+        ContactEntry::factory()->for($site)->phone()->create();
+        ContactEntry::factory()->for($site)->price()->create();
+
+        $types = Livewire::actingAs($owner)
+            ->test(DataBrowser::class, ['typeFilter' => 'phone'])
+            ->viewData('types');
+
+        $this->assertArrayHasKey('phone', $types);        // active + present
+        $this->assertArrayHasKey('price', $types);        // present
+        $this->assertArrayNotHasKey('messenger', $types); // no rows anywhere → hidden
+        $this->assertArrayNotHasKey('social', $types);
+        $this->assertArrayNotHasKey('address', $types);
+    }
+
     public function test_bulk_delete_soft_deletes_selected_and_dispatches_undo(): void
     {
         $owner = User::factory()->create(['role' => 'owner']);
@@ -124,21 +159,6 @@ class DataBrowserBulkTest extends TestCase
             ->call('bulkRestore', $ids);
 
         $this->assertSame(3, ContactEntry::whereIn('id', $ids)->count());
-    }
-
-    public function test_bulk_set_visible_hides_selected(): void
-    {
-        $owner = User::factory()->create(['role' => 'owner']);
-        $ids = ContactEntry::factory()->for($this->siteForOwner($owner))->phone()->count(2)
-            ->create(['visible' => true])->pluck('id')->map(fn ($i) => (int) $i)->all();
-
-        Livewire::actingAs($owner)
-            ->test(DataBrowser::class)
-            ->call('selectPage', $ids)
-            ->call('bulkSetVisible', false)
-            ->assertSet('selected', []);
-
-        $this->assertSame(2, ContactEntry::whereIn('id', $ids)->where('visible', false)->count());
     }
 
     public function test_bulk_replace_value_sets_all_and_undo_restores_each(): void

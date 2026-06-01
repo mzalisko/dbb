@@ -23,6 +23,12 @@ class Show extends Component
     private const OPTIONAL_CATEGORIES = ['prices', 'addresses', 'socials', 'custom'];
     private const DEFAULT_CATEGORIES = ['phones', 'messengers', 'prices'];
 
+    /** Data-category key → ContactEntry type ('custom' has no backing type yet). */
+    private const CATEGORY_TYPES = [
+        'phones' => 'phone', 'messengers' => 'messenger', 'prices' => 'price',
+        'addresses' => 'address', 'socials' => 'social',
+    ];
+
     public Site $site;
     public ?int $openPhoneId = null;
 
@@ -76,6 +82,7 @@ class Show extends Component
     public ?int $confirmEntryId = null;
     public ?string $confirmGeoCode = null;
     public ?string $confirmMessengerKind = null;
+    public ?string $confirmCategory = null;
     public ?string $confirmSiteStatus = null;
     public string $confirmDeleteSiteName = '';
     public string $confirmTitle = '';
@@ -226,6 +233,22 @@ class Show extends Component
             return;
         }
 
+        // Turning a category OFF while it still holds rows → confirm, then trash them.
+        if (in_array($key, $this->dataCategories, true)) {
+            $type = self::CATEGORY_TYPES[$key] ?? null;
+            $count = $type ? $this->site->contactEntries()->where('type', $type)->count() : 0;
+            if ($count > 0) {
+                $this->requestDisableCategory($key, $count);
+                return;
+            }
+        }
+
+        $this->applyCategoryToggle($key);
+    }
+
+    /** Flip a category on/off and persist (no row side-effects). */
+    private function applyCategoryToggle(string $key): void
+    {
         if (in_array($key, $this->dataCategories, true)) {
             $this->dataCategories = array_values(array_filter($this->dataCategories, fn($c) => $c !== $key));
         } else {
@@ -234,6 +257,57 @@ class Show extends Component
 
         $this->dataCategories = $this->normalizeCategories($this->dataCategories);
         $this->site->forceFill(['data_categories' => $this->dataCategories])->save();
+    }
+
+    public function requestDisableCategory(string $key, ?int $count = null): void
+    {
+        $this->authorize('update', $this->site);
+        if (!in_array($key, self::OPTIONAL_CATEGORIES, true) || !in_array($key, $this->dataCategories, true)) {
+            return;
+        }
+
+        $type = self::CATEGORY_TYPES[$key] ?? null;
+        $count ??= $type ? $this->site->contactEntries()->where('type', $type)->count() : 0;
+
+        $labels = ['prices' => 'Ціни', 'addresses' => 'Адреси', 'socials' => 'Соцмережі', 'custom' => 'Custom'];
+        $label = $labels[$key] ?? $key;
+
+        $this->confirmingAction = true;
+        $this->confirmAction = 'disable-category';
+        $this->confirmEntryId = null;
+        $this->confirmGeoCode = null;
+        $this->confirmMessengerKind = null;
+        $this->confirmSiteStatus = null;
+        $this->confirmCategory = $key;
+        $this->confirmTitle = 'Вимкнути «' . $label . '»?';
+        $this->confirmSubject = $label . ' · ' . $count . ' ' . ($count === 1 ? 'запис' : 'записів');
+        $this->confirmMessage = 'Категорію буде вимкнено, а її записи переміщено в Кошик. Їх можна відновити звідти.';
+        $this->confirmButtonLabel = 'Вимкнути і прибрати';
+        $this->confirmIsDanger = true;
+    }
+
+    /** Trash this site's rows of the category's type, then turn the category off. */
+    public function disableCategory(string $key): void
+    {
+        $this->authorize('update', $this->site);
+        if (!in_array($key, self::OPTIONAL_CATEGORIES, true)) {
+            return;
+        }
+
+        $type = self::CATEGORY_TYPES[$key] ?? null;
+        if ($type) {
+            // Soft-delete (recoverable from the trash); reserves cascade with their primary.
+            $this->site->contactEntries()->where('type', $type)->get()->each->delete();
+        }
+
+        if (in_array($key, $this->dataCategories, true)) {
+            $this->dataCategories = $this->normalizeCategories(
+                array_values(array_filter($this->dataCategories, fn($c) => $c !== $key))
+            );
+            $this->site->forceFill(['data_categories' => $this->dataCategories])->save();
+        }
+
+        $this->dispatch('toast', type: 'success', message: 'Категорію вимкнено · записи в Кошику');
     }
 
     private function defaultGeoTabsFromEntries(): array
@@ -668,6 +742,7 @@ class Show extends Component
         $this->confirmEntryId = null;
         $this->confirmGeoCode = null;
         $this->confirmMessengerKind = null;
+        $this->confirmCategory = null;
         $this->confirmSiteStatus = null;
         $this->confirmDeleteSiteName = '';
         $this->confirmTitle = '';
@@ -720,6 +795,13 @@ class Show extends Component
             $id = $this->confirmEntryId;
             $this->cancelConfirm();
             $this->removeGeoRule($id);
+            return;
+        }
+
+        if ($this->confirmAction === 'disable-category' && $this->confirmCategory) {
+            $key = $this->confirmCategory;
+            $this->cancelConfirm();
+            $this->disableCategory($key);
             return;
         }
 

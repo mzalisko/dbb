@@ -32,6 +32,12 @@ class PhaseCSmokeTest extends TestCase
     {
         // The cross-type "Всі" tab was removed — the browser always shows one
         // entity type (default: phones) so bulk edits are never mixed-type.
+        // Type tabs list only types actually present in the data, so seed one of each.
+        $site = Site::factory()->create(['client_id' => Client::factory()->create()->id]);
+        ContactEntry::factory()->for($site)->phone()->create();
+        ContactEntry::factory()->for($site)->messenger('telegram')->create();
+        ContactEntry::factory()->for($site)->price()->create();
+
         $response = $this->actingAs($this->admin)->get('/data');
         $response->assertStatus(200);
         $response->assertSee('Телефони');

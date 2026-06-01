@@ -129,12 +129,6 @@
                     <button class="bulk-action" wire:click="openGeo">
                         <x-icon.globe width="13" height="13" /> Гео
                     </button>
-                    <button class="bulk-action" wire:click="bulkSetVisible(true)">
-                        <x-icon.eye width="13" height="13" /> Показати
-                    </button>
-                    <button class="bulk-action" wire:click="bulkSetVisible(false)">
-                        <x-icon.eye-off width="13" height="13" /> Сховати
-                    </button>
                     <button class="bulk-action bulk-action--danger" wire:click="bulkDelete">
                         <x-icon.trash width="13" height="13" /> Видалити
                     </button>

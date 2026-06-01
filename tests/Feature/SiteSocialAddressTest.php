@@ -117,4 +117,34 @@ class SiteSocialAddressTest extends TestCase
         $this->assertTrue($addr->visibleForGeo('PL'));
         $this->assertFalse($addr->visibleForGeo('UA'));
     }
+
+    public function test_disabling_a_category_with_rows_trashes_them_after_confirm(): void
+    {
+        [$user, $site] = $this->ownerSite(['data_categories' => ['phones', 'messengers', 'prices']]);
+        $price = ContactEntry::factory()->for($site)->price()->create();
+
+        Livewire::actingAs($user)
+            ->test(Show::class, ['site' => $site])
+            ->call('toggleDataCategory', 'prices')
+            ->assertSet('confirmingAction', true)            // непорожня → питає
+            ->assertSet('confirmAction', 'disable-category')
+            ->assertSet('confirmCategory', 'prices')
+            ->call('confirmPendingAction')
+            ->assertSet('confirmingAction', false);
+
+        $this->assertSoftDeleted('contact_entries', ['id' => $price->id]);
+        $this->assertNotContains('prices', $site->fresh()->data_categories);
+    }
+
+    public function test_disabling_an_empty_category_skips_confirm(): void
+    {
+        [$user, $site] = $this->ownerSite(['data_categories' => ['phones', 'messengers', 'prices']]);
+
+        Livewire::actingAs($user)
+            ->test(Show::class, ['site' => $site])
+            ->call('toggleDataCategory', 'prices')
+            ->assertSet('confirmingAction', false);          // порожня → одразу
+
+        $this->assertNotContains('prices', $site->fresh()->data_categories);
+    }
 }

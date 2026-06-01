@@ -138,10 +138,13 @@
                         <div x-show="open" x-data="backupSortable({{ $msg->id }})">
                             @foreach($msg->backups as $j => $backup)
                                 @php $bk = $resolveMsgKindMeta($backup->kind); @endphp
-                                <div class="crow crow--msg crow--backup" data-backup-id="{{ $backup->id }}">
+                                <div wire:click="editEntry({{ $backup->id }})"
+                                     class="crow crow--msg crow--backup"
+                                     data-backup-id="{{ $backup->id }}"
+                                     style="cursor:pointer;">
                                     <span class="cc-drag" @click.stop style="color:var(--ink-4);">&#x2807;</span>
                                     <span class="cc-num cc-num--backup">#{{ $i+1 }}.{{ $j+1 }}</span>
-                                    <div wire:click="editEntry({{ $backup->id }})" class="msg-contact" style="cursor:pointer;">
+                                    <div class="msg-contact">
                                         <span class="msg-badge msg-badge--sm" style="background:{{ $bk['color'] }};">{{ $bk['short'] }}</span>
                                         <span class="mono cc-val--sub">{{ $backup->value }}</span>
                                     </div>
@@ -149,7 +152,11 @@
                                     <span class="cc-label--muted">{{ $backup->label }}</span>
                                     <span class="cc-geo">{{ $msg->geo_label }}</span>
                                     <span class="cc-role cc-role--muted">
-                                        <span class="role-dot" style="background:var(--info);"></span> Резерв
+                                        @if($backup->role === 'hidden')
+                                            <x-icon.eye-off width="13" height="13" class="state-icon state-icon--hidden" /> Приховано
+                                        @else
+                                            <span class="role-dot" style="background:var(--info);"></span> Резерв
+                                        @endif
                                     </span>
                                     <span class="cc-actions">
                                         <button class="cc-promote" wire:click.stop="promoteEntry({{ $backup->id }})" title="Зробити активним">↑</button>
@@ -193,7 +200,7 @@
             <span class="cc-label--muted">{{ $msg->label }}</span>
             <span class="cc-geo">{{ $msg->geo_label }}</span>
             <span class="cc-role cc-role--muted">
-                <span class="role-dot" style="background:var(--ink-4);"></span> Приховано
+                <x-icon.eye-off width="13" height="13" class="state-icon state-icon--hidden" /> Приховано
             </span>
             <span class="cc-actions">
                 <button class="cc-edit" wire:click.stop="editEntry({{ $msg->id }})" title="Редагувати">

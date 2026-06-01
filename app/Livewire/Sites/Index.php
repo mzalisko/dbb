@@ -144,8 +144,26 @@ class Index extends Component
         $sitesQuery = Site::query()
             ->with('client')
             ->withCount([
-                'contactEntries as phones_count'     => fn($q) => $q->where('type', 'phone')->where('visible', true),
-                'contactEntries as messengers_count' => fn($q) => $q->where('type', 'messenger')->where('visible', true),
+                'contactEntries as active_phones_count' => fn($q) => $q
+                    ->where('type', 'phone')
+                    ->where('role', 'primary')
+                    ->where('visible', true),
+                'contactEntries as backup_phones_count' => fn($q) => $q
+                    ->where('type', 'phone')
+                    ->where('role', 'backup')
+                    ->where('visible', true),
+                'contactEntries as active_messengers_count' => fn($q) => $q
+                    ->where('type', 'messenger')
+                    ->where('role', 'primary')
+                    ->where('visible', true),
+                'contactEntries as backup_messengers_count' => fn($q) => $q
+                    ->where('type', 'messenger')
+                    ->where('role', 'backup')
+                    ->where('visible', true),
+                'contactEntries as active_prices_count' => fn($q) => $q
+                    ->where('type', 'price')
+                    ->where('role', 'primary')
+                    ->where('visible', true),
             ]);
 
         if ($groupFilter !== '') {

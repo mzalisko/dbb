@@ -118,6 +118,33 @@ class SiteGeoTabsTest extends TestCase
         $this->assertSame($group->color, $site->group_color);
     }
 
+    public function test_site_card_shows_active_prices_when_prices_category_is_enabled(): void
+    {
+        $user = User::factory()->create(['role' => 'owner']);
+        $client = Client::factory()->for($user)->create();
+        $site = Site::factory()->for($client)->create(['data_categories' => ['phones', 'messengers', 'prices']]);
+        ContactEntry::factory()->for($site)->price()->count(3)->create(['visible' => true, 'role' => 'primary']);
+        ContactEntry::factory()->for($site)->price()->create(['visible' => false, 'role' => 'hidden']);
+
+        Livewire::actingAs($user)
+            ->test(SitesIndex::class)
+            ->assertSee('Активні ціни')
+            ->assertSee('цін');
+    }
+
+    public function test_site_card_hides_prices_metric_when_prices_category_is_disabled(): void
+    {
+        $user = User::factory()->create(['role' => 'owner']);
+        $client = Client::factory()->for($user)->create();
+        $site = Site::factory()->for($client)->create(['data_categories' => ['phones', 'messengers']]);
+        ContactEntry::factory()->for($site)->price()->count(3)->create(['visible' => true, 'role' => 'primary']);
+
+        Livewire::actingAs($user)
+            ->test(SitesIndex::class)
+            ->assertDontSee('Активні ціни')
+            ->assertDontSee('цін');
+    }
+
     public function test_site_card_delete_requires_confirmation(): void
     {
         $user = User::factory()->create(['role' => 'owner']);

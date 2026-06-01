@@ -4,6 +4,9 @@
             <x-icon.trash width="13" height="13" /> {{ $trashed ? 'До активних' : 'Кошик' }}
         </x-ui.button>
         @unless ($trashed)
+            <x-ui.button variant="primary" size="sm" wire:click="openCreate">
+                <x-icon.plus width="13" height="13" /> Додати
+            </x-ui.button>
             <x-ui.button variant="secondary" size="sm" wire:click="export">
                 <x-icon.export width="13" height="13" /> Експорт
             </x-ui.button>
@@ -77,12 +80,21 @@
         {{-- Role/state sub-filter — pick Active / Reserve / Hidden, then act on them. --}}
         <div style="display:flex; align-items:center; gap:6px; margin-top:10px; flex-wrap:wrap;">
             <span style="font:11px var(--font-mono); color:var(--ink-5); text-transform:uppercase; letter-spacing:.06em; margin-right:2px;">Стан</span>
-            @foreach (['' => 'Всі', 'primary' => 'Активні', 'backup' => 'Резервні', 'hidden' => 'Приховані'] as $rkey => $rlabel)
+            @php
+                $roleOptions = $typeFilter === 'price'
+                    ? ['' => 'Всі', 'primary' => 'Активні', 'hidden' => 'Приховані']
+                    : ['' => 'Всі', 'primary' => 'Активні', 'backup' => 'Резервні', 'hidden' => 'Приховані'];
+            @endphp
+            @foreach ($roleOptions as $rkey => $rlabel)
                 <button wire:click="$set('roleFilter', '{{ $rkey }}')" style="
                     height:28px; padding:0 11px; border-radius:999px; font:12px var(--font-sans); cursor:pointer;
+                    display:inline-flex; align-items:center; gap:5px;
                     background:{{ $roleFilter === $rkey ? 'var(--ink-9)' : 'transparent' }};
                     color:{{ $roleFilter === $rkey ? 'var(--paper)' : 'var(--ink-6)' }};
                     box-shadow:{{ $roleFilter === $rkey ? 'none' : 'inset 0 0 0 1px var(--ink-3)' }};">
+                    @if($rkey === 'hidden')
+                        <x-icon.eye-off width="13" height="13" class="state-icon state-icon--hidden" />
+                    @endif
                     {{ $rlabel }}
                 </button>
             @endforeach
@@ -129,6 +141,17 @@
                     <button class="bulk-action" wire:click="openGeo">
                         <x-icon.globe width="13" height="13" /> Гео
                     </button>
+                    <button class="bulk-action" wire:click="openDuplicate">
+                        <x-icon.copy width="13" height="13" /> Дублювати
+                    </button>
+                    <button class="bulk-action" wire:click="openMove">
+                        <x-icon.share width="13" height="13" /> Перемістити
+                    </button>
+                    @unless ($mixedType)
+                        <button class="bulk-action" wire:click="openAttach">
+                            <x-icon.link width="13" height="13" /> Приєднати резерв
+                        </button>
+                    @endunless
                     <button class="bulk-action bulk-action--danger" wire:click="bulkDelete">
                         <x-icon.trash width="13" height="13" /> Видалити
                     </button>
@@ -162,20 +185,54 @@
                     <span class="row-check {{ $sel ? 'is-checked' : '' }}">
                         @if ($sel) <x-icon.check width="11" height="11" /> @endif
                     </span>
-                    <span class="mono" style="font:13.5px var(--font-mono); color:{{ $trashed ? 'var(--ink-6)' : 'var(--ink-9)' }};">{{ $entry->value }}</span>
+                    <span class="data-value">
+                        @if($entry->type === 'price')
+                            @php
+                                $priceAmount = is_null($entry->price) ? null : rtrim(rtrim(number_format((float) $entry->price, 2, '.', ' '), '0'), '.');
+                                $oldPriceAmount = is_null($entry->old_price) ? null : rtrim(rtrim(number_format((float) $entry->old_price, 2, '.', ' '), '0'), '.');
+                            @endphp
+                            <span class="data-price-value">
+                                <span class="mono data-price-value__sku">{{ $entry->sku ?: $entry->value }}</span>
+                                <span class="data-price-value__amount">
+                                    <strong>{{ $priceAmount ?? '—' }}</strong>
+                                    @if($entry->currency)
+                                        <span>{{ $entry->currency }}</span>
+                                    @endif
+                                    @if($entry->price_unit)
+                                        <em>{{ $entry->price_unit }}</em>
+                                    @endif
+                                    @if($oldPriceAmount !== null)
+                                        <del>{{ $oldPriceAmount }}</del>
+                                    @endif
+                                </span>
+                            </span>
+                        @else
+                            <span class="mono" style="font:13.5px var(--font-mono); color:{{ $trashed ? 'var(--ink-6)' : 'var(--ink-9)' }};">{{ $entry->value }}</span>
+                        @endif
+                        @if($entry->role === 'backup' && $entry->parent)
+                            <span class="data-value__parent" title="Резерв для {{ $entry->parent->value }}">
+                                <x-icon.arrow width="11" height="11" />
+                                <span>для</span>
+                                <strong>{{ $entry->parent->value }}</strong>
+                                @if($entry->parent->label)
+                                    <em>{{ $entry->parent->label }}</em>
+                                @endif
+                            </span>
+                        @endif
+                    </span>
                     <span class="mono" style="font:12.5px var(--font-mono); color:var(--ink-7);">{{ $entry->site?->name ?? '—' }}</span>
                     <span style="font:12.5px var(--font-sans); color:var(--ink-7);">{{ $entry->label }}</span>
                     <span style="font:12px var(--font-sans); color:var(--ink-5);">{{ $entry->geo_label }}</span>
                     @if ($trashed)
                         <span style="font:12px var(--font-sans); color:var(--ink-5);">{{ $entry->deleted_at?->diffForHumans() }}</span>
                     @else
-                        <span style="font:12.5px var(--font-sans);">
+                        <span class="data-role">
                             @if ($entry->role === 'primary')
                                 <span class="dot dot-ok"></span> Активний
                             @elseif ($entry->role === 'backup')
                                 <span class="dot dot-info"></span> Резерв
                             @else
-                                <span class="dot"></span> Приховано
+                                <x-icon.eye-off width="13" height="13" class="state-icon state-icon--hidden" /> Приховано
                             @endif
                         </span>
                     @endif
@@ -334,7 +391,7 @@
                                                background:{{ $geoMode === $m ? 'var(--ink-9)' : 'var(--card)' }};
                                                color:{{ $geoMode === $m ? 'var(--paper)' : 'var(--ink-7)' }};
                                                border:1px solid {{ $geoMode === $m ? 'var(--ink-9)' : 'var(--ink-3)' }};">
-                                    {{ $lbl }}
+                                {{ $lbl }}
                                 </button>
                             @endforeach
                         </div>
@@ -374,9 +431,13 @@
                             @foreach (['primary' => 'Активний', 'hidden' => 'Приховано'] as $val => $lbl)
                                 <button type="button" wire:click="$set('roleValue', '{{ $val }}')"
                                         style="flex:1; height:44px; border-radius:10px; font:14px var(--font-sans); cursor:pointer;
+                                               display:inline-flex; align-items:center; justify-content:center; gap:6px;
                                                background:{{ $roleValue === $val ? 'var(--ink-9)' : 'var(--card)' }};
                                                color:{{ $roleValue === $val ? 'var(--paper)' : 'var(--ink-7)' }};
                                                border:1px solid {{ $roleValue === $val ? 'var(--ink-9)' : 'var(--ink-3)' }};">
+                                    @if($val === 'hidden')
+                                        <x-icon.eye-off width="14" height="14" class="state-icon state-icon--hidden" />
+                                    @endif
                                     {{ $lbl }}
                                 </button>
                             @endforeach
@@ -450,6 +511,169 @@
                 <x-slot:footer>
                     <button class="btn btn-ghost" wire:click="closePriceEdit">Скасувати</button>
                     <button class="btn btn-primary" wire:click="applyPriceEdit">Застосувати</button>
+                </x-slot:footer>
+            </x-ui.drawer>
+        </div>
+    @endif
+
+    {{-- Create a new entry on one or more sites --}}
+    @if ($creating)
+        <div wire:key="bulk-create">
+            <x-ui.drawer :open="true" title="Додати запис" :sub="$types[$typeFilter] ?? $typeFilter"
+                         @drawer-close.window="$wire.closeCreate()">
+                <div style="display:flex; flex-direction:column; gap:18px;">
+                    @if (count($kinds) > 0)
+                        <div>
+                            <label style="display:block; font:12px var(--font-mono); color:var(--ink-5); text-transform:uppercase; letter-spacing:.06em;">Вид</label>
+                            <div style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap;">
+                                @foreach ($kinds as $kkey => $klabel)
+                                    <button type="button" wire:click="$set('createKind', '{{ $kkey }}')"
+                                            style="height:34px; padding:0 12px; border-radius:8px; font:13px var(--font-sans); cursor:pointer;
+                                                   background:{{ $createKind === $kkey ? 'var(--ink-9)' : 'var(--card)' }};
+                                                   color:{{ $createKind === $kkey ? 'var(--paper)' : 'var(--ink-7)' }};
+                                                   border:1px solid {{ $createKind === $kkey ? 'var(--ink-9)' : 'var(--ink-3)' }};">{{ $klabel }}</button>
+                                @endforeach
+                            </div>
+                        </div>
+                    @endif
+                    <div>
+                        <label style="display:block; font:12px var(--font-mono); color:var(--ink-5); text-transform:uppercase; letter-spacing:.06em;">Значення</label>
+                        <input type="text" wire:model="createValue" wire:keydown.enter="applyCreate" x-init="$nextTick(() => $el.focus())"
+                               placeholder="Напр. +48 22 111 22 33"
+                               style="margin-top:8px; width:100%; height:44px; padding:0 14px; border-radius:10px; background:var(--card); border:1px solid var(--ink-3); font:14.5px var(--font-sans); color:var(--ink-9); outline:none;" />
+                    </div>
+                    <div>
+                        <label style="display:block; font:12px var(--font-mono); color:var(--ink-5); text-transform:uppercase; letter-spacing:.06em;">Мітка</label>
+                        <input type="text" wire:model="createLabel" placeholder="Напр. Підтримка"
+                               style="margin-top:8px; width:100%; height:44px; padding:0 14px; border-radius:10px; background:var(--card); border:1px solid var(--ink-3); font:14.5px var(--font-sans); color:var(--ink-9); outline:none;" />
+                    </div>
+                    <div>
+                        <label style="display:block; font:12px var(--font-mono); color:var(--ink-5); text-transform:uppercase; letter-spacing:.06em;">Стан</label>
+                        <div style="margin-top:8px; display:flex; gap:8px;">
+                            @foreach (['primary' => 'Активний', 'hidden' => 'Приховано'] as $val => $lbl)
+                                <button type="button" wire:click="$set('createRole', '{{ $val }}')"
+                                        style="flex:1; height:44px; border-radius:10px; font:14px var(--font-sans); cursor:pointer;
+                                               background:{{ $createRole === $val ? 'var(--ink-9)' : 'var(--card)' }};
+                                               color:{{ $createRole === $val ? 'var(--paper)' : 'var(--ink-7)' }};
+                                               border:1px solid {{ $createRole === $val ? 'var(--ink-9)' : 'var(--ink-3)' }};">{{ $lbl }}</button>
+                            @endforeach
+                        </div>
+                    </div>
+                    <div>
+                        <label style="display:block; font:12px var(--font-mono); color:var(--ink-5); text-transform:uppercase; letter-spacing:.06em;">Сайти · обрано {{ count($createSites) }}</label>
+                        <div style="margin-top:8px; display:flex; flex-direction:column; gap:4px; max-height:240px; overflow-y:auto;">
+                            @foreach ($sites as $s)
+                                @php $on = in_array($s->id, $createSites); @endphp
+                                <button type="button" wire:click="toggleCreateSite({{ $s->id }})"
+                                        style="display:flex; align-items:center; gap:10px; width:100%; padding:9px 12px; border-radius:8px; cursor:pointer; text-align:left;
+                                               background:{{ $on ? 'var(--accent-soft)' : 'var(--paper-2)' }}; border:1px solid {{ $on ? 'var(--ink-9)' : 'transparent' }};">
+                                    <span class="row-check {{ $on ? 'is-checked' : '' }}">@if($on)<x-icon.check width="11" height="11" />@endif</span>
+                                    <span style="font:13px var(--font-sans); color:var(--ink-8);">{{ $s->name }}</span>
+                                </button>
+                            @endforeach
+                        </div>
+                    </div>
+                </div>
+                <x-slot:footer>
+                    <button class="btn btn-ghost" wire:click="closeCreate">Скасувати</button>
+                    <button class="btn btn-primary" wire:click="applyCreate">Створити</button>
+                </x-slot:footer>
+            </x-ui.drawer>
+        </div>
+    @endif
+
+    {{-- Duplicate selection onto other sites (multi-target) --}}
+    @if ($duplicating)
+        <div wire:key="bulk-duplicate">
+            <x-ui.drawer :open="true" title="Дублювати на сайти" :sub="$this->selectedCount() . ' обрано'"
+                         @drawer-close.window="$wire.closeDuplicate()">
+                <div style="display:flex; flex-direction:column; gap:14px;">
+                    <div style="font:13px var(--font-sans); color:var(--ink-6);">Копії стануть самостійними активними записами на обраних сайтах. Резерв копіюється як активний. Дію можна відмінити.</div>
+                    <div>
+                        <label style="display:block; font:12px var(--font-mono); color:var(--ink-5); text-transform:uppercase; letter-spacing:.06em;">Куди · обрано {{ count($dupSites) }}</label>
+                        <div style="margin-top:8px; display:flex; flex-direction:column; gap:4px; max-height:300px; overflow-y:auto;">
+                            @foreach ($sites as $s)
+                                @php $on = in_array($s->id, $dupSites); @endphp
+                                <button type="button" wire:click="toggleDupSite({{ $s->id }})"
+                                        style="display:flex; align-items:center; gap:10px; width:100%; padding:9px 12px; border-radius:8px; cursor:pointer; text-align:left;
+                                               background:{{ $on ? 'var(--accent-soft)' : 'var(--paper-2)' }}; border:1px solid {{ $on ? 'var(--ink-9)' : 'transparent' }};">
+                                    <span class="row-check {{ $on ? 'is-checked' : '' }}">@if($on)<x-icon.check width="11" height="11" />@endif</span>
+                                    <span style="font:13px var(--font-sans); color:var(--ink-8);">{{ $s->name }}</span>
+                                </button>
+                            @endforeach
+                        </div>
+                    </div>
+                </div>
+                <x-slot:footer>
+                    <button class="btn btn-ghost" wire:click="closeDuplicate">Скасувати</button>
+                    <button class="btn btn-primary" wire:click="applyDuplicate">Дублювати</button>
+                </x-slot:footer>
+            </x-ui.drawer>
+        </div>
+    @endif
+
+    {{-- Move selection to another site (single target) --}}
+    @if ($moving)
+        <div wire:key="bulk-move">
+            <x-ui.drawer :open="true" title="Перемістити на сайт" :sub="$this->selectedCount() . ' обрано'"
+                         @drawer-close.window="$wire.closeMove()">
+                <div style="display:flex; flex-direction:column; gap:14px;">
+                    <div style="font:13px var(--font-sans); color:var(--ink-6);">Записи змінять сайт. Активний переноситься разом зі своїми резервами. Дію можна відмінити.</div>
+                    <div>
+                        <label style="display:block; font:12px var(--font-mono); color:var(--ink-5); text-transform:uppercase; letter-spacing:.06em;">Сайт призначення</label>
+                        <div style="margin-top:8px; display:flex; flex-direction:column; gap:4px; max-height:320px; overflow-y:auto;">
+                            @foreach ($sites as $s)
+                                @php $on = (int) $moveSite === (int) $s->id; @endphp
+                                <button type="button" wire:click="$set('moveSite', '{{ $s->id }}')"
+                                        style="display:flex; align-items:center; gap:10px; width:100%; padding:9px 12px; border-radius:8px; cursor:pointer; text-align:left;
+                                               background:{{ $on ? 'var(--accent-soft)' : 'var(--paper-2)' }}; border:1px solid {{ $on ? 'var(--ink-9)' : 'transparent' }};">
+                                    <span class="row-check {{ $on ? 'is-checked' : '' }}">@if($on)<x-icon.check width="11" height="11" />@endif</span>
+                                    <span style="font:13px var(--font-sans); color:var(--ink-8);">{{ $s->name }}</span>
+                                </button>
+                            @endforeach
+                        </div>
+                    </div>
+                </div>
+                <x-slot:footer>
+                    <button class="btn btn-ghost" wire:click="closeMove">Скасувати</button>
+                    <button class="btn btn-primary" wire:click="applyMove">Перемістити</button>
+                </x-slot:footer>
+            </x-ui.drawer>
+        </div>
+    @endif
+
+    {{-- Attach selection as reserves of a chosen primary (same site+type+kind) --}}
+    @if ($attaching)
+        <div wire:key="bulk-attach">
+            <x-ui.drawer :open="true" title="Приєднати як резерв" :sub="$this->selectedCount() . ' обрано'"
+                         @drawer-close.window="$wire.closeAttach()">
+                <div style="display:flex; flex-direction:column; gap:14px;">
+                    <div style="font:13px var(--font-sans); color:var(--ink-6);">Обрані стануть резервами активного запису того ж сайту й виду. Гео успадкується від активного. Дію можна відмінити.</div>
+                    @if ($attachCandidates->isEmpty())
+                        <div style="padding:16px; border-radius:10px; background:var(--paper-2); font:13px var(--font-sans); color:var(--ink-6);">
+                            Немає активних записів того ж сайту й виду, до яких можна приєднати.
+                        </div>
+                    @else
+                        <div>
+                            <label style="display:block; font:12px var(--font-mono); color:var(--ink-5); text-transform:uppercase; letter-spacing:.06em;">Активний запис</label>
+                            <div style="margin-top:8px; display:flex; flex-direction:column; gap:4px; max-height:300px; overflow-y:auto;">
+                                @foreach ($attachCandidates as $c)
+                                    @php $on = (int) $attachParent === (int) $c->id; @endphp
+                                    <button type="button" wire:click="$set('attachParent', '{{ $c->id }}')"
+                                            style="display:flex; align-items:center; gap:10px; width:100%; padding:9px 12px; border-radius:8px; cursor:pointer; text-align:left;
+                                                   background:{{ $on ? 'var(--accent-soft)' : 'var(--paper-2)' }}; border:1px solid {{ $on ? 'var(--ink-9)' : 'transparent' }};">
+                                        <span class="row-check {{ $on ? 'is-checked' : '' }}">@if($on)<x-icon.check width="11" height="11" />@endif</span>
+                                        <span class="mono" style="font:12.5px var(--font-mono); color:var(--ink-9);">{{ $c->value }}</span>
+                                        @if($c->label)<span style="font:12px var(--font-sans); color:var(--ink-5);">{{ $c->label }}</span>@endif
+                                    </button>
+                                @endforeach
+                            </div>
+                        </div>
+                    @endif
+                </div>
+                <x-slot:footer>
+                    <button class="btn btn-ghost" wire:click="closeAttach">Скасувати</button>
+                    <button class="btn btn-primary" wire:click="applyAttach" @disabled($attachCandidates->isEmpty())>Приєднати</button>
                 </x-slot:footer>
             </x-ui.drawer>
         </div>

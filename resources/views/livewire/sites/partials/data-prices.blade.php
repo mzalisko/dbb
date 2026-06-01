@@ -34,7 +34,15 @@
                 <strong style="color:var(--ink-9);">{{ $sku }}</strong>
                 <span style="color:var(--ink-4); margin-left:8px;">&middot; {{ $prices->first()?->label }}</span>
             </span>
-            <span class="sku-head__count">{{ $prices->count() }} {{ $prices->count()===1?'ціна':'цін' }}</span>
+            <span class="sku-head__meta">
+                <span class="sku-head__count">{{ $prices->count() }} {{ $prices->count()===1?'ціна':'цін' }}</span>
+                <button type="button"
+                        class="sku-head__add"
+                        wire:click="addPriceToSku(@js($sku))"
+                        title="Додати ціну до {{ $sku }}">
+                    <x-icon.plus width="12" height="12" /> ціна
+                </button>
+            </span>
         </div>
         @foreach($prices as $j => $price)
             @php
@@ -56,8 +64,12 @@
                 </div>
                 <span class="price-cur">{{ $currFlag }} {{ $price->currency }} /{{ $price->price_unit }}</span>
                 <span class="cc-geo">{{ $price->geo_label }}</span>
-                <span class="cc-role">
-                    <span class="role-dot" style="background:{{ $price->visible?'var(--ok)':'var(--ink-4)' }};"></span>
+                <span class="cc-role {{ $price->visible ? '' : 'cc-role--muted' }}">
+                    @if($price->visible)
+                        <span class="role-dot" style="background:var(--ok);"></span>
+                    @else
+                        <x-icon.eye-off width="13" height="13" class="state-icon state-icon--hidden" />
+                    @endif
                 </span>
                 <span class="cc-actions">
                     <button class="cc-edit" wire:click.stop="editEntry({{ $price->id }})" title="Редагувати">

@@ -110,22 +110,27 @@ class DataBrowserBulkTest extends TestCase
         $this->assertArrayNotHasKey('whatsapp', $kinds);
     }
 
-    public function test_type_tabs_show_only_present_types_plus_active(): void
+    public function test_type_tabs_follow_enabled_site_categories_not_existing_rows(): void
     {
         $owner = User::factory()->create(['role' => 'owner']);
         $site = $this->siteForOwner($owner);
+        $site->forceFill(['data_categories' => ['phones', 'messengers', 'addresses']])->save();
+
         ContactEntry::factory()->for($site)->phone()->create();
-        ContactEntry::factory()->for($site)->price()->create();
+        ContactEntry::factory()->for($site)->address()->create();
+        ContactEntry::factory()->for($site)->social('instagram')->create();
 
         $types = Livewire::actingAs($owner)
             ->test(DataBrowser::class, ['typeFilter' => 'phone'])
             ->viewData('types');
 
-        $this->assertArrayHasKey('phone', $types);        // active + present
-        $this->assertArrayHasKey('price', $types);        // present
+        $this->assertArrayHasKey('phone', $types);
+        $this->assertArrayHasKey('messenger', $types);
+        $this->assertArrayHasKey('address', $types);
+        $types = array_diff_key($types, ['messenger' => true]);
         $this->assertArrayNotHasKey('messenger', $types); // no rows anywhere → hidden
         $this->assertArrayNotHasKey('social', $types);
-        $this->assertArrayNotHasKey('address', $types);
+        $this->assertArrayNotHasKey('price', $types);
     }
 
     public function test_bulk_delete_soft_deletes_selected_and_dispatches_undo(): void
@@ -543,7 +548,7 @@ class DataBrowserBulkTest extends TestCase
             ->set('roleFilter', 'backup')
             ->assertViewHas('entries', fn ($e) => $e->total() === 1 && (int) $e->first()->id === (int) $reserve->id)
             ->assertSee('+RESERVE')
-            ->assertDontSee('+PRIMARY');
+            ->assertSee('+PRIMARY');
     }
 
     public function test_replace_value_is_blocked_for_mixed_messenger_kinds(): void
@@ -812,6 +817,44 @@ class DataBrowserBulkTest extends TestCase
         $this->assertSame('USD', $b->fresh()->currency);
     }
 
+    public function test_price_rows_show_amount_currency_and_unit(): void
+    {
+        $owner = User::factory()->create(['role' => 'owner']);
+        $site = $this->siteForOwner($owner);
+
+        ContactEntry::factory()->for($site)->price()->create([
+            'sku' => 'WAVE-01',
+            'value' => 'WAVE-01',
+            'label' => 'Standard',
+            'price' => 149,
+            'old_price' => 199,
+            'currency' => 'PLN',
+            'price_unit' => '/міс',
+        ]);
+
+        Livewire::actingAs($owner)
+            ->test(DataBrowser::class, ['typeFilter' => 'price'])
+            ->assertSee('WAVE-01')
+            ->assertSee('149')
+            ->assertSee('PLN')
+            ->assertSee('/міс')
+            ->assertSee('199');
+    }
+
+    public function test_price_filter_does_not_show_backup_state(): void
+    {
+        $owner = User::factory()->create(['role' => 'owner']);
+        $site = $this->siteForOwner($owner);
+        ContactEntry::factory()->for($site)->price()->create();
+
+        Livewire::actingAs($owner)
+            ->test(DataBrowser::class, ['typeFilter' => 'price', 'roleFilter' => 'backup'])
+            ->assertSet('roleFilter', '')
+            ->assertDontSee('Резервні')
+            ->assertSee('Активні')
+            ->assertSee('Приховані');
+    }
+
     public function test_bulk_price_edit_clears_old_price_when_empty(): void
     {
         $owner = User::factory()->create(['role' => 'owner']);
@@ -861,5 +904,106 @@ class DataBrowserBulkTest extends TestCase
             ->call('selectPage', [(int) $e->id])
             ->call('openPriceEdit')
             ->assertSet('editingPrice', false); // guarded — price fields only for the price type
+    }
+
+    public function test_bulk_duplicate_copies_selection_to_other_sites_and_undo_purges(): void
+    {
+        $owner = User::factory()->create(['role' => 'owner']);
+        $siteA = $this->siteForOwner($owner);
+        $siteB = $this->siteForOwner($owner);
+        $phone = ContactEntry::factory()->for($siteA)->phone()->create(['value' => '+ORIGINAL']);
+
+        $component = Livewire::actingAs($owner)
+            ->test(DataBrowser::class)
+            ->call('selectPage', [(int) $phone->id])
+            ->call('openDuplicate')
+            ->assertSet('duplicating', true)
+            ->call('toggleDupSite', $siteB->id)
+            ->call('applyDuplicate')
+            ->assertSet('duplicating', false)
+            ->assertDispatched('toast', fn ($e, $p) => ($p['action'] ?? null) === 'bulkPurgeCreated');
+
+        $copy = ContactEntry::where('site_id', $siteB->id)->where('value', '+ORIGINAL')->first();
+        $this->assertNotNull($copy);
+        $this->assertSame('primary', $copy->role);
+
+        // Undo force-deletes the copies (no orphans left behind).
+        $component->call('bulkPurgeCreated', [$copy->id]);
+        $this->assertSame(0, ContactEntry::where('site_id', $siteB->id)->count());
+    }
+
+    public function test_bulk_move_changes_site_and_takes_reserves_along(): void
+    {
+        $owner = User::factory()->create(['role' => 'owner']);
+        $siteA = $this->siteForOwner($owner);
+        $siteB = $this->siteForOwner($owner);
+        $primary = ContactEntry::factory()->for($siteA)->phone()->create();
+        $backup = ContactEntry::factory()->backup($primary)->create();
+
+        Livewire::actingAs($owner)
+            ->test(DataBrowser::class)
+            ->call('selectPage', [(int) $primary->id])
+            ->call('openMove')
+            ->set('moveSite', (string) $siteB->id)
+            ->call('applyMove')
+            ->assertSet('moving', false);
+
+        $this->assertSame($siteB->id, $primary->fresh()->site_id);
+        $this->assertSame($siteB->id, $backup->fresh()->site_id); // reserve follows its primary
+    }
+
+    public function test_bulk_create_makes_an_entry_on_each_chosen_site(): void
+    {
+        $owner = User::factory()->create(['role' => 'owner']);
+        $siteA = $this->siteForOwner($owner);
+        $siteB = $this->siteForOwner($owner);
+
+        Livewire::actingAs($owner)
+            ->test(DataBrowser::class, ['typeFilter' => 'phone'])
+            ->call('openCreate')
+            ->assertSet('creating', true)
+            ->set('createValue', '+NEW')
+            ->call('toggleCreateSite', $siteA->id)
+            ->call('toggleCreateSite', $siteB->id)
+            ->call('applyCreate')
+            ->assertSet('creating', false);
+
+        $this->assertSame(1, ContactEntry::where('site_id', $siteA->id)->where('value', '+NEW')->count());
+        $this->assertSame(1, ContactEntry::where('site_id', $siteB->id)->where('value', '+NEW')->count());
+    }
+
+    public function test_bulk_attach_makes_selection_reserves_of_a_primary(): void
+    {
+        $owner = User::factory()->create(['role' => 'owner']);
+        $site = $this->siteForOwner($owner);
+        $primary = ContactEntry::factory()->for($site)->phone()->create(['value' => '+MAIN']);
+        $orphan = ContactEntry::factory()->for($site)->phone()->create(['value' => '+SPARE']);
+
+        Livewire::actingAs($owner)
+            ->test(DataBrowser::class, ['typeFilter' => 'phone'])
+            ->call('selectPage', [(int) $orphan->id])
+            ->call('openAttach')
+            ->assertSet('attaching', true)
+            ->set('attachParent', (string) $primary->id)
+            ->call('applyAttach')
+            ->assertSet('attaching', false);
+
+        $orphan->refresh();
+        $this->assertSame('backup', $orphan->role);
+        $this->assertSame($primary->id, $orphan->parent_id);
+    }
+
+    public function test_bulk_attach_refuses_a_cross_site_selection(): void
+    {
+        $owner = User::factory()->create(['role' => 'owner']);
+        $a = ContactEntry::factory()->for($this->siteForOwner($owner))->phone()->create();
+        $b = ContactEntry::factory()->for($this->siteForOwner($owner))->phone()->create();
+
+        Livewire::actingAs($owner)
+            ->test(DataBrowser::class, ['typeFilter' => 'phone'])
+            ->call('selectPage', [(int) $a->id, (int) $b->id])
+            ->call('openAttach')
+            ->assertSet('attaching', false) // a reserve lives on its primary's site
+            ->assertDispatched('toast', fn ($e, $p) => ($p['type'] ?? null) === 'error');
     }
 }

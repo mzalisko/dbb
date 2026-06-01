@@ -307,6 +307,25 @@ class SiteContactEntriesTest extends TestCase
         ]);
     }
 
+    public function test_price_variant_can_be_added_from_existing_sku_group(): void
+    {
+        [$user, $site] = $this->ownerSite();
+        ContactEntry::factory()->for($site)->price()->create([
+            'label' => 'Підписка Standard',
+            'sku' => 'WAVE-01',
+            'price_unit' => '/міс',
+        ]);
+
+        Livewire::actingAs($user)
+            ->test(Show::class, ['site' => $site])
+            ->call('addPriceToSku', 'WAVE-01')
+            ->assertSet('addingEntry', true)
+            ->assertSet('entryType', 'price')
+            ->assertSet('entrySku', 'WAVE-01')
+            ->assertSet('entryLabel', 'Підписка Standard')
+            ->assertSet('entryPriceUnit', '/міс');
+    }
+
     /** Task: a price requires sku + amount + currency. */
     public function test_price_requires_sku_and_amount(): void
     {

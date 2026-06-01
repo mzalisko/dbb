@@ -498,6 +498,22 @@ class Show extends Component
         $this->entryFormKey++;
     }
 
+    public function addPriceToSku(string $sku): void
+    {
+        $this->authorize('create', \App\Models\ContactEntry::class);
+
+        $template = $this->site->contactEntries()
+            ->where('type', 'price')
+            ->where('sku', $sku)
+            ->orderBy('order')
+            ->first();
+
+        $this->addEntry('price');
+        $this->entrySku = $sku;
+        $this->entryLabel = $template?->label ?? '';
+        $this->entryPriceUnit = $template?->price_unit ?? '';
+    }
+
     public function saveEntry(): void
     {
         $rules = [

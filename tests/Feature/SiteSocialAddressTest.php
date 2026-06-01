@@ -83,7 +83,8 @@ class SiteSocialAddressTest extends TestCase
 
     public function test_social_and_kind_filter_surface_in_data_browser(): void
     {
-        [$user, $site] = $this->ownerSite();
+        // Type tabs follow enabled site categories, so the site must have socials on.
+        [$user, $site] = $this->ownerSite(['data_categories' => ['phones', 'messengers', 'socials']]);
         ContactEntry::factory()->for($site)->social('instagram')->create(['value' => 'IG-PROFILE']);
         ContactEntry::factory()->for($site)->social('facebook')->create(['value' => 'FB-PAGE']);
 
@@ -96,7 +97,7 @@ class SiteSocialAddressTest extends TestCase
 
     public function test_address_type_surfaces_in_data_browser(): void
     {
-        [$user, $site] = $this->ownerSite();
+        [$user, $site] = $this->ownerSite(['data_categories' => ['phones', 'messengers', 'addresses']]);
         ContactEntry::factory()->for($site)->address()->create(['value' => 'MY-ADDRESS-STREET']);
 
         Livewire::actingAs($user)

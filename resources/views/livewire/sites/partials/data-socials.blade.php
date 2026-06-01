@@ -62,7 +62,7 @@
             <span class="cc-iso">@include('livewire.sites.partials.preview-tag-badge', ['entry' => $soc])</span>
             <span class="cc-label--muted">{{ $soc->label }}</span>
             <span class="cc-geo">{{ $soc->geo_label }}</span>
-            <span class="cc-role cc-role--muted"><span class="role-dot" style="background:var(--ink-4);"></span> Приховано</span>
+            <span class="cc-role cc-role--muted"><x-icon.eye-off width="13" height="13" class="state-icon state-icon--hidden" /> Приховано</span>
             <span class="cc-actions">
                 <button class="cc-edit" wire:click.stop="editEntry({{ $soc->id }})" title="Редагувати"><x-icon.edit width="13" height="13" /></button>
                 <button class="cc-delete" wire:click.stop="requestDeleteEntry({{ $soc->id }})" title="Видалити"><x-icon.trash width="13" height="13" /></button>

@@ -29,7 +29,7 @@
                         @if($phone->role === 'backup')
                             <span class="role-dot" style="background:var(--warn);"></span> Резерв
                         @elseif($phone->role === 'hidden')
-                            <span class="role-dot" style="background:var(--ink-4);"></span> Приховано
+                            <x-icon.eye-off width="13" height="13" class="state-icon state-icon--hidden" /> Приховано
                         @else
                             <span class="role-dot" style="background:var(--ok);"></span> Активний
                         @endif
@@ -68,15 +68,22 @@
                         {{-- Backup rows — sortable --}}
                         <div x-show="open" x-data="backupSortable({{ $phone->id }})">
                             @foreach($phone->backups as $j => $backup)
-                                <div class="crow crow--backup" data-backup-id="{{ $backup->id }}">
+                                <div wire:click="editEntry({{ $backup->id }})"
+                                     class="crow crow--backup"
+                                     data-backup-id="{{ $backup->id }}"
+                                     style="cursor:pointer;">
                                     <span class="cc-drag" @click.stop style="color:var(--ink-4);">&#x2807;</span>
                                     <span class="cc-num cc-num--backup">#{{ $i+1 }}.{{ $j+1 }}</span>
-                                    <span wire:click="editEntry({{ $backup->id }})" class="mono cc-val--sub" style="cursor:pointer;">{{ $backup->value }}</span>
+                                    <span class="mono cc-val--sub">{{ $backup->value }}</span>
                                     <span class="cc-iso">@include('livewire.sites.partials.preview-tag-badge', ['entry' => $phone])</span>
                                     <span class="cc-label--muted">{{ $backup->label }}</span>
                                     <span class="cc-geo">{{ $phone->geo_label }}</span>
                                     <span class="cc-role cc-role--muted">
-                                        <span class="role-dot" style="background:var(--info);"></span> Резерв
+                                        @if($backup->role === 'hidden')
+                                            <x-icon.eye-off width="13" height="13" class="state-icon state-icon--hidden" /> Приховано
+                                        @else
+                                            <span class="role-dot" style="background:var(--info);"></span> Резерв
+                                        @endif
                                     </span>
                                     <span class="cc-actions">
                                         <button class="cc-promote" wire:click.stop="promoteEntry({{ $backup->id }})" title="Зробити активним">↑</button>
@@ -112,7 +119,7 @@
             <span class="cc-label--muted">{{ $phone->label }}</span>
             <span class="cc-geo">{{ $phone->geo_label }}</span>
             <span class="cc-role cc-role--muted">
-                <span class="role-dot" style="background:var(--ink-4);"></span> Приховано
+                <x-icon.eye-off width="13" height="13" class="state-icon state-icon--hidden" /> Приховано
             </span>
             <span class="cc-actions">
                 <button class="cc-edit" wire:click.stop="editEntry({{ $phone->id }})" title="Редагувати">

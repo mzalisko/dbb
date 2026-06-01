@@ -144,6 +144,8 @@ $initialCount = $initialGroup === 'all'
                     'maintenance' => 'Пауза',
                     default       => 'Помилка',
                 };
+                $enabledCategories = array_merge(['phones', 'messengers'], $site->data_categories ?? ['phones', 'messengers', 'prices']);
+                $pricesEnabled = in_array('prices', $enabledCategories, true);
                 $hiddenInit = $initialGroup !== 'all' && strtolower($site->group ?? '') !== $initialGroup;
             @endphp
             <div class="site-card"
@@ -233,14 +235,29 @@ $initialCount = $initialGroup === 'all'
                                 {{ ucfirst($site->group) }}
                             </span>
                         @endif
-                        <span class="meta-chip">
+                        <span class="site-card__metric" title="Активні телефони{{ $site->backup_phones_count ? ' · резерви: ' . $site->backup_phones_count : '' }}">
                             <x-icon.phone width="11" height="11" />
-                            {{ $site->phones_count }}
+                            <strong>{{ $site->active_phones_count }}</strong>
+                            <span>активн.</span>
+                            @if($site->backup_phones_count)
+                                <em>+{{ $site->backup_phones_count }} рез.</em>
+                            @endif
                         </span>
-                        <span class="meta-chip">
+                        <span class="site-card__metric" title="Активні месенджери{{ $site->backup_messengers_count ? ' · резерви: ' . $site->backup_messengers_count : '' }}">
                             <x-icon.chat width="11" height="11" />
-                            {{ $site->messengers_count }}
+                            <strong>{{ $site->active_messengers_count }}</strong>
+                            <span>активн.</span>
+                            @if($site->backup_messengers_count)
+                                <em>+{{ $site->backup_messengers_count }} рез.</em>
+                            @endif
                         </span>
+                        @if($pricesEnabled)
+                            <span class="site-card__metric" title="Активні ціни">
+                                <x-icon.tag width="11" height="11" />
+                                <strong>{{ $site->active_prices_count }}</strong>
+                                <span>цін</span>
+                            </span>
+                        @endif
                     </div>
                 </a>
             </div>

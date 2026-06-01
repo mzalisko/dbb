@@ -22,6 +22,16 @@ class DataBrowser extends Component
     use WithBulkSelection;
     use WithPagination;
 
+    private const REQUIRED_CATEGORIES = ['phones', 'messengers'];
+    private const DEFAULT_CATEGORIES = ['phones', 'messengers', 'prices'];
+    private const CATEGORY_TYPES = [
+        'phones' => 'phone',
+        'messengers' => 'messenger',
+        'prices' => 'price',
+        'addresses' => 'address',
+        'socials' => 'social',
+    ];
+
     #[Url]
     public string $search = '';
 
@@ -50,6 +60,8 @@ class DataBrowser extends Component
         if (! array_key_exists($this->typeFilter, ContactEntry::TYPES)) {
             $this->typeFilter = array_key_first(ContactEntry::TYPES);
         }
+        $this->normalizeTypeFilterForEnabledTypes();
+        $this->normalizeRoleFilterForType();
         // Types with kinds always have exactly one selected (no "all kinds"
         // option) — default to the first available kind.
         $kinds = $this->kindLabelsForType($this->typeFilter);
@@ -87,6 +99,26 @@ class DataBrowser extends Component
     public string $priceField = 'currency'; // currency | price_unit | price | old_price
     public string $priceValue = '';
 
+    /** Duplicate the selection onto other sites (multi-target). */
+    public bool $duplicating = false;
+    public array $dupSites = [];
+
+    /** Move the selection to another site (single target). */
+    public bool $moving = false;
+    public string $moveSite = '';
+
+    /** Create a new entry on one or more sites. */
+    public bool $creating = false;
+    public string $createValue = '';
+    public string $createLabel = '';
+    public string $createKind = '';
+    public string $createRole = 'primary';
+    public array $createSites = [];
+
+    /** Attach the selection as reserves of a chosen primary (same site+type+kind). */
+    public bool $attaching = false;
+    public string $attachParent = '';
+
     public function updatingSearch(): void
     {
         $this->resetPage();
@@ -107,6 +139,9 @@ class DataBrowser extends Component
         // to the first available kind of the new type.
         $kinds = $this->kindLabelsForType((string) $value);
         $this->kindFilter = $kinds ? (string) array_key_first($kinds) : '';
+        if ($value === 'price' && $this->roleFilter === 'backup') {
+            $this->roleFilter = '';
+        }
         $this->resetPage();
         $this->clearSelected();
     }
@@ -160,6 +195,60 @@ class DataBrowser extends Component
         return $query->whereHas('site.client', fn ($q) => $q->where('user_id', $user?->id));
     }
 
+    protected function sitesVisibleToUserQuery(): Builder
+    {
+        $user = Auth::user();
+        $query = Site::query();
+
+        if (! in_array($user?->role, ['owner', 'admin'], true)) {
+            $query->whereHas('client', fn ($q) => $q->where('user_id', $user?->id));
+        }
+
+        return $query;
+    }
+
+    private function normalizeDataCategories(?array $categories): array
+    {
+        $enabled = array_merge(self::REQUIRED_CATEGORIES, $categories ?? self::DEFAULT_CATEGORIES);
+
+        return collect(array_keys(self::CATEGORY_TYPES))
+            ->filter(fn (string $key) => in_array($key, $enabled, true))
+            ->values()
+            ->all();
+    }
+
+    private function enabledTypeLabels(): array
+    {
+        $enabledTypes = $this->sitesVisibleToUserQuery()
+            ->get(['data_categories'])
+            ->flatMap(fn (Site $site) => collect($this->normalizeDataCategories($site->data_categories))
+                ->map(fn (string $category) => self::CATEGORY_TYPES[$category] ?? null)
+                ->filter())
+            ->unique()
+            ->values();
+
+        return collect(ContactEntry::typeLabels())
+            ->filter(fn ($label, $key) => $enabledTypes->contains($key))
+            ->all();
+    }
+
+    private function normalizeTypeFilterForEnabledTypes(): void
+    {
+        $enabled = $this->enabledTypeLabels();
+
+        if ($enabled && ! array_key_exists($this->typeFilter, $enabled)) {
+            $this->typeFilter = (string) array_key_first($enabled);
+            $this->kindFilter = '';
+        }
+    }
+
+    private function normalizeRoleFilterForType(): void
+    {
+        if ($this->typeFilter === 'price' && $this->roleFilter === 'backup') {
+            $this->roleFilter = '';
+        }
+    }
+
     /** Filtered, un-paginated base query — shared by render() and bulk selection. */
     protected function bulkQuery(): Builder
     {
@@ -186,6 +275,24 @@ class DataBrowser extends Component
             ->whereIn('id', $this->selected);
 
         return $this->applyVisibility($q);
+    }
+
+    /** Authorised source rows for a bulk action (whole filter when "all matching"). */
+    protected function selectedSourceQuery(): Builder
+    {
+        return $this->selectAllMatching ? $this->bulkQuery() : $this->selectedQuery();
+    }
+
+    /** Sites the current user may target — owner/admin all, others their own. */
+    protected function sitesForUser()
+    {
+        return $this->sitesVisibleToUserQuery()->orderBy('name')->get(['id', 'name']);
+    }
+
+    /** @return array<int> ids of sites the user may create on / move to */
+    protected function allowedSiteIds(): array
+    {
+        return $this->sitesForUser()->pluck('id')->map(fn ($i) => (int) $i)->all();
     }
 
     /**
@@ -829,6 +936,358 @@ class DataBrowser extends Component
         $this->dispatch('toast', type: 'success', message: $this->withSkipped("Видалено назавжди: {$result['done']}", $result['skipped']));
     }
 
+    // ─── Bulk: duplicate selection onto other sites ───────────────────────
+
+    public function openDuplicate(): void
+    {
+        if (! $this->hasSelection()) {
+            return;
+        }
+        $this->dupSites = [];
+        $this->duplicating = true;
+    }
+
+    public function closeDuplicate(): void
+    {
+        $this->duplicating = false;
+        $this->dupSites = [];
+    }
+
+    public function toggleDupSite(int $siteId): void
+    {
+        $this->dupSites = in_array($siteId, $this->dupSites, true)
+            ? array_values(array_diff($this->dupSites, [$siteId]))
+            : array_merge($this->dupSites, [$siteId]);
+    }
+
+    public function applyDuplicate(): void
+    {
+        $targets = array_values(array_intersect(array_map('intval', $this->dupSites), $this->allowedSiteIds()));
+        if (empty($targets)) {
+            $this->dispatch('toast', type: 'error', message: 'Оберіть хоча б один сайт');
+
+            return;
+        }
+
+        $user = Auth::user();
+        if (! $user || ! $user->can('create', ContactEntry::class)) {
+            $this->dispatch('toast', type: 'error', message: 'Немає прав на створення');
+
+            return;
+        }
+
+        $created = [];
+        $this->selectedSourceQuery()->chunkById(500, function ($rows) use ($targets, &$created) {
+            foreach ($rows as $src) {
+                foreach ($targets as $sid) {
+                    $copy = $src->replicate();
+                    $copy->site_id = $sid;
+                    $copy->parent_id = null;       // a copy stands alone on the target site
+                    if ($copy->role === 'backup') {
+                        $copy->role = 'primary';   // a reserve becomes primary when copied
+                    }
+                    $copy->save();
+                    $created[] = $copy->id;
+                }
+            }
+        });
+
+        $this->closeDuplicate();
+        $this->clearSelected();
+
+        if (empty($created)) {
+            $this->dispatch('toast', type: 'error', message: 'Нічого не скопійовано');
+
+            return;
+        }
+
+        $this->dispatch('toast',
+            type: 'success',
+            message: 'Скопійовано: '.count($created),
+            action: 'bulkPurgeCreated',
+            actionLabel: 'Відмінити',
+            actionData: ['ids' => $created],
+        );
+    }
+
+    // ─── Bulk: move selection to another site ─────────────────────────────
+
+    public function openMove(): void
+    {
+        if (! $this->hasSelection()) {
+            return;
+        }
+        $this->moveSite = '';
+        $this->moving = true;
+    }
+
+    public function closeMove(): void
+    {
+        $this->moving = false;
+        $this->moveSite = '';
+    }
+
+    public function applyMove(): void
+    {
+        $target = (int) $this->moveSite;
+        if (! in_array($target, $this->allowedSiteIds(), true)) {
+            $this->dispatch('toast', type: 'error', message: 'Оберіть сайт призначення');
+
+            return;
+        }
+
+        $user = Auth::user();
+        $snapshot = [];   // id => previous site_id
+        $done = 0;
+
+        $this->selectedSourceQuery()->with('backups')->chunkById(500, function ($rows) use ($target, $user, &$snapshot, &$done) {
+            foreach ($rows as $e) {
+                if (! $user || ! $user->can('update', $e) || $e->site_id === $target) {
+                    continue;
+                }
+                $snapshot[$e->id] = $e->site_id;
+                $e->update(['site_id' => $target]);
+                // A primary takes its reserves along so the group stays on one site.
+                if (is_null($e->parent_id)) {
+                    foreach ($e->backups as $b) {
+                        $snapshot[$b->id] = $b->site_id;
+                        $b->update(['site_id' => $target]);
+                    }
+                }
+                $done++;
+            }
+        });
+
+        $this->closeMove();
+        $this->clearSelected();
+
+        if ($done === 0) {
+            $this->dispatch('toast', type: 'error', message: 'Нічого не переміщено');
+
+            return;
+        }
+
+        $this->dispatch('toast',
+            type: 'success',
+            message: "Переміщено: {$done}",
+            action: 'bulkRestoreMove',
+            actionLabel: 'Відмінити',
+            actionData: ['snapshot' => $snapshot],
+        );
+    }
+
+    // ─── Bulk: create a new entry on one or more sites ────────────────────
+
+    public function openCreate(): void
+    {
+        $this->createValue = '';
+        $this->createLabel = '';
+        $this->createKind = $this->kindFilter ?: (string) (array_key_first($this->kindLabelsForType($this->typeFilter)) ?? '');
+        $this->createRole = 'primary';
+        $this->createSites = $this->siteFilter !== '' ? [(int) $this->siteFilter] : [];
+        $this->creating = true;
+    }
+
+    public function closeCreate(): void
+    {
+        $this->creating = false;
+    }
+
+    public function toggleCreateSite(int $siteId): void
+    {
+        $this->createSites = in_array($siteId, $this->createSites, true)
+            ? array_values(array_diff($this->createSites, [$siteId]))
+            : array_merge($this->createSites, [$siteId]);
+    }
+
+    public function applyCreate(): void
+    {
+        $type = $this->typeFilter;
+        $value = trim($this->createValue);
+        if ($value === '') {
+            $this->dispatch('toast', type: 'error', message: 'Введіть значення');
+
+            return;
+        }
+
+        $needsKind = ContactEntry::hasKinds($type);
+        $kind = $needsKind ? $this->createKind : null;
+        if ($needsKind && ! array_key_exists((string) $kind, ContactEntry::kindLabels($type))) {
+            $this->dispatch('toast', type: 'error', message: 'Оберіть вид');
+
+            return;
+        }
+
+        $targets = array_values(array_intersect(array_map('intval', $this->createSites), $this->allowedSiteIds()));
+        if (empty($targets)) {
+            $this->dispatch('toast', type: 'error', message: 'Оберіть хоча б один сайт');
+
+            return;
+        }
+
+        $user = Auth::user();
+        if (! $user || ! $user->can('create', ContactEntry::class)) {
+            $this->dispatch('toast', type: 'error', message: 'Немає прав на створення');
+
+            return;
+        }
+
+        $role = in_array($this->createRole, ['primary', 'hidden'], true) ? $this->createRole : 'primary';
+        $created = [];
+        foreach ($targets as $sid) {
+            $created[] = ContactEntry::create([
+                'site_id'  => $sid,
+                'type'     => $type,
+                'kind'     => $kind ?: null,
+                'value'    => $value,
+                'label'    => trim($this->createLabel) ?: null,
+                'role'     => $role,
+                'geo_mode' => 'all',
+                'visible'  => $role !== 'hidden',
+                'order'    => 1,
+            ])->id;
+        }
+
+        $this->closeCreate();
+
+        $this->dispatch('toast',
+            type: 'success',
+            message: 'Створено: '.count($created),
+            action: 'bulkPurgeCreated',
+            actionLabel: 'Відмінити',
+            actionData: ['ids' => $created],
+        );
+    }
+
+    // ─── Bulk: attach selection as reserves of a primary ──────────────────
+
+    public function openAttach(): void
+    {
+        if (! $this->hasSelection()) {
+            return;
+        }
+        if (! $this->selectionIsSingleEntity()) {
+            $this->dispatch('toast', type: 'error', message: 'Приєднання — лише для записів одного виду');
+
+            return;
+        }
+        // A reserve lives on its primary's site, so the whole selection must be one site.
+        if ($this->selectedSourceQuery()->reorder()->distinct()->pluck('site_id')->count() !== 1) {
+            $this->dispatch('toast', type: 'error', message: 'Оберіть записи лише одного сайту');
+
+            return;
+        }
+
+        $this->attachParent = '';
+        $this->attaching = true;
+    }
+
+    public function closeAttach(): void
+    {
+        $this->attaching = false;
+        $this->attachParent = '';
+    }
+
+    /** Candidate primaries to attach the selection to (same site+type+kind, not selected). */
+    protected function attachCandidates()
+    {
+        $first = $this->selectedSourceQuery()->reorder()->first();
+        if (! $first) {
+            return collect();
+        }
+
+        $selectedIds = $this->selectAllMatching ? [] : array_map('intval', $this->selected);
+
+        return $this->applyVisibility(ContactEntry::query())
+            ->where('site_id', $first->site_id)
+            ->where('type', $first->type)
+            ->when($first->kind, fn ($q) => $q->where('kind', $first->kind))
+            ->where('role', 'primary')
+            ->whereNull('parent_id')
+            ->whereNotIn('id', $selectedIds ?: [0])
+            ->orderBy('value')
+            ->get(['id', 'value', 'label']);
+    }
+
+    public function applyAttach(): void
+    {
+        $parent = ((int) $this->attachParent)
+            ? $this->applyVisibility(ContactEntry::query())->find((int) $this->attachParent)
+            : null;
+        if (! $parent || $parent->role !== 'primary' || ! is_null($parent->parent_id)) {
+            $this->dispatch('toast', type: 'error', message: 'Оберіть активний запис');
+
+            return;
+        }
+
+        $user = Auth::user();
+        $snapshot = [];
+        $done = 0;
+
+        $this->selectedSourceQuery()->chunkById(500, function ($rows) use ($parent, $user, &$snapshot, &$done) {
+            foreach ($rows as $e) {
+                if (! $user || ! $user->can('update', $e) || $e->id === $parent->id
+                    || $e->site_id !== $parent->site_id || $e->type !== $parent->type
+                    || ($parent->kind && $e->kind !== $parent->kind) || $e->backups()->exists()) {
+                    continue;
+                }
+                $snapshot[$e->id] = ['role' => $e->role, 'parent_id' => $e->parent_id, 'geo_tag' => $e->geo_tag, 'geo_mode' => $e->geo_mode, 'countries' => $e->countries, 'visible' => $e->visible];
+                // A reserve stores neutral geo and reads through to its primary.
+                $e->update(['role' => 'backup', 'parent_id' => $parent->id, 'geo_tag' => null, 'geo_mode' => 'all', 'countries' => null, 'visible' => true]);
+                $done++;
+            }
+        });
+
+        $this->closeAttach();
+        $this->clearSelected();
+
+        if ($done === 0) {
+            $this->dispatch('toast', type: 'error', message: 'Нічого не приєднано (перевірте сайт/вид)');
+
+            return;
+        }
+
+        $this->dispatch('toast',
+            type: 'success',
+            message: "Приєднано як резерв: {$done}",
+            action: 'bulkRestoreRole',
+            actionLabel: 'Відмінити',
+            actionData: ['snapshot' => $snapshot],
+        );
+    }
+
+    // ─── Undo targets for create / duplicate / move ───────────────────────
+
+    #[On('bulkPurgeCreated')]
+    public function bulkPurgeCreated(array $ids): void
+    {
+        $user = Auth::user();
+        ContactEntry::whereIn('id', $ids)->get()->each(function (ContactEntry $e) use ($user) {
+            if ($user && $user->can('delete', $e)) {
+                $e->forceDelete();
+            }
+        });
+
+        $this->dispatch('toast', type: 'success', message: 'Скасовано');
+    }
+
+    #[On('bulkRestoreMove')]
+    public function bulkRestoreMove(array $snapshot): void
+    {
+        if (empty($snapshot)) {
+            return;
+        }
+        $user = Auth::user();
+        ContactEntry::withTrashed()->whereIn('id', array_keys($snapshot))->get()
+            ->each(function (ContactEntry $e) use ($snapshot, $user) {
+                if ($user && $user->can('update', $e)) {
+                    $e->update(['site_id' => $snapshot[$e->id]]);
+                }
+            });
+
+        $this->dispatch('toast', type: 'success', message: 'Повернено');
+    }
+
     // ─── Export current filter to CSV ─────────────────────────────────────
 
     public function export()
@@ -866,8 +1325,12 @@ class DataBrowser extends Component
 
     public function render()
     {
+        $typeLabels = $this->enabledTypeLabels();
+        $this->normalizeTypeFilterForEnabledTypes();
+        $this->normalizeRoleFilterForType();
+
         $entries = $this->bulkQuery()
-            ->with('site')
+            ->with(['site', 'parent:id,value,label,type,kind'])
             ->orderBy('created_at', 'desc')
             ->paginate(15);
 
@@ -886,22 +1349,14 @@ class DataBrowser extends Component
             ? $this->selectedQuery()->with('site')->orderBy('site_id')->get()
             : collect();
 
-        // Type tabs show only types present in the (authorised) data, plus the
-        // active one — empty types (e.g. Prices with no rows anywhere) drop out.
-        $presentTypes = $this->applyVisibility(ContactEntry::query())
-            ->when($this->trashed, fn ($q) => $q->onlyTrashed())
-            ->distinct()->pluck('type');
-        $typeLabels = collect(ContactEntry::typeLabels())
-            ->filter(fn ($label, $key) => $key === $this->typeFilter || $presentTypes->contains($key))
-            ->all();
-
         return view('livewire.data-browser', [
             'entries' => $entries,
             'totalCount' => $this->applyVisibility(ContactEntry::query())
                 ->when($this->trashed, fn ($q) => $q->onlyTrashed())
                 ->where('type', $this->typeFilter)->count(),
             'pageIds' => $entries->pluck('id')->map(fn ($i) => (int) $i)->all(),
-            'sites' => Site::orderBy('name')->get(['id', 'name']),
+            'sites' => $this->sitesForUser(),
+            'attachCandidates' => $this->attaching ? $this->attachCandidates() : collect(),
             'selectionPreview' => $selectionPreview,
             'reviewItems' => $reviewItems,
             'types' => $typeLabels,

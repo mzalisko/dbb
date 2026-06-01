@@ -103,7 +103,12 @@
                          title="{{ $hasOwnBackups ? 'Номер має власні резерви — не може бути резервом' : 'Додайте через + Додати резерв' }}">
                         <span class="role-card__radio"></span>
                         <div>
-                            <div class="role-card__label">{{ $role['l'] }}</div>
+                            <div class="role-card__label {{ $role['k'] === 'hidden' ? 'role-card__label--with-icon' : '' }}">
+                                @if($role['k'] === 'hidden')
+                                    <x-icon.eye-off width="14" height="14" class="state-icon state-icon--hidden" />
+                                @endif
+                                {{ $role['l'] }}
+                            </div>
                             <div class="role-card__desc">{{ $hasOwnBackups ? 'Має власні резерви' : 'Додайте через "+ Додати резерв"' }}</div>
                         </div>
                     </div>
@@ -114,7 +119,12 @@
                             @if($isActive)<span class="role-card__dot"></span>@endif
                         </span>
                         <div>
-                            <div class="role-card__label">{{ $role['l'] }}</div>
+                            <div class="role-card__label {{ $role['k'] === 'hidden' ? 'role-card__label--with-icon' : '' }}">
+                                @if($role['k'] === 'hidden')
+                                    <x-icon.eye-off width="14" height="14" class="state-icon state-icon--hidden" />
+                                @endif
+                                {{ $role['l'] }}
+                            </div>
                             <div class="role-card__desc">{{ $role['d'] }}</div>
                         </div>
                     </div>

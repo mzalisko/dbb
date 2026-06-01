@@ -405,4 +405,38 @@ class SiteGeoTabsTest extends TestCase
         $this->assertSame('except', $reserve->geo_mode);
         $this->assertSame(['PL'], $reserve->countries);
     }
+
+    public function test_cloning_a_site_copies_settings_and_contacts_with_reserves(): void
+    {
+        $user = User::factory()->create(['role' => 'owner']);
+        $client = Client::factory()->for($user)->create();
+        $site = Site::factory()->for($client)->create([
+            'name' => 'Original',
+            'status' => 'active',
+            'geo_tabs' => ['UA', 'PL'],
+            'data_categories' => ['phones', 'messengers', 'prices'],
+        ]);
+        $primary = ContactEntry::factory()->for($site)->phone()->create(['value' => '+MAIN']);
+        $backup = ContactEntry::factory()->backup($primary)->create(['value' => '+SPARE']);
+
+        Livewire::actingAs($user)
+            ->test(SitesIndex::class)
+            ->call('cloneSite', $site->id)
+            ->assertDispatched('toast', fn ($e, $p) => ($p['type'] ?? null) === 'success');
+
+        $clone = Site::where('name', 'Original (копія)')->first();
+        $this->assertNotNull($clone);
+        $this->assertNotSame($site->id, $clone->id);
+        $this->assertSame('maintenance', $clone->status);   // starts paused, not live
+        $this->assertSame(['UA', 'PL'], $clone->geo_tabs);  // settings copied
+        $this->assertSame($site->client_id, $clone->client_id);
+
+        // Contacts copied; the reserve points at the cloned primary, not the original.
+        $clonePrimary = $clone->contactEntries()->whereNull('parent_id')->first();
+        $cloneBackup = $clone->contactEntries()->whereNotNull('parent_id')->first();
+        $this->assertSame('+MAIN', $clonePrimary->value);
+        $this->assertSame('+SPARE', $cloneBackup->value);
+        $this->assertSame($clonePrimary->id, $cloneBackup->parent_id);
+        $this->assertNotSame($primary->id, $cloneBackup->parent_id);
+    }
 }

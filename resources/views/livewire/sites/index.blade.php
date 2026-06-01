@@ -201,6 +201,16 @@ $initialCount = $initialGroup === 'all'
                         <div class="site-card__dropdown-sep"></div>
 
                         <button type="button"
+                                class="dropdown-item"
+                                wire:click="cloneSite({{ $site->id }})"
+                                @click="open = false">
+                            <x-icon.copy width="13" height="13" />
+                            Клонувати сайт
+                        </button>
+
+                        <div class="site-card__dropdown-sep"></div>
+
+                        <button type="button"
                                 class="dropdown-item dropdown-item--danger"
                                 wire:click="requestDeleteSite({{ $site->id }})"
                                 @click="open = false">

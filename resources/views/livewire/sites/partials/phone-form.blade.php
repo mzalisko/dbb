@@ -32,10 +32,10 @@
         @error('entryLabel') <div class="field-error">{{ $message }}</div> @enderror
     </div>
 
-    {{-- НАЛЕЖНІСТЬ ДО ВКЛАДКИ ПЕРЕГЛЯДУ --}}
+    {{-- ПРИНАЛЕЖНІСТЬ --}}
     <div x-show="$wire.entryRole !== 'backup'" x-cloak>
-        <label class="label">Належність</label>
-        <p class="field-hint">Це категорія номера у вкладці Перегляд. Вона не керує видимістю для відвідувачів.</p>
+        <label class="label">Приналежність</label>
+        <p class="field-hint">Це приналежність номера. Вона не керує видимістю для відвідувачів.</p>
         <div class="country-pills">
             <button type="button"
                     class="country-pill {{ $entryGeoTag === '' ? 'is-active' : '' }}"

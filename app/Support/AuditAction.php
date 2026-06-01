@@ -39,6 +39,8 @@ final class AuditAction
         'site.categories.updated'=> ['Категорії змінено',        self::INFO,     'edit'],
         'site.status.changed'    => ['Статус змінено',           self::INFO,     'edit'],
         'site.failover.toggled'  => ['Failover перемкнено',      self::INFO,     'bolt'],
+        'site.failover.triggered' => ['Failover спрацював',       self::WARN,     'bolt'],
+        'site.failover.restored'  => ['Failover відновлено',      self::INFO,     'refresh'],
         'site.deleted'           => ['Сайт видалено',            self::WARN,     'trash'],
 
         // ── SiteGroup ────────────────────────────────────────────────

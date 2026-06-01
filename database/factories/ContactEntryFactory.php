@@ -58,6 +58,16 @@ class ContactEntryFactory extends Factory
         ]);
     }
 
+    public function social(string $kind = 'instagram'): static
+    {
+        return $this->state(['type' => 'social', 'kind' => $kind, 'value' => 'https://instagram.com/' . $this->faker->userName()]);
+    }
+
+    public function address(): static
+    {
+        return $this->state(['type' => 'address', 'kind' => null, 'value' => $this->faker->address()]);
+    }
+
     public function backup(ContactEntry $parent): static
     {
         return $this->state([

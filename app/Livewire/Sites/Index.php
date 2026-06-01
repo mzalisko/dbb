@@ -25,6 +25,10 @@ class Index extends Component
     public string $createGroupId = '';
     public string $createStatus = 'active';
 
+    public ?int $confirmDeleteSiteId = null;
+    public string $confirmDeleteSiteName = '';
+    public string $confirmDeleteSiteTypedName = '';
+
     public function createSite(): void
     {
         $this->validate([
@@ -69,8 +73,64 @@ class Index extends Component
         $site->delete();
     }
 
+    public function assignSiteGroup(int $siteId, int $groupId): void
+    {
+        $site = Site::findOrFail($siteId);
+        $this->authorize('update', $site);
+
+        $group = SiteGroup::findOrFail($groupId);
+
+        $site->update([
+            'group' => $group->name,
+            'group_color' => $group->color,
+        ]);
+
+        $this->dispatch('site-group-updated', id: $site->id, group: strtolower($group->name));
+
+        $this->dispatch('toast', type: 'success', message: 'Групу сайту оновлено');
+    }
+
+    public function requestDeleteSite(int $id): void
+    {
+        $site = Site::findOrFail($id);
+        $this->authorize('delete', $site);
+
+        $this->confirmDeleteSiteId = $site->id;
+        $this->confirmDeleteSiteName = $site->name;
+    }
+
+    public function cancelDeleteSite(): void
+    {
+        $this->reset('confirmDeleteSiteId', 'confirmDeleteSiteName', 'confirmDeleteSiteTypedName');
+        $this->resetErrorBag('confirmDeleteSiteTypedName');
+    }
+
+    public function confirmDeleteSite(): void
+    {
+        if (!$this->confirmDeleteSiteId) {
+            return;
+        }
+
+        $site = Site::findOrFail($this->confirmDeleteSiteId);
+
+        if (trim($this->confirmDeleteSiteTypedName) !== $site->name) {
+            $this->addError('confirmDeleteSiteTypedName', 'Введіть точну назву сайту для підтвердження.');
+            return;
+        }
+
+        $this->deleteSite($this->confirmDeleteSiteId);
+        $this->cancelDeleteSite();
+        $this->dispatch('toast', type: 'success', message: 'Сайт видалено');
+    }
+
     #[On('site-saved')]
     public function refreshList(): void {}
+
+    public function setGroupFilter(string $group): void
+    {
+        $group = strtolower($group);
+        $this->urlGroup = $group === 'all' ? '' : $group;
+    }
 
     public function render()
     {
@@ -79,18 +139,24 @@ class Index extends Component
             ->groupBy('group', 'group_color')
             ->get();
 
-        $sites = Site::query()
+        $groupFilter = strtolower($this->urlGroup);
+
+        $sitesQuery = Site::query()
             ->with('client')
             ->withCount([
                 'contactEntries as phones_count'     => fn($q) => $q->where('type', 'phone')->where('visible', true),
                 'contactEntries as messengers_count' => fn($q) => $q->where('type', 'messenger')->where('visible', true),
-            ])
-            ->orderBy('name')
-            ->get();
+            ]);
+
+        if ($groupFilter !== '') {
+            $sitesQuery->whereRaw('LOWER(`group`) = ?', [$groupFilter]);
+        }
+
+        $sites = $sitesQuery->orderBy('name')->get();
 
         $siteGroups = SiteGroup::orderBy('name')->get();
 
-        $urlGroup = $this->urlGroup;
+        $urlGroup = $groupFilter;
 
         return view('livewire.sites.index', compact('sites', 'groups', 'siteGroups', 'urlGroup'));
     }

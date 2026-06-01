@@ -50,6 +50,11 @@ trait WithBulkSelection
 
     public function selectAllMatching(): void
     {
+        $this->selectAllFiltered();
+    }
+
+    public function selectAllFiltered(): void
+    {
         $this->selectAllMatching = true;
     }
 

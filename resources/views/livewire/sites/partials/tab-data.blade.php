@@ -27,16 +27,25 @@
         @endif
     </div>
 
-    {{-- ПЕРЕГЛЯД + geo filter --}}
+    {{-- ПРИНАЛЕЖНІСТЬ + geo filter --}}
     <div class="view-row">
-        <span class="eyebrow eyebrow-xs">Перегляд</span>
+        <span class="eyebrow eyebrow-xs">Приналежність</span>
         <div class="seg">
             <button @click="geo='all'" :class="geo==='all' ? 'is-active' : ''" class="seg__btn">
-                Всі <span x-text="cat==='phones' ? {{ $allPhonesAll->count() }} : (cat==='messengers' ? {{ $allMsgsAll->count() }} : {{ $priceCount }})"></span>
+                Всі <span x-text="cat==='phones' ? {{ $allPhonesAll->count() }} : (cat==='messengers' ? {{ $allMsgsAll->count() }} : (cat==='socials' ? {{ $allSocialsAll->count() }} : (cat==='addresses' ? {{ $allAddressesAll->count() }} : {{ $priceCount }})))"></span>
             </button>
             @foreach($geoTabs as $geoCode)
+                @php
+                    $geoPhoneCount = ($phonePrimariesByGeo[$geoCode] ?? collect())->count() + ($hiddenPhonesByGeo[$geoCode] ?? collect())->count();
+                    $geoMsgCount = ($msgPrimariesByGeo[$geoCode] ?? collect())->count() + ($hiddenMsgsByGeo[$geoCode] ?? collect())->count();
+                    $geoSocialCount = ($socialPrimariesByGeo[$geoCode] ?? collect())->count() + ($hiddenSocialsByGeo[$geoCode] ?? collect())->count();
+                    $geoAddressCount = ($addressPrimariesByGeo[$geoCode] ?? collect())->count() + ($hiddenAddressesByGeo[$geoCode] ?? collect())->count();
+                @endphp
                 <span class="seg__tab">
-                    <button @click="geo='{{ $geoCode }}'" :class="geo==='{{ $geoCode }}' ? 'is-active' : ''" class="seg__btn">{{ $geoCode }}</button>
+                    <button @click="geo='{{ $geoCode }}'" :class="geo==='{{ $geoCode }}' ? 'is-active' : ''" class="seg__btn">
+                        {{ $geoCode }}
+                        <span class="seg__count pill-count" x-text="cat==='phones' ? {{ $geoPhoneCount }} : (cat==='messengers' ? {{ $geoMsgCount }} : (cat==='socials' ? {{ $geoSocialCount }} : (cat==='addresses' ? {{ $geoAddressCount }} : {{ $priceCount }})))"></span>
+                    </button>
                     <button class="seg__tab-x"
                             @click.stop="if (geo === '{{ $geoCode }}') geo = 'all'; $wire.requestRemoveGeoTab('{{ $geoCode }}');"
                             title="Видалити вкладку">×</button>
@@ -87,7 +96,31 @@
         @include('livewire.sites.partials.data-prices')
     </div>
 
-    {{-- Адреси / Соц. мережі / Custom --}}
-    <div x-show="['addresses','socials','custom'].includes(cat)" x-cloak class="data-empty">Цей розділ у розробці.</div>
+    {{-- ── СОЦМЕРЕЖІ ── --}}
+    <div x-show="cat==='socials'" x-cloak>
+        @foreach(array_merge(['all'], $geoTabs) as $geoKey)
+            <div x-show="geo==='{{ $geoKey }}'">
+                @include('livewire.sites.partials.data-socials', [
+                    'socialPrimaries' => $socialPrimariesByGeo[$geoKey],
+                    'hiddenSocials' => $hiddenSocialsByGeo[$geoKey],
+                ])
+            </div>
+        @endforeach
+    </div>
+
+    {{-- ── АДРЕСИ ── --}}
+    <div x-show="cat==='addresses'" x-cloak>
+        @foreach(array_merge(['all'], $geoTabs) as $geoKey)
+            <div x-show="geo==='{{ $geoKey }}'">
+                @include('livewire.sites.partials.data-addresses', [
+                    'addressPrimaries' => $addressPrimariesByGeo[$geoKey],
+                    'hiddenAddresses' => $hiddenAddressesByGeo[$geoKey],
+                ])
+            </div>
+        @endforeach
+    </div>
+
+    {{-- Custom — ще в розробці --}}
+    <div x-show="cat==='custom'" x-cloak class="data-empty">Цей розділ у розробці.</div>
 
 </div>

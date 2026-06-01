@@ -81,12 +81,6 @@
                 <x-icon.logs width="14" height="14" />
                 <span style="flex:1;">Логи</span>
             </a>
-            <a href="{{ route('settings') }}" wire:navigate.hover
-               class="sidebar-link {{ request()->routeIs('settings') ? 'active' : '' }}"
-               :class="{ 'active': path.startsWith('/settings') }">
-                <x-icon.settings width="14" height="14" />
-                <span style="flex:1;">Налаштування</span>
-            </a>
         </nav>
 
         <div style="flex:1;"></div>

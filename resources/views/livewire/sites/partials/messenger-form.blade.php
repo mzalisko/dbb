@@ -49,7 +49,7 @@
                     @endif
                 </div>
             </div>
-            <p class="field-hint">Резерв успадковує платформу активного контакту.</p>
+            <p class="field-hint field-hint--after-pills">Резерв успадковує платформу активного контакту.</p>
         @else
             <div class="msg-kind-pills">
                 @foreach($kinds as $kkey => $kmeta)
@@ -82,10 +82,10 @@
         @error('entryLabel') <div class="field-error">{{ $message }}</div> @enderror
     </div>
 
-    {{-- НАЛЕЖНІСТЬ ДО ВКЛАДКИ ПЕРЕГЛЯДУ --}}
+    {{-- ПРИНАЛЕЖНІСТЬ --}}
     <div x-show="$wire.entryRole !== 'backup'" x-cloak>
-        <label class="label">Належність</label>
-        <p class="field-hint">Це категорія контакту у вкладці Перегляд. Вона не керує видимістю для відвідувачів.</p>
+        <label class="label">Приналежність</label>
+        <p class="field-hint">Це приналежність контакту. Вона не керує видимістю для відвідувачів.</p>
         <div class="country-pills">
             <button type="button"
                     class="country-pill {{ $entryGeoTag === '' ? 'is-active' : '' }}"

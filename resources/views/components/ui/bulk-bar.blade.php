@@ -9,7 +9,7 @@
     <span class="bulk-bar__count mono">{{ $count }} обрано</span>
 
     @if($total !== null && $total > $count && ! $allMatching)
-        <button class="bulk-bar__all" wire:click="selectAllMatching">
+        <button type="button" class="bulk-bar__all" wire:click.stop="selectAllFiltered">
             Обрати всі {{ $total }}
         </button>
     @elseif($allMatching && $total !== null)
@@ -24,5 +24,5 @@
 
     <div class="bulk-bar__spacer"></div>
 
-    <button class="bulk-bar__clear" wire:click="clearSelected">Зняти виділення</button>
+    <button type="button" class="bulk-bar__clear" wire:click.stop="clearSelected">Зняти виділення</button>
 </div>

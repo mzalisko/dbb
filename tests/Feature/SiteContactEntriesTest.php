@@ -216,6 +216,24 @@ class SiteContactEntriesTest extends TestCase
         $this->assertSame(['viber', 'custom-chat'], $site->fresh()->messenger_kinds);
     }
 
+    public function test_messenger_kind_tab_removal_requires_confirmation(): void
+    {
+        [$user, $site] = $this->ownerSite(['messenger_kinds' => ['telegram', 'messenger']]);
+
+        Livewire::actingAs($user)
+            ->test(Show::class, ['site' => $site])
+            ->call('requestRemoveMessengerKind', 'messenger')
+            ->assertSet('confirmingAction', true)
+            ->assertSet('confirmAction', 'remove-messenger-kind')
+            ->assertSet('confirmMessengerKind', 'messenger')
+            ->assertSet('messengerKinds', ['telegram', 'messenger'])
+            ->call('confirmPendingAction')
+            ->assertSet('confirmingAction', false)
+            ->assertSet('messengerKinds', ['telegram']);
+
+        $this->assertSame(['telegram'], $site->fresh()->messenger_kinds);
+    }
+
     public function test_custom_messenger_kind_can_be_used_when_creating_entry(): void
     {
         [$user, $site] = $this->ownerSite(['messenger_kinds' => ['max']]);
@@ -235,6 +253,17 @@ class SiteContactEntriesTest extends TestCase
             'kind' => 'max',
             'value' => '@max_support',
         ]);
+    }
+
+    public function test_custom_messenger_kind_renders_short_badge(): void
+    {
+        [$user, $site] = $this->ownerSite(['messenger_kinds' => ['max']]);
+        ContactEntry::factory()->for($site)->messenger('max')->create(['value' => '@max_support']);
+
+        Livewire::actingAs($user)
+            ->test(Show::class, ['site' => $site])
+            ->assertSee('MA')
+            ->assertDontSee('??');
     }
 
     /** Task: clicking edit on a price opens the drawer (was silently broken). */

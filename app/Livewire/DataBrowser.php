@@ -33,6 +33,10 @@ class DataBrowser extends Component
     #[Url]
     public string $kindFilter = '';
 
+    /** Sub-state within a type — '' (all) | primary | backup | hidden. */
+    #[Url]
+    public string $roleFilter = '';
+
     #[Url]
     public string $siteFilter = '';
 
@@ -46,8 +50,13 @@ class DataBrowser extends Component
         if (! array_key_exists($this->typeFilter, ContactEntry::TYPES)) {
             $this->typeFilter = array_key_first(ContactEntry::TYPES);
         }
-        if ($this->kindFilter !== '' && ! array_key_exists($this->kindFilter, ContactEntry::kindLabels($this->typeFilter))) {
+        // Types with kinds always have exactly one selected (no "all kinds"
+        // option) — default to the first available kind.
+        $kinds = $this->kindLabelsForType($this->typeFilter);
+        if (! $kinds) {
             $this->kindFilter = '';
+        } elseif (! array_key_exists($this->kindFilter, $kinds)) {
+            $this->kindFilter = (string) array_key_first($kinds);
         }
     }
 
@@ -69,6 +78,15 @@ class DataBrowser extends Component
     public string $geoMode = 'all';        // all | only | except
     public string $geoCountries = '';      // free text: "UA, PL, DE"
 
+    /** Bulk role/state drawer — primary | hidden (backup needs a parent). */
+    public bool $editingRole = false;
+    public string $roleValue = 'primary';
+
+    /** Bulk price-fields drawer (only for the price type). */
+    public bool $editingPrice = false;
+    public string $priceField = 'currency'; // currency | price_unit | price | old_price
+    public string $priceValue = '';
+
     public function updatingSearch(): void
     {
         $this->resetPage();
@@ -82,11 +100,13 @@ class DataBrowser extends Component
         $this->clearSelected();
     }
 
-    public function updatingTypeFilter(): void
+    public function updatingTypeFilter($value): void
     {
-        // Type is the entity context — switching it means editing a different kind
-        // of thing, so the kind sub-filter and the whole selection are dropped.
-        $this->kindFilter = '';
+        // Type is the entity context — switching it drops the whole selection.
+        // Types with kinds always have one selected (no "all kinds"), so default
+        // to the first available kind of the new type.
+        $kinds = $this->kindLabelsForType((string) $value);
+        $this->kindFilter = $kinds ? (string) array_key_first($kinds) : '';
         $this->resetPage();
         $this->clearSelected();
     }
@@ -97,6 +117,14 @@ class DataBrowser extends Component
         // switching it drops the selection too — you re-pick within the new kind.
         $this->resetPage();
         $this->clearSelected();
+    }
+
+    public function updatingRoleFilter(): void
+    {
+        // Role is a scope filter (same entities, different state) like site —
+        // explicit picks survive; only the filter-bound "all matching" resets.
+        $this->resetPage();
+        $this->resetMatchingFlag();
     }
 
     public function updatingSiteFilter(): void
@@ -139,6 +167,7 @@ class DataBrowser extends Component
             ->when($this->trashed, fn ($q) => $q->onlyTrashed())
             ->when($this->typeFilter, fn ($q) => $q->where('type', $this->typeFilter))
             ->when($this->kindFilter, fn ($q) => $q->where('kind', $this->kindFilter))
+            ->when($this->roleFilter, fn ($q) => $q->where('role', $this->roleFilter))
             ->when($this->siteFilter, fn ($q) => $q->where('site_id', $this->siteFilter))
             ->when($this->search, fn ($q) => $q->where(fn ($q2) => $q2
                 ->where('value', 'like', "%{$this->search}%")
@@ -188,9 +217,46 @@ class DataBrowser extends Component
             [$type, $kind] = array_pad(explode('|', $sig, 2), 2, '');
 
             return $kind !== ''
-                ? (ContactEntry::kindLabels($type)[$kind] ?? $kind)
+                ? ($this->kindLabel($type, $kind) ?? $kind)
                 : (ContactEntry::TYPES[$type]['label'] ?? $type);
         })->all();
+    }
+
+    private function kindLabel(string $type, string $kind): ?string
+    {
+        return $this->kindLabelsForType($type)[$kind] ?? null;
+    }
+
+    /** @return array<string,string> */
+    private function kindLabelsForType(string $type): array
+    {
+        $labels = ContactEntry::kindLabels($type);
+
+        $dynamicKinds = $this->applyVisibility(ContactEntry::query())
+            ->when($this->trashed, fn ($q) => $q->onlyTrashed())
+            ->where('type', $type)
+            ->whereNotNull('kind')
+            ->distinct()
+            ->pluck('kind')
+            ->map(fn ($kind) => trim((string) $kind))
+            ->filter()
+            ->unique()
+            ->values();
+
+        foreach ($dynamicKinds as $kind) {
+            $labels[$kind] ??= $this->humanKindLabel($kind);
+        }
+
+        return $labels;
+    }
+
+    private function humanKindLabel(string $kind): string
+    {
+        return str($kind)
+            ->replace(['-', '_'], ' ')
+            ->squish()
+            ->title()
+            ->toString();
     }
 
     private function selectionIsSingleEntity(): bool
@@ -202,11 +268,11 @@ class DataBrowser extends Component
 
     public function openEdit(string $field): void
     {
-        if (! in_array($field, ['value', 'label', 'role'], true) || ! $this->hasSelection()) {
+        if (! in_array($field, ['value', 'label'], true) || ! $this->hasSelection()) {
             return;
         }
 
-        // 'value' is type+kind specific; 'label'/'role' are common to all entities.
+        // 'value' is type+kind specific; 'label' is common to all entities.
         if ($field === 'value' && ! $this->selectionIsSingleEntity()) {
             $this->dispatch('toast', type: 'error', message: 'Заміна значення — лише для записів одного виду');
 
@@ -230,17 +296,11 @@ class DataBrowser extends Component
         $field = $this->editField;
         $new = trim($this->editValue);
 
-        if (! in_array($field, ['value', 'label', 'role'], true)) {
+        if (! in_array($field, ['value', 'label'], true)) {
             return;
         }
         if ($field === 'value' && $new === '') {
             $this->dispatch('toast', type: 'error', message: 'Введіть нове значення');
-
-            return;
-        }
-        // 'backup' needs a parent — not a bulk operation; only primary/archive here.
-        if ($field === 'role' && ! in_array($new, ['primary', 'archive'], true)) {
-            $this->dispatch('toast', type: 'error', message: 'Оберіть роль');
 
             return;
         }
@@ -265,11 +325,7 @@ class DataBrowser extends Component
             return;
         }
 
-        $noun = match ($field) {
-            'value' => 'Значення',
-            'label' => 'Мітку',
-            'role' => 'Роль',
-        };
+        $noun = $field === 'value' ? 'Значення' : 'Мітку';
         $this->dispatch('toast',
             type: 'success',
             message: $this->withSkipped("{$noun} змінено: {$result['done']}", $result['skipped']),
@@ -283,7 +339,7 @@ class DataBrowser extends Component
     #[On('bulkRestoreField')]
     public function bulkRestoreField(array $snapshot, string $field): void
     {
-        if (! in_array($field, ['value', 'label', 'role'], true) || empty($snapshot)) {
+        if (! in_array($field, ['value', 'label', 'currency', 'price', 'old_price', 'price_unit'], true) || empty($snapshot)) {
             return;
         }
 
@@ -299,6 +355,185 @@ class DataBrowser extends Component
             });
 
         $this->dispatch('toast', type: 'success', message: "Відновлено: {$done}");
+    }
+
+    // ─── Bulk: role / state (primary or hidden) ──────────────────────────
+
+    public function openRole(): void
+    {
+        if (! $this->hasSelection()) {
+            return;
+        }
+        $this->roleValue = 'primary';
+        $this->editingRole = true;
+    }
+
+    public function closeRole(): void
+    {
+        $this->editingRole = false;
+        $this->roleValue = 'primary';
+    }
+
+    public function applyRole(): void
+    {
+        // 'backup' needs a parent — not a bulk operation; only primary/hidden here.
+        if (! in_array($this->roleValue, ['primary', 'hidden'], true)) {
+            $this->dispatch('toast', type: 'error', message: 'Оберіть стан: Активний або Прихований');
+
+            return;
+        }
+        $new = $this->roleValue;
+
+        $snapshot = [];
+        $result = BulkActionService::apply(
+            ContactEntry::class,
+            $this->bulkTargetIds(),
+            'update',
+            function (ContactEntry $e) use (&$snapshot, $new) {
+                $snapshot[$e->id] = [
+                    'role'      => $e->role,
+                    'visible'   => $e->visible,
+                    'parent_id' => $e->parent_id,
+                    'geo_tag'   => $e->geo_tag,
+                    'geo_mode'  => $e->geo_mode,
+                    'countries' => $e->countries,
+                ];
+                $data = ['role' => $new, 'visible' => $new !== 'hidden'];
+                // Promoting a reserve to active detaches it from its primary and
+                // captures the geo it had been inheriting, so targeting survives.
+                if ($new === 'primary' && $e->parent_id) {
+                    $parent = $e->parent;
+                    $data['parent_id'] = null;
+                    $data['geo_tag']   = $parent?->geo_tag;
+                    $data['geo_mode']  = $parent?->geo_mode ?? 'all';
+                    $data['countries'] = $parent?->countries;
+                }
+                $e->update($data);
+            },
+        );
+
+        $this->closeRole();
+        $this->clearSelected();
+
+        if ($result['done'] === 0) {
+            $this->dispatch('toast', type: 'error', message: 'Немає прав на редагування обраних записів');
+
+            return;
+        }
+
+        $verb = $new === 'primary' ? 'Активовано' : 'Приховано';
+        $this->dispatch('toast',
+            type: 'success',
+            message: $this->withSkipped("{$verb}: {$result['done']}", $result['skipped']),
+            action: 'bulkRestoreRole',
+            actionLabel: 'Відмінити',
+            actionData: ['snapshot' => $snapshot],
+        );
+    }
+
+    /** Undo target for a bulk role change — restores role + visibility + link + geo. */
+    #[On('bulkRestoreRole')]
+    public function bulkRestoreRole(array $snapshot): void
+    {
+        if (empty($snapshot)) {
+            return;
+        }
+
+        $user = Auth::user();
+        $done = 0;
+
+        ContactEntry::withTrashed()->whereIn('id', array_keys($snapshot))->get()
+            ->each(function (ContactEntry $e) use ($snapshot, $user, &$done) {
+                if ($user && $user->can('update', $e) && ($prev = $snapshot[$e->id] ?? null)) {
+                    $e->update($prev);
+                    $done++;
+                }
+            });
+
+        $this->dispatch('toast', type: 'success', message: "Відновлено: {$done}");
+    }
+
+    // ─── Bulk: price fields (currency / unit / price / old price) ─────────
+
+    public function openPriceEdit(): void
+    {
+        if (! $this->hasSelection() || $this->typeFilter !== 'price') {
+            return;
+        }
+        $this->priceField = 'currency';
+        $this->priceValue = '';
+        $this->editingPrice = true;
+    }
+
+    public function closePriceEdit(): void
+    {
+        $this->editingPrice = false;
+        $this->priceField = 'currency';
+        $this->priceValue = '';
+    }
+
+    public function applyPriceEdit(): void
+    {
+        $field = $this->priceField;
+        if (! in_array($field, ['currency', 'price_unit', 'price', 'old_price'], true)) {
+            return;
+        }
+
+        $raw = trim($this->priceValue);
+        $isNumeric = in_array($field, ['price', 'old_price'], true);
+
+        if ($field === 'currency') {
+            $raw = strtoupper($raw);
+            if (! in_array($raw, ['EUR', 'USD', 'PLN', 'UAH'], true)) {
+                $this->dispatch('toast', type: 'error', message: 'Оберіть валюту');
+
+                return;
+            }
+        }
+        if ($isNumeric && $raw !== '' && ! is_numeric(str_replace(',', '.', $raw))) {
+            $this->dispatch('toast', type: 'error', message: 'Вкажіть число');
+
+            return;
+        }
+
+        // Numeric fields accept empty = clear (e.g. remove the old price); currency/unit don't.
+        $value = $isNumeric
+            ? ($raw === '' ? null : (float) str_replace(',', '.', $raw))
+            : ($raw === '' ? null : $raw);
+
+        $snapshot = [];
+        $result = BulkActionService::apply(
+            ContactEntry::class,
+            $this->bulkTargetIds(),
+            'update',
+            function (ContactEntry $e) use (&$snapshot, $field, $value) {
+                $snapshot[$e->id] = $e->{$field};
+                $e->update([$field => $value]);
+            },
+        );
+
+        $this->closePriceEdit();
+        $this->clearSelected();
+
+        if ($result['done'] === 0) {
+            $this->dispatch('toast', type: 'error', message: 'Немає прав на редагування обраних записів');
+
+            return;
+        }
+
+        $noun = match ($field) {
+            'currency'   => 'Валюту',
+            'price_unit' => 'Одиницю',
+            'price'      => 'Ціну',
+            'old_price'  => 'Стару ціну',
+        };
+        $this->dispatch('toast',
+            type: 'success',
+            message: $this->withSkipped("{$noun} змінено: {$result['done']}", $result['skipped']),
+            action: 'bulkRestoreField',
+            actionLabel: 'Відмінити',
+            actionData: ['snapshot' => $snapshot, 'field' => $field],
+        );
     }
 
     // ─── Selection review (see / trim the cross-site set) ─────────────────
@@ -660,7 +895,7 @@ class DataBrowser extends Component
             'selectionPreview' => $selectionPreview,
             'reviewItems' => $reviewItems,
             'types' => ContactEntry::typeLabels(),
-            'kinds' => ContactEntry::kindLabels($this->typeFilter),
+            'kinds' => $this->kindLabelsForType($this->typeFilter),
             'selectionEntities' => $this->selectionEntityLabels(),
         ]);
     }

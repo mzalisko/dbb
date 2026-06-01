@@ -1,14 +1,15 @@
 @php
 $sitesForAlpine = $sites->map(fn($s) => [
-    'group' => $s->group ?? '',
+    'id' => $s->id,
+    'group' => strtolower($s->group ?? ''),
     'name'  => strtolower($s->name),
 ])->values();
 
 // Server-side initial state — eliminates FOUC: URL is the single source of truth.
-$initialGroup = $urlGroup ?: 'all';
+$initialGroup = strtolower($urlGroup ?: 'all');
 $initialCount = $initialGroup === 'all'
     ? $sites->count()
-    : $sites->filter(fn($s) => ($s->group ?? '') === $initialGroup)->count();
+    : $sites->filter(fn($s) => strtolower($s->group ?? '') === $initialGroup)->count();
 @endphp
 
 <div class="page"
@@ -17,6 +18,9 @@ $initialCount = $initialGroup === 'all'
         activeGroup: {{ json_encode($initialGroup) }},
         search: '',
         showCreate: false,
+        normalizeGroup(g) {
+            return (g || '').toString().toLowerCase();
+        },
         visibleCount() {
             const q = this.search.toLowerCase();
             return this.sites.filter(s =>
@@ -25,6 +29,7 @@ $initialCount = $initialGroup === 'all'
             ).length;
         },
         setGroup(g) {
+            g = this.normalizeGroup(g);
             this.activeGroup = g;
             const url = new URL(window.location);
             if (g === 'all') url.searchParams.delete('group');
@@ -44,7 +49,14 @@ $initialCount = $initialGroup === 'all'
              e.preventDefault(); $refs.searchInput.focus();
          }
      })"
-     @site-created.window="showCreate = false">
+     @site-created.window="showCreate = false"
+     @site-group-updated.window="
+        const group = normalizeGroup($event.detail.group);
+        const site = sites.find(s => s.id === $event.detail.id);
+        if (site) site.group = group;
+        const card = $el.querySelector(`[data-site-id='${$event.detail.id}']`);
+        if (card) card.dataset.group = group;
+     ">
 
     <x-ui.topbar :crumbs="['Сайти']">
         <x-ui.button variant="secondary" size="sm">
@@ -69,30 +81,33 @@ $initialCount = $initialGroup === 'all'
         $overflowGroups = $groups->slice($pillLimit);
     @endphp
     <div class="filter-row">
-        <button class="filter-pill {{ $initialGroup === 'all' ? 'is-active' : '' }}" :class="activeGroup === 'all' ? 'is-active' : ''" x-on:click="setGroup('all')">
+        <button type="button" class="filter-pill {{ $initialGroup === 'all' ? 'is-active' : '' }}" wire:click="setGroupFilter('all')" @click="activeGroup = 'all'">
             Усі
         </button>
         @foreach ($visibleGroups as $group)
-            <button class="filter-pill {{ $initialGroup === $group->group ? 'is-active' : '' }}" :class="activeGroup === '{{ $group->group }}' ? 'is-active' : ''" x-on:click="setGroup('{{ $group->group }}')">
+            @php $groupKey = strtolower($group->group); @endphp
+            <button type="button" class="filter-pill {{ $initialGroup === $groupKey ? 'is-active' : '' }}" wire:click="setGroupFilter('{{ $groupKey }}')" @click="activeGroup = '{{ $groupKey }}'">
                 <span class="pill-dot" style="background:{{ $group->group_color }};"></span>
                 {{ ucfirst($group->group) }}
             </button>
         @endforeach
 
         @if ($overflowGroups->isNotEmpty())
-            @php $overflowNames = $overflowGroups->pluck('group')->values(); @endphp
+            @php $overflowNames = $overflowGroups->pluck('group')->map(fn($g) => strtolower($g))->values(); @endphp
             <div class="filter-more" x-data="{ moreOpen: false }" @click.outside="moreOpen = false">
-                <button class="filter-pill"
-                        :class="{{ Illuminate\Support\Js::from($overflowNames) }}.includes(activeGroup) ? 'is-active' : ''"
+                <button type="button" class="filter-pill {{ $overflowNames->contains($initialGroup) ? 'is-active' : '' }}"
                         @click="moreOpen = !moreOpen" title="Ще групи">
                     <x-icon.grid width="13" height="13" />
-                    <span x-show="{{ Illuminate\Support\Js::from($overflowNames) }}.includes(activeGroup)"
-                          x-text="activeGroup" class="capitalize"></span>
+                    @if($overflowNames->contains($initialGroup))
+                        <span class="capitalize">{{ $initialGroup }}</span>
+                    @endif
                 </button>
                 <div class="dropdown" x-show="moreOpen" x-cloak>
                     @foreach ($overflowGroups as $group)
-                        <button class="pill-menu-item" :class="activeGroup === '{{ $group->group }}' ? 'is-active' : ''"
-                                @click="setGroup('{{ $group->group }}'); moreOpen = false">
+                        @php $groupKey = strtolower($group->group); @endphp
+                        <button type="button" class="pill-menu-item {{ $initialGroup === $groupKey ? 'is-active' : '' }}"
+                                wire:click="setGroupFilter('{{ $groupKey }}')"
+                                @click="activeGroup = '{{ $groupKey }}'; moreOpen = false">
                             <span class="pill-dot" style="background:{{ $group->group_color }};"></span>
                             {{ ucfirst($group->group) }}
                         </button>
@@ -129,10 +144,11 @@ $initialCount = $initialGroup === 'all'
                     'maintenance' => 'Пауза',
                     default       => 'Помилка',
                 };
-                $hiddenInit = $initialGroup !== 'all' && ($site->group ?? '') !== $initialGroup;
+                $hiddenInit = $initialGroup !== 'all' && strtolower($site->group ?? '') !== $initialGroup;
             @endphp
             <div class="site-card"
-                 data-group="{{ $site->group }}"
+                 data-site-id="{{ $site->id }}"
+                 data-group="{{ strtolower($site->group ?? '') }}"
                  data-name="{{ strtolower($site->name) }}"
                  x-show="(activeGroup === 'all' || $el.dataset.group === activeGroup) &&
                           (search === '' || $el.dataset.name.includes(search.toLowerCase()))"
@@ -156,6 +172,41 @@ $initialCount = $initialGroup === 'all'
                         <path d="m12 3 2.7 5.6 6.3.8-4.6 4.3 1.2 6.1L12 17l-5.6 2.8 1.2-6.1L3 9.4l6.3-.8Z"/>
                     </svg>
                 </button>
+
+                <div class="site-card__actions" x-data="{ open: false }" @click.outside="open = false">
+                    <button type="button"
+                            class="site-card__menu"
+                            title="Дії сайту"
+                            @click.stop="open = !open">
+                        <x-icon.dots-horizontal width="15" height="15" />
+                    </button>
+
+                    <div class="dropdown site-card__dropdown" x-show="open" x-cloak @click.stop>
+                        <div class="site-card__dropdown-label">Група</div>
+                        @foreach($siteGroups as $sg)
+                            <button type="button"
+                                    class="pill-menu-item {{ $site->group === $sg->name ? 'is-active' : '' }}"
+                                    wire:click="assignSiteGroup({{ $site->id }}, {{ $sg->id }})"
+                                    @click="open = false">
+                                <span class="pill-dot" style="background:{{ $sg->color }};"></span>
+                                <span>{{ ucfirst($sg->name) }}</span>
+                                @if($site->group === $sg->name)
+                                    <x-icon.check width="12" height="12" class="site-card__dropdown-check" />
+                                @endif
+                            </button>
+                        @endforeach
+
+                        <div class="site-card__dropdown-sep"></div>
+
+                        <button type="button"
+                                class="dropdown-item dropdown-item--danger"
+                                wire:click="requestDeleteSite({{ $site->id }})"
+                                @click="open = false">
+                            <x-icon.trash width="13" height="13" />
+                            Видалити сайт
+                        </button>
+                    </div>
+                </div>
 
                 <a href="{{ route('sites.show', $site) }}" wire:navigate class="site-card__link">
                     <div class="site-card__body">
@@ -203,6 +254,38 @@ $initialCount = $initialGroup === 'all'
         Нічого не знайдено за запитом «<span x-text="search" class="search-match"></span>»
     </div>
 
+    @if($confirmDeleteSiteId)
+        <div class="confirm-backdrop" wire:click="cancelDeleteSite"></div>
+        <div class="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="delete-site-title">
+            <div class="confirm-dialog__icon">
+                <x-icon.trash width="18" height="18" />
+            </div>
+            <div class="confirm-dialog__body">
+                <div class="confirm-dialog__eyebrow">Видалення сайту</div>
+                <div class="confirm-dialog__title" id="delete-site-title">Видалити сайт?</div>
+                <div class="confirm-dialog__subject">{{ $confirmDeleteSiteName }}</div>
+                <div class="confirm-dialog__text">
+                    Щоб підтвердити видалення, введіть точну назву сайту.
+                </div>
+                <div class="field" style="margin-top:12px;">
+                    <label class="label">Назва сайту</label>
+                    <input type="text"
+                           class="input"
+                           wire:model.live="confirmDeleteSiteTypedName"
+                           placeholder="{{ $confirmDeleteSiteName }}"
+                           @keydown.enter="$wire.confirmDeleteSite()" />
+                    @error('confirmDeleteSiteTypedName') <span class="field-error">{{ $message }}</span> @enderror
+                </div>
+            </div>
+            <div class="confirm-dialog__footer">
+                <button type="button" class="btn btn-ghost btn-sm" wire:click="cancelDeleteSite">Скасувати</button>
+                <button type="button" class="btn btn-danger-fill btn-sm" wire:click="confirmDeleteSite">
+                    Видалити
+                </button>
+            </div>
+        </div>
+    @endif
+
     {{-- ══ Create Site Drawer ══ --}}
     <div class="drawer-backdrop" x-show="showCreate" x-cloak
          x-transition:enter="transition ease-out duration-200"
@@ -248,12 +331,45 @@ $initialCount = $initialGroup === 'all'
 
             <div class="field">
                 <label class="label">Група</label>
-                <select wire:model="createGroupId" class="field-select">
-                    <option value="">— без групи —</option>
-                    @foreach($siteGroups as $sg)
-                        <option value="{{ $sg->id }}">{{ ucfirst($sg->name) }}</option>
-                    @endforeach
-                </select>
+                @php
+                    $createGroup = $createGroupId !== '' ? $siteGroups->firstWhere('id', (int) $createGroupId) : null;
+                @endphp
+                <div class="group-select group-select--field" x-data="{ open: false }" @click.outside="open = false">
+                    <button type="button" class="group-select__button" @click="open = !open">
+                        @if($createGroup)
+                            <span class="pill-dot" style="background:{{ $createGroup->color }};"></span>
+                            <span>{{ ucfirst($createGroup->name) }}</span>
+                        @else
+                            <span class="pill-dot pill-dot--empty"></span>
+                            <span>— без групи —</span>
+                        @endif
+                        <x-icon.chevron-down width="13" height="13" />
+                    </button>
+                    <div class="dropdown group-select__dropdown" x-show="open" x-cloak>
+                        <button type="button"
+                                class="pill-menu-item {{ $createGroupId === '' ? 'is-active' : '' }}"
+                                wire:click="$set('createGroupId', '')"
+                                @click="open = false">
+                            <span class="pill-dot pill-dot--empty"></span>
+                            <span>— без групи —</span>
+                            @if($createGroupId === '')
+                                <x-icon.check width="12" height="12" class="group-select__check" />
+                            @endif
+                        </button>
+                        @foreach($siteGroups as $sg)
+                            <button type="button"
+                                    class="pill-menu-item {{ (string) $createGroupId === (string) $sg->id ? 'is-active' : '' }}"
+                                    wire:click="$set('createGroupId', '{{ $sg->id }}')"
+                                    @click="open = false">
+                                <span class="pill-dot" style="background:{{ $sg->color }};"></span>
+                                <span>{{ ucfirst($sg->name) }}</span>
+                                @if((string) $createGroupId === (string) $sg->id)
+                                    <x-icon.check width="12" height="12" class="group-select__check" />
+                                @endif
+                            </button>
+                        @endforeach
+                    </div>
+                </div>
             </div>
 
             <div class="field">

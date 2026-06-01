@@ -2,10 +2,12 @@
 
 namespace Tests\Feature;
 
+use App\Livewire\Sites\Index as SitesIndex;
 use App\Livewire\Sites\Show;
 use App\Models\Client;
 use App\Models\ContactEntry;
 use App\Models\Site;
+use App\Models\SiteGroup;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
@@ -64,6 +66,79 @@ class SiteGeoTabsTest extends TestCase
         $this->assertSame('maintenance', $site->fresh()->status);
     }
 
+    public function test_existing_site_can_be_assigned_to_group(): void
+    {
+        $user = User::factory()->create(['role' => 'owner']);
+        $client = Client::factory()->for($user)->create();
+        $site = Site::factory()->for($client)->create(['group' => 'production', 'group_color' => '#2E7D32']);
+        $group = SiteGroup::firstOrCreate(['name' => 'staging'], ['color' => '#d38a00']);
+
+        Livewire::actingAs($user)
+            ->test(Show::class, ['site' => $site])
+            ->set('siteGroupId', (string) $group->id)
+            ->call('updateSiteGroup')
+            ->assertSet('siteGroupId', (string) $group->id);
+
+        $site->refresh();
+        $this->assertSame('staging', $site->group);
+        $this->assertSame($group->color, $site->group_color);
+    }
+
+    public function test_existing_site_can_be_assigned_to_group_from_dropdown(): void
+    {
+        $user = User::factory()->create(['role' => 'owner']);
+        $client = Client::factory()->for($user)->create();
+        $site = Site::factory()->for($client)->create(['group' => 'production', 'group_color' => '#2E7D32']);
+        $group = SiteGroup::firstOrCreate(['name' => 'staging'], ['color' => '#d38a00']);
+
+        Livewire::actingAs($user)
+            ->test(Show::class, ['site' => $site])
+            ->call('setSiteGroup', $group->id)
+            ->assertSet('siteGroupId', (string) $group->id);
+
+        $site->refresh();
+        $this->assertSame('staging', $site->group);
+        $this->assertSame($group->color, $site->group_color);
+    }
+
+    public function test_site_card_action_can_assign_group(): void
+    {
+        $user = User::factory()->create(['role' => 'owner']);
+        $client = Client::factory()->for($user)->create();
+        $site = Site::factory()->for($client)->create(['group' => 'production', 'group_color' => '#2E7D32']);
+        $group = SiteGroup::firstOrCreate(['name' => 'staging'], ['color' => '#d38a00']);
+
+        Livewire::actingAs($user)
+            ->test(SitesIndex::class)
+            ->call('assignSiteGroup', $site->id, $group->id)
+            ->assertDispatched('site-group-updated');
+
+        $site->refresh();
+        $this->assertSame('staging', $site->group);
+        $this->assertSame($group->color, $site->group_color);
+    }
+
+    public function test_site_card_delete_requires_confirmation(): void
+    {
+        $user = User::factory()->create(['role' => 'owner']);
+        $client = Client::factory()->for($user)->create();
+        $site = Site::factory()->for($client)->create();
+
+        Livewire::actingAs($user)
+            ->test(SitesIndex::class)
+            ->call('requestDeleteSite', $site->id)
+            ->assertSet('confirmDeleteSiteId', $site->id)
+            ->assertSet('confirmDeleteSiteName', $site->name)
+            ->call('confirmDeleteSite')
+            ->assertHasErrors('confirmDeleteSiteTypedName')
+            ->set('confirmDeleteSiteTypedName', $site->name)
+            ->call('confirmDeleteSite')
+            ->assertSet('confirmDeleteSiteId', null)
+            ->assertSet('confirmDeleteSiteName', '');
+
+        $this->assertSoftDeleted('sites', ['id' => $site->id]);
+    }
+
     public function test_site_delete_requires_confirmation(): void
     {
         $user = User::factory()->create(['role' => 'owner']);
@@ -82,6 +157,48 @@ class SiteGeoTabsTest extends TestCase
             ->assertRedirect(route('sites.index'));
 
         $this->assertSoftDeleted('sites', ['id' => $site->id]);
+    }
+
+    public function test_manual_failover_trigger_writes_journal_entry(): void
+    {
+        $user = User::factory()->create(['role' => 'owner']);
+        $client = Client::factory()->for($user)->create();
+        $site = Site::factory()->for($client)->create();
+        $phone = ContactEntry::factory()->for($site)->phone()->create(['value' => '+380991112233']);
+        $backup = ContactEntry::factory()->backup($phone)->create(['value' => '+380992223344']);
+
+        Livewire::actingAs($user)
+            ->test(Show::class, ['site' => $site])
+            ->call('triggerFailover', $phone->id, $backup->id)
+            ->assertSee('+380991112233')
+            ->assertSee('+380992223344');
+
+        $this->assertDatabaseHas('activity_log', [
+            'action' => 'site.failover.triggered',
+            'subject_type' => Site::class,
+            'subject_id' => $site->id,
+        ]);
+    }
+
+    public function test_manual_failover_restore_writes_journal_entry(): void
+    {
+        $user = User::factory()->create(['role' => 'owner']);
+        $client = Client::factory()->for($user)->create();
+        $site = Site::factory()->for($client)->create();
+        $phone = ContactEntry::factory()->for($site)->phone()->create(['value' => '+380991112233']);
+        $backup = ContactEntry::factory()->backup($phone)->create(['value' => '+380992223344']);
+
+        Livewire::actingAs($user)
+            ->test(Show::class, ['site' => $site])
+            ->call('restoreFailover', $backup->id, $phone->id)
+            ->assertSee('+380992223344')
+            ->assertSee('+380991112233');
+
+        $this->assertDatabaseHas('activity_log', [
+            'action' => 'site.failover.restored',
+            'subject_type' => Site::class,
+            'subject_id' => $site->id,
+        ]);
     }
 
     public function test_styled_delete_confirmation_removes_entry_and_backups(): void
@@ -199,7 +316,7 @@ class SiteGeoTabsTest extends TestCase
         $this->assertSame([], $site->fresh()->geo_rules);
     }
 
-    public function test_assigning_backup_inherits_parent_geo_membership(): void
+    public function test_reserve_reads_geo_through_to_its_primary(): void
     {
         $user = User::factory()->create(['role' => 'owner']);
         $client = Client::factory()->for($user)->create();
@@ -222,8 +339,43 @@ class SiteGeoTabsTest extends TestCase
         $orphan->refresh();
         $this->assertSame('backup', $orphan->role);
         $this->assertSame($parent->id, $orphan->parent_id);
-        $this->assertSame('UA', $orphan->geo_tag);
-        $this->assertSame('except', $orphan->geo_mode);
-        $this->assertSame(['PL'], $orphan->countries);
+
+        // Read-through: the reserve stores neutral geo of its own…
+        $this->assertNull($orphan->getRawOriginal('geo_tag'));
+        $this->assertSame('all', $orphan->getRawOriginal('geo_mode'));
+        // …but reports its primary's belonging, rule and visibility.
+        $this->assertSame($parent->preview_geo_label, $orphan->preview_geo_label);
+        $this->assertSame($parent->geo_label, $orphan->geo_label);
+        $this->assertSame($parent->visibleForGeo('PL'), $orphan->visibleForGeo('PL'));
+        $this->assertSame($parent->visibleForGeo('UA'), $orphan->visibleForGeo('UA'));
+    }
+
+    public function test_promoting_a_reserve_captures_inherited_geo(): void
+    {
+        $user = User::factory()->create(['role' => 'owner']);
+        $client = Client::factory()->for($user)->create();
+        $site = Site::factory()->for($client)->create();
+        $parent = ContactEntry::factory()->for($site)->phone()->create([
+            'geo_tag' => 'UA',
+            'geo_mode' => 'except',
+            'countries' => ['PL'],
+        ]);
+        $reserve = ContactEntry::factory()->backup($parent)->create([
+            'geo_tag' => null,
+            'geo_mode' => 'all',
+            'countries' => null,
+        ]);
+
+        Livewire::actingAs($user)
+            ->test(Show::class, ['site' => $site])
+            ->call('promoteEntry', $reserve->id);
+
+        $reserve->refresh();
+        // Detached from its primary, the promoted entry keeps the geo it had.
+        $this->assertNull($reserve->parent_id);
+        $this->assertSame('primary', $reserve->role);
+        $this->assertSame('UA', $reserve->geo_tag);
+        $this->assertSame('except', $reserve->geo_mode);
+        $this->assertSame(['PL'], $reserve->countries);
     }
 }

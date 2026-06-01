@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Livewire\Users\Index;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Hash;
 use Livewire\Livewire;
 use Tests\TestCase;
 
@@ -79,5 +80,25 @@ class UsersPermissionsTest extends TestCase
         $target->refresh();
         $this->assertSame('limited', $target->access_scope);
         $this->assertContains('Europe', $target->group_access);
+    }
+
+    public function test_admin_can_generate_temporary_password_for_user(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $target = User::factory()->create(['role' => 'viewer']);
+
+        $component = Livewire::actingAs($admin)
+            ->test(Index::class)
+            ->call('viewUser', $target->id)
+            ->call('generateTemporaryPassword')
+            ->assertSet('changingPassword', true);
+
+        $password = $component->get('generatedPassword');
+
+        $this->assertNotSame('', $password);
+
+        $component->call('saveUser');
+
+        $this->assertTrue(Hash::check($password, $target->fresh()->password));
     }
 }

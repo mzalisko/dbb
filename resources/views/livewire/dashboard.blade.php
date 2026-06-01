@@ -9,7 +9,10 @@
         @if ($favourites->isNotEmpty())
         <div class="dash-section">
             <header class="section-head">
-                <h3 class="section-head__title">Обрані</h3>
+                <h3 class="section-head__title section-head__title--with-icon">
+                    <x-icon.star class="section-head__icon" width="17" height="17" aria-hidden="true" />
+                    <span>Обрані</span>
+                </h3>
                 <span class="mono section-head__meta">{{ $favourites->count() }}/{{ $totalSites }}</span>
             </header>
             <div class="fav-strip"

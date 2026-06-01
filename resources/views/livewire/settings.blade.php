@@ -1,4 +1,4 @@
-<div style="flex:1; display:flex; flex-direction:column; overflow-y:auto;" x-data="{ section: 'workspace' }">
+<div style="flex:1; display:flex; flex-direction:column; overflow-y:auto;" x-data="{ section: 'countries' }">
     <x-ui.topbar :crumbs="['Налаштування']" />
 
     <x-ui.page-head
@@ -10,12 +10,9 @@
         {{-- Left nav --}}
         <nav style="display:flex; flex-direction:column; gap:2px; align-self:flex-start; position:sticky; top:0;">
             @foreach ([
-                ['k' => 'workspace',  'l' => 'Workspace',        'd' => 'Назва, регіон, логотип'],
                 ['k' => 'countries',  'l' => 'Довідник країн',   'd' => 'PL, UA, DE, …'],
-                ['k' => 'categories', 'l' => 'Категорії даних',  'd' => 'Phones, prices…'],
                 ['k' => 'webhooks',   'l' => 'Webhooks',          'd' => '3 активних'],
                 ['k' => 'api',        'l' => 'API ключі',          'd' => 'Tokens, scopes'],
-                ['k' => 'profile',    'l' => 'Акаунт',             'd' => 'Профіль, пароль'],
             ] as $s)
                 <button @click="section = '{{ $s['k'] }}'" style="
                     display:flex; align-items:flex-start; gap:10px;
@@ -33,30 +30,6 @@
 
         {{-- Content area --}}
         <div>
-
-            {{-- Workspace --}}
-            <div x-show="section === 'workspace'">
-                <header style="margin-bottom:24px;">
-                    <h2 style="font:400 24px/1 var(--font-sans); color:var(--ink-9);">Workspace</h2>
-                    <p style="margin-top:8px; font:13.5px var(--font-sans); color:var(--ink-5);">Загальні параметри робочого простору.</p>
-                </header>
-                <div class="card" style="padding:24px; display:flex; flex-direction:column; gap:24px;">
-                    <div>
-                        <label class="label">Назва workspace</label>
-                        <input class="input" value="{{ auth()->user()->organization_name ?? 'DataBridge' }}" />
-                    </div>
-                    <div>
-                        <label class="label">Регіон зберігання</label>
-                        <div style="display:flex; gap:8px; margin-top:12px;">
-                            @foreach (['EU · Frankfurt', 'US · Virginia', 'AP · Singapore'] as $i => $r)
-                                <button style="flex:1; padding:12px 14px; border-radius:4px; border:1px solid {{ $i === 0 ? 'var(--ink-9)' : 'var(--ink-3)' }}; background:{{ $i === 0 ? 'var(--ink-9)' : 'transparent' }}; color:{{ $i === 0 ? 'var(--paper)' : 'var(--ink-9)' }}; font:13px var(--font-sans); cursor:pointer;">
-                                    {{ $r }}
-                                </button>
-                            @endforeach
-                        </div>
-                    </div>
-                </div>
-            </div>
 
             {{-- Countries --}}
             <div x-show="section === 'countries'">
@@ -95,46 +68,6 @@
                 </div>
             </div>
 
-            {{-- Categories --}}
-            <div x-show="section === 'categories'">
-                <header style="margin-bottom:24px;">
-                    <h2 style="font:400 24px/1 var(--font-sans); color:var(--ink-9);">Категорії даних</h2>
-                    <p style="margin-top:8px; font:13.5px var(--font-sans); color:var(--ink-5); max-width:540px;">
-                        Які типи контактів і даних зберігає workspace.
-                    </p>
-                </header>
-                <div style="margin-bottom:24px;">
-                    <div class="eyebrow" style="margin-bottom:12px;">Основні · контактні</div>
-                    <div class="card" style="overflow:hidden; border-left:2px solid var(--accent);">
-                        @foreach ([['Телефони', 'обов\'язкове'], ['Месенджери', 'обов\'язкове']] as $i => $cat)
-                            <div style="display:grid; grid-template-columns:1fr 80px 80px; gap:16px; padding:16px 20px; {{ $i ? 'border-top:1px solid var(--ink-3);' : '' }} align-items:center;">
-                                <div style="display:flex; align-items:center; gap:8px;">
-                                    <span style="font:14px var(--font-sans); color:var(--ink-9);">{{ $cat[0] }}</span>
-                                    <span class="pill" style="height:20px; font-size:10px; background:var(--accent-soft); color:var(--accent);">{{ $cat[1] }}</span>
-                                </div>
-                                <span></span>
-                                <span style="color:var(--ink-4); display:flex; justify-content:flex-end;"><x-icon.lock width="14" height="14" /></span>
-                            </div>
-                        @endforeach
-                    </div>
-                </div>
-                <div>
-                    <div class="eyebrow" style="margin-bottom:12px;">Інші · додаткові</div>
-                    <div class="card" style="overflow:hidden;">
-                        @foreach (['Ціни', 'Адреси', 'Соціальні мережі', 'Custom поля'] as $i => $cat)
-                            <div style="display:grid; grid-template-columns:1fr 80px; gap:16px; padding:16px 20px; {{ $i ? 'border-top:1px solid var(--ink-3);' : '' }} align-items:center;">
-                                <span style="font:14px var(--font-sans); color:var(--ink-9);">{{ $cat }}</span>
-                                <div style="display:flex; justify-content:flex-end;">
-                                    <span style="width:32px; height:18px; border-radius:999px; background:var(--ink-9); position:relative; display:inline-block; cursor:pointer;">
-                                        <span style="position:absolute; top:2px; left:16px; width:14px; height:14px; border-radius:999px; background:var(--paper);"></span>
-                                    </span>
-                                </div>
-                            </div>
-                        @endforeach
-                    </div>
-                </div>
-            </div>
-
             {{-- Webhooks --}}
             <div x-show="section === 'webhooks'">
                 <h2 style="font:400 24px/1 var(--font-sans); color:var(--ink-9); margin-bottom:24px;">Webhooks</h2>
@@ -169,48 +102,6 @@
                             <button class="btn btn-ghost btn-sm" style="color:var(--bad);">Відкликати</button>
                         </div>
                     @endforeach
-                </div>
-            </div>
-
-            {{-- Profile / Account --}}
-            <div x-show="section === 'profile'" x-data="{ tab: 'profile' }">
-                <header style="margin-bottom:24px;">
-                    <h2 style="font:400 24px/1 var(--font-sans); color:var(--ink-9);">Акаунт</h2>
-                </header>
-                <div style="display:flex; gap:24px; margin-bottom:32px; border-bottom:1px solid var(--ink-3);">
-                    @foreach ([['profile', 'Профіль'], ['password', 'Пароль']] as $t)
-                        <button @click="tab = '{{ $t[0] }}'" style="padding:14px 0; border-bottom:2px solid transparent; font:14px var(--font-sans); color:var(--ink-5); cursor:pointer; background:transparent;"
-                            :style="tab === '{{ $t[0] }}' ? 'border-bottom-color:var(--ink-9); color:var(--ink-9); font-weight:500;' : ''">
-                            {{ $t[1] }}
-                        </button>
-                    @endforeach
-                </div>
-
-                <div x-show="tab === 'profile'" style="max-width:520px;">
-                    <form wire:submit="saveProfile">
-                        @if (session('profile-saved'))
-                            <div style="margin-bottom:16px; padding:12px 16px; background:var(--ok-soft); color:var(--ok); border-radius:4px; font:13.5px var(--font-sans);">Профіль збережено.</div>
-                        @endif
-                        <div style="display:flex; flex-direction:column; gap:24px;">
-                            <x-ui.input wire:model="name" label="Імʼя" name="settings_name" :error="$errors->first('name')" />
-                            <x-ui.input wire:model="email" label="Email" name="settings_email" type="email" :error="$errors->first('email')" />
-                            <div><x-ui.button type="submit">Зберегти</x-ui.button></div>
-                        </div>
-                    </form>
-                </div>
-
-                <div x-show="tab === 'password'" style="max-width:520px;">
-                    <form wire:submit="changePassword">
-                        @if (session('password-changed'))
-                            <div style="margin-bottom:16px; padding:12px 16px; background:var(--ok-soft); color:var(--ok); border-radius:4px; font:13.5px var(--font-sans);">Пароль змінено.</div>
-                        @endif
-                        <div style="display:flex; flex-direction:column; gap:24px;">
-                            <x-ui.input wire:model="current_password" label="Поточний пароль" name="current_password" type="password" :error="$errors->first('current_password')" />
-                            <x-ui.input wire:model="new_password" label="Новий пароль" name="new_password" type="password" :error="$errors->first('new_password')" />
-                            <x-ui.input wire:model="new_password_confirmation" label="Підтвердити пароль" name="new_password_confirmation" type="password" />
-                            <div><x-ui.button type="submit">Змінити пароль</x-ui.button></div>
-                        </div>
-                    </form>
                 </div>
             </div>
 

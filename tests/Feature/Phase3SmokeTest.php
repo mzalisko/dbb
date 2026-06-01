@@ -176,7 +176,8 @@ class Phase3SmokeTest extends TestCase
         $this->assertStringContainsString('dashboard', $content);
         $this->assertStringContainsString('sites', $content);
         $this->assertStringContainsString('team', $content);
-        $this->assertStringContainsString('settings', $content);
+        // Settings moved into the user menu; the data browser is a top-level nav link now.
+        $this->assertStringContainsString('data', $content);
     }
 
     // --- Livewire component tests ---

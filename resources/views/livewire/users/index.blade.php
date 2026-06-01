@@ -171,7 +171,9 @@
                         <div class="perm-grid perm-row">
                             <span class="perm-resource">{{ $rlabel }}</span>
                             @foreach ($actions as $action)
-                                @php($on = $matrix[$rkey][$action] ?? false)
+                                @php
+                                    $on = $matrix[$rkey][$action] ?? false;
+                                @endphp
                                 <div class="perm-cell">
                                     <button type="button"
                                         @if(! $locked) wire:click="togglePerm('{{ $rkey }}', '{{ $action }}')" @endif
@@ -192,14 +194,14 @@
             <div style="margin-top:28px;">
                 <span class="label">Доступ до сайтів</span>
                 <div class="access-scope">
-                    <button type="button" @if(! $locked) wire:click="setAccessScope('all')" @endif
+                    <button type="button" wire:click="setAccessScope('all')"
                         class="access-scope__btn {{ $accessScope === 'all' ? 'access-scope__btn--active' : '' }}"
-                        @if($locked) disabled @endif>
+                        {{ $locked ? 'disabled' : '' }}>
                         Усі сайти
                     </button>
-                    <button type="button" @if(! $locked) wire:click="setAccessScope('limited')" @endif
+                    <button type="button" wire:click="setAccessScope('limited')"
                         class="access-scope__btn {{ $accessScope === 'limited' ? 'access-scope__btn--active' : '' }}"
-                        @if($locked) disabled @endif>
+                        {{ $locked ? 'disabled' : '' }}>
                         Обмежений доступ
                     </button>
                 </div>
@@ -208,12 +210,19 @@
                     {{-- Groups --}}
                     <div style="margin-top:18px;">
                         <span class="access-sub-label">Групи сайтів</span>
+                        @php
+                            $visibleAccessGroups = $allGroups->take(2);
+                            $overflowAccessGroups = $allGroups->slice(2);
+                            $overflowAccessActive = $overflowAccessGroups->contains(fn ($g) => in_array($g->name, $groupAccess, true));
+                        @endphp
                         <div class="access-pills">
-                            @forelse ($allGroups as $g)
-                                @php($active = in_array($g->name, $groupAccess, true))
-                                <button type="button" @if(! $locked) wire:click="toggleGroup('{{ $g->name }}')" @endif
+                            @forelse ($visibleAccessGroups as $g)
+                                @php
+                                    $active = in_array($g->name, $groupAccess, true);
+                                @endphp
+                                <button type="button" wire:click="toggleGroup('{{ $g->name }}')"
                                     class="access-pill {{ $active ? 'access-pill--active' : '' }}"
-                                    @if($locked) disabled @endif>
+                                    {{ $locked ? 'disabled' : '' }}>
                                     <span class="access-pill__dot" style="background:{{ $g->color }};"></span>
                                     {{ $g->name }}
                                     @if($active)<x-icon.check width="11" height="11" />@endif
@@ -221,6 +230,32 @@
                             @empty
                                 <span style="font:12px var(--font-mono); color:var(--ink-4);">Немає груп.</span>
                             @endforelse
+                            @if ($overflowAccessGroups->isNotEmpty())
+                                <span class="access-more" x-data="{ open: false }" @click.outside="open = false">
+                                    <button type="button"
+                                            class="access-pill access-pill--more {{ $overflowAccessActive ? 'access-pill--active' : '' }}"
+                                            @click="open = !open"
+                                            @if($locked) disabled @endif>
+                                        Ще {{ $overflowAccessGroups->count() }}
+                                    </button>
+                                    <span class="dropdown access-more__dropdown" x-show="open" x-cloak>
+                                        @foreach ($overflowAccessGroups as $g)
+                                            @php
+                                                $active = in_array($g->name, $groupAccess, true);
+                                            @endphp
+                                            <button type="button"
+                                                    class="pill-menu-item {{ $active ? 'is-active' : '' }}"
+                                                    wire:click="toggleGroup('{{ $g->name }}')"
+                                                    @click="open = false"
+                                                    {{ $locked ? 'disabled' : '' }}>
+                                                <span class="pill-dot" style="background:{{ $g->color }};"></span>
+                                                {{ $g->name }}
+                                                @if($active)<x-icon.check width="11" height="11" />@endif
+                                            </button>
+                                        @endforeach
+                                    </span>
+                                </span>
+                            @endif
                         </div>
                     </div>
 
@@ -229,12 +264,14 @@
                         <span class="access-sub-label">Окремі сайти</span>
                         <div class="access-site-list">
                             @forelse ($allSites as $s)
-                                @php($inGroup = in_array($s->group, $groupAccess, true))
-                                @php($checked = in_array($s->id, $siteAccess, true))
-                                <button type="button" @if(! $locked) wire:click="toggleSite({{ $s->id }})" @endif
+                                @php
+                                    $inGroup = in_array($s->group, $groupAccess, true);
+                                    $checked = in_array($s->id, $siteAccess, true);
+                                @endphp
+                                <button type="button" wire:click="toggleSite({{ $s->id }})"
                                     class="access-site {{ ($checked || $inGroup) ? 'access-site--on' : '' }}"
-                                    @if($locked) disabled @endif
-                                    @if($inGroup) title="Доступ через групу «{{ $s->group }}»" @endif>
+                                    {{ $locked ? 'disabled' : '' }}
+                                    title="{{ $inGroup ? 'Доступ через групу «' . $s->group . '»' : '' }}">
                                     <span class="access-site__check">
                                         @if($checked || $inGroup)<x-icon.check width="11" height="11" />@endif
                                     </span>
@@ -263,7 +300,21 @@
                         <span>{{ $changingPassword ? 'Скасувати зміну пароля' : 'Змінити пароль' }}</span>
                     </button>
 
+                    @if (!$isOwner)
+                        <button wire:click="generateTemporaryPassword"
+                                class="team-action-btn">
+                            <x-icon.refresh width="14" height="14" style="color:var(--ink-5); flex-shrink:0;" />
+                            <span>Згенерувати тимчасовий пароль</span>
+                        </button>
+                    @endif
+
                     @if ($changingPassword)
+                        @if ($generatedPassword !== '')
+                            <div class="team-temp-pass">
+                                <span class="team-temp-pass__label">Тимчасовий пароль</span>
+                                <span class="team-temp-pass__value mono">{{ $generatedPassword }}</span>
+                            </div>
+                        @endif
                         <div class="team-pass-fields">
                             <div>
                                 <label class="label" for="new_pass">Новий пароль</label>

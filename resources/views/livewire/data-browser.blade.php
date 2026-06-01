@@ -62,13 +62,6 @@
         @if (count($kinds) > 0)
             <div style="display:flex; align-items:center; gap:6px; margin-top:10px; flex-wrap:wrap;">
                 <span style="font:11px var(--font-mono); color:var(--ink-5); text-transform:uppercase; letter-spacing:.06em; margin-right:2px;">Вид</span>
-                <button wire:click="$set('kindFilter', '')" style="
-                    height:28px; padding:0 11px; border-radius:999px; font:12px var(--font-sans); cursor:pointer;
-                    background:{{ $kindFilter === '' ? 'var(--ink-9)' : 'transparent' }};
-                    color:{{ $kindFilter === '' ? 'var(--paper)' : 'var(--ink-6)' }};
-                    box-shadow:{{ $kindFilter === '' ? 'none' : 'inset 0 0 0 1px var(--ink-3)' }};">
-                    Усі
-                </button>
                 @foreach ($kinds as $kkey => $klabel)
                     <button wire:click="$set('kindFilter', '{{ $kkey }}')" style="
                         height:28px; padding:0 11px; border-radius:999px; font:12px var(--font-sans); cursor:pointer;
@@ -80,6 +73,20 @@
                 @endforeach
             </div>
         @endif
+
+        {{-- Role/state sub-filter — pick Active / Reserve / Hidden, then act on them. --}}
+        <div style="display:flex; align-items:center; gap:6px; margin-top:10px; flex-wrap:wrap;">
+            <span style="font:11px var(--font-mono); color:var(--ink-5); text-transform:uppercase; letter-spacing:.06em; margin-right:2px;">Стан</span>
+            @foreach (['' => 'Всі', 'primary' => 'Активні', 'backup' => 'Резервні', 'hidden' => 'Приховані'] as $rkey => $rlabel)
+                <button wire:click="$set('roleFilter', '{{ $rkey }}')" style="
+                    height:28px; padding:0 11px; border-radius:999px; font:12px var(--font-sans); cursor:pointer;
+                    background:{{ $roleFilter === $rkey ? 'var(--ink-9)' : 'transparent' }};
+                    color:{{ $roleFilter === $rkey ? 'var(--paper)' : 'var(--ink-6)' }};
+                    box-shadow:{{ $roleFilter === $rkey ? 'none' : 'inset 0 0 0 1px var(--ink-3)' }};">
+                    {{ $rlabel }}
+                </button>
+            @endforeach
+        </div>
     </div>
 
     {{-- Bulk action bar --}}
@@ -111,9 +118,14 @@
                     <button class="bulk-action" wire:click="openEdit('label')">
                         <x-icon.tag width="13" height="13" /> Мітка
                     </button>
-                    <button class="bulk-action" wire:click="openEdit('role')">
-                        <x-icon.bolt width="13" height="13" /> Роль
+                    <button class="bulk-action" wire:click="openRole">
+                        <x-icon.bolt width="13" height="13" /> Стан
                     </button>
+                    @if ($typeFilter === 'price')
+                        <button class="bulk-action" wire:click="openPriceEdit">
+                            <x-icon.tag width="13" height="13" /> Ціна
+                        </button>
+                    @endif
                     <button class="bulk-action" wire:click="openGeo">
                         <x-icon.globe width="13" height="13" /> Гео
                     </button>
@@ -169,7 +181,7 @@
                             @elseif ($entry->role === 'backup')
                                 <span class="dot dot-info"></span> Резерв
                             @else
-                                <span class="dot"></span> Архів
+                                <span class="dot"></span> Приховано
                             @endif
                         </span>
                     @endif
@@ -186,7 +198,7 @@
 
     {{-- Bulk edit drawer (replace value / change label) --}}
     @if ($editingField)
-        @php $editTitles = ['value' => 'Замінити значення', 'label' => 'Змінити мітку', 'role' => 'Змінити роль']; @endphp
+        @php $editTitles = ['value' => 'Замінити значення', 'label' => 'Змінити мітку']; @endphp
         <div wire:key="bulk-edit-{{ $editField }}">
             <x-ui.drawer :open="true"
                          :title="$editTitles[$editField] ?? 'Редагувати'"
@@ -211,44 +223,24 @@
                         </div>
                     @endif
 
-                    @if ($editField === 'role')
-                        <div>
-                            <label style="display:block; font:12px var(--font-mono); color:var(--ink-5); text-transform:uppercase; letter-spacing:.06em;">Нова роль</label>
-                            <div style="margin-top:8px; display:flex; gap:8px;">
-                                @foreach (['primary' => 'Активний', 'archive' => 'Архів'] as $val => $lbl)
-                                    <button type="button" wire:click="$set('editValue', '{{ $val }}')"
-                                            style="flex:1; height:44px; border-radius:10px; font:14px var(--font-sans); cursor:pointer;
-                                                   background:{{ $editValue === $val ? 'var(--ink-9)' : 'var(--card)' }};
-                                                   color:{{ $editValue === $val ? 'var(--paper)' : 'var(--ink-7)' }};
-                                                   border:1px solid {{ $editValue === $val ? 'var(--ink-9)' : 'var(--ink-3)' }};">
-                                        {{ $lbl }}
-                                    </button>
-                                @endforeach
-                            </div>
-                            <div style="margin-top:8px; font:12px var(--font-sans); color:var(--ink-5);">
-                                «Резерв» призначається окремо — потрібен основний запис. Дію можна відмінити.
-                            </div>
+                    <div>
+                        <label style="display:block; font:12px var(--font-mono); color:var(--ink-5); text-transform:uppercase; letter-spacing:.06em;">
+                            {{ $editField === 'value' ? 'Нове значення' : 'Нова мітка' }}
+                        </label>
+                        <input type="text" wire:model="editValue" wire:keydown.enter="applyEdit"
+                               x-init="$nextTick(() => $el.focus())"
+                               placeholder="{{ $editField === 'value' ? 'Напр. +48 22 111 22 33' : 'Напр. Підписка · Pro' }}"
+                               style="margin-top:8px; width:100%; height:44px; padding:0 14px; border-radius:10px; background:var(--card); border:1px solid var(--ink-3); font:14.5px var(--font-sans); color:var(--ink-9); outline:none;" />
+                        <div style="margin-top:8px; font:12px var(--font-sans); color:var(--ink-5);">
+                            Застосується до всіх {{ $this->selectedCount() }} обраних записів{{ $editField === 'value' ? ' — навіть на різних сайтах' : '' }}. Дію можна відмінити.
                         </div>
-                    @else
-                        <div>
-                            <label style="display:block; font:12px var(--font-mono); color:var(--ink-5); text-transform:uppercase; letter-spacing:.06em;">
-                                {{ $editField === 'value' ? 'Нове значення' : 'Нова мітка' }}
-                            </label>
-                            <input type="text" wire:model="editValue" wire:keydown.enter="applyEdit"
-                                   x-init="$nextTick(() => $el.focus())"
-                                   placeholder="{{ $editField === 'value' ? 'Напр. +48 22 111 22 33' : 'Напр. Підписка · Pro' }}"
-                                   style="margin-top:8px; width:100%; height:44px; padding:0 14px; border-radius:10px; background:var(--card); border:1px solid var(--ink-3); font:14.5px var(--font-sans); color:var(--ink-9); outline:none;" />
-                            <div style="margin-top:8px; font:12px var(--font-sans); color:var(--ink-5);">
-                                Застосується до всіх {{ $this->selectedCount() }} обраних записів{{ $editField === 'value' ? ' — навіть на різних сайтах' : '' }}. Дію можна відмінити.
-                            </div>
-                        </div>
-                    @endif
+                    </div>
                 </div>
 
                 <x-slot:footer>
                     <button class="btn btn-ghost" wire:click="closeEdit">Скасувати</button>
                     <button class="btn btn-primary" wire:click="applyEdit">
-                        {{ $editField === 'value' ? 'Замінити' : ($editField === 'role' ? 'Застосувати' : 'Зберегти') }}
+                        {{ $editField === 'value' ? 'Замінити' : 'Зберегти' }}
                     </button>
                 </x-slot:footer>
             </x-ui.drawer>
@@ -371,6 +363,99 @@
                 <x-slot:footer>
                     <button class="btn btn-ghost" wire:click="closeGeo">Скасувати</button>
                     <button class="btn btn-primary" wire:click="applyGeo">Застосувати</button>
+                </x-slot:footer>
+            </x-ui.drawer>
+        </div>
+    @endif
+
+    {{-- Bulk role/state drawer (active / hidden — backup is assigned separately) --}}
+    @if ($editingRole)
+        <div wire:key="bulk-role">
+            <x-ui.drawer :open="true" title="Змінити стан" :sub="$this->selectedCount() . ' обрано'"
+                         @drawer-close.window="$wire.closeRole()">
+                <div style="display:flex; flex-direction:column; gap:18px;">
+                    <div>
+                        <label style="display:block; font:12px var(--font-mono); color:var(--ink-5); text-transform:uppercase; letter-spacing:.06em;">Новий стан</label>
+                        <div style="margin-top:8px; display:flex; gap:8px;">
+                            @foreach (['primary' => 'Активний', 'hidden' => 'Приховано'] as $val => $lbl)
+                                <button type="button" wire:click="$set('roleValue', '{{ $val }}')"
+                                        style="flex:1; height:44px; border-radius:10px; font:14px var(--font-sans); cursor:pointer;
+                                               background:{{ $roleValue === $val ? 'var(--ink-9)' : 'var(--card)' }};
+                                               color:{{ $roleValue === $val ? 'var(--paper)' : 'var(--ink-7)' }};
+                                               border:1px solid {{ $roleValue === $val ? 'var(--ink-9)' : 'var(--ink-3)' }};">
+                                    {{ $lbl }}
+                                </button>
+                            @endforeach
+                        </div>
+                        <div style="margin-top:8px; font:12px var(--font-sans); color:var(--ink-5);">
+                            «Активний» від'єднує резерв від контакту й зберігає успадковане гео. «Резерв» призначається окремо — потрібен основний запис. Дію можна відмінити.
+                        </div>
+                    </div>
+                </div>
+                <x-slot:footer>
+                    <button class="btn btn-ghost" wire:click="closeRole">Скасувати</button>
+                    <button class="btn btn-primary" wire:click="applyRole">Застосувати</button>
+                </x-slot:footer>
+            </x-ui.drawer>
+        </div>
+    @endif
+
+    {{-- Bulk price-fields drawer (currency / unit / price / old price) --}}
+    @if ($editingPrice)
+        @php $priceFieldLabels = ['currency' => 'Валюта', 'price_unit' => 'Одиниця', 'price' => 'Ціна', 'old_price' => 'Стара ціна']; @endphp
+        <div wire:key="bulk-price">
+            <x-ui.drawer :open="true" title="Змінити ціни" :sub="$this->selectedCount() . ' обрано'"
+                         @drawer-close.window="$wire.closePriceEdit()">
+                <div style="display:flex; flex-direction:column; gap:18px;">
+                    <div>
+                        <label style="display:block; font:12px var(--font-mono); color:var(--ink-5); text-transform:uppercase; letter-spacing:.06em;">Поле</label>
+                        <div style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap;">
+                            @foreach ($priceFieldLabels as $fkey => $flabel)
+                                <button type="button" wire:click="$set('priceField', '{{ $fkey }}')"
+                                        style="height:34px; padding:0 12px; border-radius:8px; font:13px var(--font-sans); cursor:pointer;
+                                               background:{{ $priceField === $fkey ? 'var(--ink-9)' : 'var(--card)' }};
+                                               color:{{ $priceField === $fkey ? 'var(--paper)' : 'var(--ink-7)' }};
+                                               border:1px solid {{ $priceField === $fkey ? 'var(--ink-9)' : 'var(--ink-3)' }};">
+                                    {{ $flabel }}
+                                </button>
+                            @endforeach
+                        </div>
+                    </div>
+
+                    @if ($priceField === 'currency')
+                        <div>
+                            <label style="display:block; font:12px var(--font-mono); color:var(--ink-5); text-transform:uppercase; letter-spacing:.06em;">Валюта</label>
+                            <div style="margin-top:8px; display:flex; gap:8px;">
+                                @foreach (['EUR', 'USD', 'PLN', 'UAH'] as $cur)
+                                    <button type="button" wire:click="$set('priceValue', '{{ $cur }}')"
+                                            style="flex:1; height:44px; border-radius:10px; font:14px var(--font-mono); cursor:pointer;
+                                                   background:{{ $priceValue === $cur ? 'var(--ink-9)' : 'var(--card)' }};
+                                                   color:{{ $priceValue === $cur ? 'var(--paper)' : 'var(--ink-7)' }};
+                                                   border:1px solid {{ $priceValue === $cur ? 'var(--ink-9)' : 'var(--ink-3)' }};">
+                                        {{ $cur }}
+                                    </button>
+                                @endforeach
+                            </div>
+                        </div>
+                    @else
+                        <div>
+                            <label style="display:block; font:12px var(--font-mono); color:var(--ink-5); text-transform:uppercase; letter-spacing:.06em;">
+                                {{ $priceFieldLabels[$priceField] }}
+                            </label>
+                            <input type="text" wire:model="priceValue" wire:keydown.enter="applyPriceEdit"
+                                   x-init="$nextTick(() => $el.focus())"
+                                   placeholder="{{ $priceField === 'price_unit' ? 'напр. міс / шт / рік' : 'напр. 199' }}"
+                                   style="margin-top:8px; width:100%; height:44px; padding:0 14px; border-radius:10px; background:var(--card); border:1px solid var(--ink-3); font:14.5px var(--font-sans); color:var(--ink-9); outline:none;" />
+                            <div style="margin-top:8px; font:12px var(--font-sans); color:var(--ink-5);">
+                                @if (in_array($priceField, ['price', 'old_price']))Порожнє поле — прибрати значення. @endif
+                                Застосується до всіх {{ $this->selectedCount() }} обраних. Дію можна відмінити.
+                            </div>
+                        </div>
+                    @endif
+                </div>
+                <x-slot:footer>
+                    <button class="btn btn-ghost" wire:click="closePriceEdit">Скасувати</button>
+                    <button class="btn btn-primary" wire:click="applyPriceEdit">Застосувати</button>
                 </x-slot:footer>
             </x-ui.drawer>
         </div>

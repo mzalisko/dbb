@@ -10,6 +10,7 @@ use Livewire\WithPagination;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Title;
 use Livewire\Attributes\On;
+use Illuminate\Support\Str;
 
 #[Layout('components.layouts.app')]
 #[Title('Команда')]
@@ -36,6 +37,7 @@ class Index extends Component
     public bool $changingPassword = false;
     public string $newPassword = '';
     public string $confirmPassword = '';
+    public string $generatedPassword = '';
 
     public bool $confirmingDelete = false;
 
@@ -51,6 +53,7 @@ class Index extends Component
         $this->changingPassword = false;
         $this->newPassword   = '';
         $this->confirmPassword = '';
+        $this->generatedPassword = '';
         $this->confirmingDelete = false;
     }
 
@@ -60,7 +63,23 @@ class Index extends Component
         $this->changingPassword = false;
         $this->newPassword = '';
         $this->confirmPassword = '';
+        $this->generatedPassword = '';
         $this->confirmingDelete = false;
+    }
+
+    public function generateTemporaryPassword(): void
+    {
+        abort_unless(auth()->user()->isAdmin(), 403);
+
+        $user = $this->openUserId ? User::findOrFail($this->openUserId) : null;
+        abort_if(! $user || $user->role === 'owner', 403);
+
+        $password = Str::random(6) . '-' . random_int(1000, 9999) . '-' . Str::random(6);
+
+        $this->changingPassword = true;
+        $this->newPassword = $password;
+        $this->confirmPassword = $password;
+        $this->generatedPassword = $password;
     }
 
     public function selectRole(string $role): void
@@ -144,6 +163,7 @@ class Index extends Component
             $this->changingPassword = false;
             $this->newPassword = '';
             $this->confirmPassword = '';
+            $this->generatedPassword = '';
         }
 
         $user->save();

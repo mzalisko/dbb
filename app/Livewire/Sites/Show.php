@@ -4,6 +4,9 @@ namespace App\Livewire\Sites;
 
 use App\Models\Site;
 use App\Models\ActivityLog;
+use App\Models\ContactEntry;
+use App\Models\SiteGroup;
+use App\Services\ActivityLogService;
 use Livewire\Component;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Title;
@@ -29,6 +32,7 @@ class Show extends Component
     public bool $failoverEnabled = true;
     public string $failoverInterval = '5min';
     public int $failoverThreshold = 3;
+    public string $siteGroupId = '';
 
     // ContactEntry CRUD state
     public bool $editingEntry = false;
@@ -71,6 +75,7 @@ class Show extends Component
     public string $confirmAction = '';
     public ?int $confirmEntryId = null;
     public ?string $confirmGeoCode = null;
+    public ?string $confirmMessengerKind = null;
     public ?string $confirmSiteStatus = null;
     public string $confirmDeleteSiteName = '';
     public string $confirmTitle = '';
@@ -115,6 +120,9 @@ class Show extends Component
         $this->failoverEnabled   = $this->site->failover_enabled ?? true;
         $this->failoverInterval  = $this->site->failover_interval ?? '5min';
         $this->failoverThreshold = $this->site->failover_threshold ?? 3;
+        $this->siteGroupId = (string) (SiteGroup::query()
+            ->where('name', $this->site->group)
+            ->value('id') ?? '');
     }
 
     private function normalizeGeoTabs(?array $tabs): array
@@ -305,6 +313,65 @@ class Show extends Component
         $this->site->update(['failover_enabled' => $this->failoverEnabled]);
     }
 
+    public function triggerFailover(int $fromId, int $toId): void
+    {
+        $this->authorize('update', $this->site);
+
+        $from = ContactEntry::query()
+            ->where('site_id', $this->site->id)
+            ->where('type', 'phone')
+            ->where('role', 'primary')
+            ->findOrFail($fromId);
+
+        $to = ContactEntry::query()
+            ->where('site_id', $this->site->id)
+            ->where('type', 'phone')
+            ->where('role', 'backup')
+            ->where('parent_id', $from->id)
+            ->findOrFail($toId);
+
+        ActivityLogService::log('site.failover.triggered', $this->site, [
+            'from_id' => $from->id,
+            'from' => $from->value,
+            'to_id' => $to->id,
+            'to' => $to->value,
+            'geo' => $to->preview_geo_label ?? $from->preview_geo_label,
+            'mode' => 'manual',
+            'cause' => 'manual trigger',
+            'ok' => true,
+        ]);
+
+        $this->dispatch('toast', type: 'success', message: 'Failover записано в журнал');
+    }
+
+    public function restoreFailover(int $fromId, int $toId): void
+    {
+        $this->authorize('update', $this->site);
+
+        $from = ContactEntry::query()
+            ->where('site_id', $this->site->id)
+            ->where('type', 'phone')
+            ->findOrFail($fromId);
+
+        $to = ContactEntry::query()
+            ->where('site_id', $this->site->id)
+            ->where('type', 'phone')
+            ->findOrFail($toId);
+
+        ActivityLogService::log('site.failover.restored', $this->site, [
+            'from_id' => $from->id,
+            'from' => $from->value,
+            'to_id' => $to->id,
+            'to' => $to->value,
+            'geo' => $to->preview_geo_label ?? $from->preview_geo_label,
+            'mode' => 'restore',
+            'cause' => 'manual restore',
+            'ok' => true,
+        ]);
+
+        $this->dispatch('toast', type: 'success', message: 'Відновлення записано в журнал');
+    }
+
     public function editEntry(int $id): void
     {
         $entry = \App\Models\ContactEntry::findOrFail($id);
@@ -335,6 +402,10 @@ class Show extends Component
         $this->resetEntryForm();
         $this->entryType     = $type;
         $this->entryParentId = $parentId;
+        // Socials default to the first platform so the picker isn't blank.
+        if ($type === 'social') {
+            $this->entryKind = array_key_first(\App\Models\ContactEntry::SOCIAL_KINDS);
+        }
         if ($parentId) {
             $this->entryRole = 'backup';
             // A messenger reserve must be the same platform as its primary (e.g. Telegram → Telegram).
@@ -375,6 +446,13 @@ class Show extends Component
             $rules['entryPrice']    = 'required|numeric|min:0';
             $rules['entryCurrency'] = 'required|size:3';
             $rules['entrySku']      = 'required|max:255';
+        } elseif ($this->entryType === 'social') {
+            $rules['entryValue'] = 'required|max:500';
+            $rules['entryKind']  = 'required|in:' . implode(',', array_keys(\App\Models\ContactEntry::SOCIAL_KINDS));
+            $rules['entryLabel'] = 'nullable|max:255';
+        } elseif ($this->entryType === 'address') {
+            $rules['entryValue'] = 'required|max:500';
+            $rules['entryLabel'] = 'nullable|max:255';
         }
 
         $this->validate($rules);
@@ -386,9 +464,13 @@ class Show extends Component
                 ->firstOrFail();
         }
 
-        $entryGeoTag = $this->entryGeoTag ?: ($parentEntry?->geo_tag);
-        $entryGeoMode = $parentEntry?->geo_mode ?? $this->entryGeoMode;
-        $entryCountries = $parentEntry ? ($parentEntry->countries ?? []) : $this->entryCountries;
+        // A reserve carries no geo of its own — it reads through to its primary
+        // at render time (see ContactEntry::geoOwner), so we store neutral geo
+        // and never let the two drift apart.
+        $isReserve      = $this->entryRole === 'backup' && $parentEntry;
+        $entryGeoTag    = $isReserve ? null  : ($this->entryGeoTag ?: null);
+        $entryGeoMode   = $isReserve ? 'all' : $this->entryGeoMode;
+        $entryCountries = $isReserve ? []    : $this->entryCountries;
         // Messenger reserves inherit the platform of their primary (Telegram can't reserve to Viber).
         $entryKind = ($parentEntry && $this->entryType === 'messenger') ? $parentEntry->kind : $this->entryKind;
 
@@ -437,12 +519,18 @@ class Show extends Component
 
     public function promoteEntry(int $id): void
     {
-        $entry = \App\Models\ContactEntry::findOrFail($id);
+        $entry = \App\Models\ContactEntry::with('parent')->findOrFail($id);
         $this->authorize('update', $entry);
+        // Promoting a reserve makes it stand-alone — capture the geo it had been
+        // inheriting from its (now-detached) primary so its targeting is preserved.
+        $parent = $entry->parent;
         $entry->update([
             'role'      => 'primary',
             'parent_id' => null,
             'visible'   => true,
+            'geo_tag'   => $parent?->geo_tag,
+            'geo_mode'  => $parent?->geo_mode ?? 'all',
+            'countries' => $parent?->countries,
         ]);
         $this->dispatch('toast', type: 'success', message: 'Переведено в активні');
         if ($entry->type === 'phone') {
@@ -502,6 +590,7 @@ class Show extends Component
         $this->confirmAction = 'remove-geo-rule';
         $this->confirmEntryId = $id;
         $this->confirmGeoCode = null;
+        $this->confirmMessengerKind = null;
         $this->confirmTitle = 'Видалити правило ізоляції?';
         $this->confirmSubject = implode(' · ', $rule['groups'][0]) . ' ↔ ' . implode(' · ', $rule['groups'][1]);
         $this->confirmMessage = 'Правило буде прибрано з цього сайту і не повернеться після оновлення сторінки.';
@@ -519,9 +608,10 @@ class Show extends Component
         $this->confirmAction = 'remove-geo-tab';
         $this->confirmEntryId = null;
         $this->confirmGeoCode = $code;
-        $this->confirmTitle = 'Видалити ' . $code . ' з перегляду?';
+        $this->confirmMessengerKind = null;
+        $this->confirmTitle = 'Видалити ' . $code . ' з приналежності?';
         $this->confirmSubject = $code;
-        $this->confirmMessage = 'Пункт зникне з перемикача перегляду для цього сайту і не повернеться після оновлення сторінки.';
+        $this->confirmMessage = 'Пункт зникне з перемикача приналежності для цього сайту і не повернеться після оновлення сторінки.';
     }
 
     public function requestSetSiteStatus(string $status): void
@@ -542,6 +632,7 @@ class Show extends Component
         $this->confirmAction = 'set-site-status';
         $this->confirmEntryId = null;
         $this->confirmGeoCode = null;
+        $this->confirmMessengerKind = null;
         $this->confirmSiteStatus = $status;
         $this->confirmTitle = 'Змінити стан сайту?';
         $this->confirmSubject = $this->site->name . ' -> ' . $label;
@@ -560,6 +651,7 @@ class Show extends Component
         $this->confirmAction = 'delete-site';
         $this->confirmEntryId = null;
         $this->confirmGeoCode = null;
+        $this->confirmMessengerKind = null;
         $this->confirmSiteStatus = null;
         $this->confirmDeleteSiteName = '';
         $this->confirmTitle = 'Видалити сайт?';
@@ -575,6 +667,7 @@ class Show extends Component
         $this->confirmAction = '';
         $this->confirmEntryId = null;
         $this->confirmGeoCode = null;
+        $this->confirmMessengerKind = null;
         $this->confirmSiteStatus = null;
         $this->confirmDeleteSiteName = '';
         $this->confirmTitle = '';
@@ -616,6 +709,13 @@ class Show extends Component
             return;
         }
 
+        if ($this->confirmAction === 'remove-messenger-kind' && $this->confirmMessengerKind) {
+            $kind = $this->confirmMessengerKind;
+            $this->cancelConfirm();
+            $this->removeMessengerKind($kind);
+            return;
+        }
+
         if ($this->confirmAction === 'remove-geo-rule' && $this->confirmEntryId) {
             $id = $this->confirmEntryId;
             $this->cancelConfirm();
@@ -638,13 +738,39 @@ class Show extends Component
         $this->dispatch('toast', type: 'success', message: 'Стан сайту оновлено');
     }
 
+    public function updateSiteGroup(): void
+    {
+        $this->authorize('update', $this->site);
+
+        if ($this->siteGroupId === '') {
+            return;
+        }
+
+        $group = SiteGroup::query()->findOrFail((int) $this->siteGroupId);
+
+        $this->site->update([
+            'group' => $group->name,
+            'group_color' => $group->color,
+        ]);
+
+        $this->site = $this->site->fresh('client');
+        $this->siteGroupId = (string) $group->id;
+        $this->dispatch('toast', type: 'success', message: 'Групу сайту оновлено');
+    }
+
+    public function setSiteGroup(int $groupId): void
+    {
+        $this->siteGroupId = (string) $groupId;
+        $this->updateSiteGroup();
+    }
+
     public function deleteSite()
     {
         $this->authorize('delete', $this->site);
         $this->site->delete();
         $this->dispatch('toast', type: 'success', message: 'Сайт видалено');
 
-        return $this->redirectRoute('sites.index', navigate: true);
+        return $this->redirectRoute('sites.index');
     }
 
     public function toggleEntryVisibility(int $id): void
@@ -752,15 +878,17 @@ class Show extends Component
     {
         $entry = \App\Models\ContactEntry::findOrFail($id);
         $this->authorize('update', $entry);
-        $parent = \App\Models\ContactEntry::where('id', $parentId)
+        // Validate the parent belongs to this site; the reserve stores neutral
+        // geo and reads through to the parent at render time (geoOwner).
+        \App\Models\ContactEntry::where('id', $parentId)
             ->where('site_id', $this->site->id)
             ->firstOrFail();
         $entry->update([
             'role'      => 'backup',
             'parent_id' => $parentId,
-            'geo_tag'   => $parent->geo_tag,
-            'geo_mode'  => $parent->geo_mode,
-            'countries' => $parent->countries,
+            'geo_tag'   => null,
+            'geo_mode'  => 'all',
+            'countries' => null,
             'visible'   => true,
         ]);
         $this->assigningBackup = false;
@@ -818,6 +946,31 @@ class Show extends Component
         $this->messengerKinds[] = $kind;
         $this->saveMessengerKinds();
         $this->newMessengerKind = '';
+    }
+
+    public function requestRemoveMessengerKind(string $kind): void
+    {
+        $kind = $this->resolveMessengerKind($kind);
+        if (!$kind || !in_array($kind, $this->messengerKinds, true)) {
+            return;
+        }
+
+        $this->authorize('update', $this->site);
+
+        $meta = ContactEntry::MSG_KINDS[$kind] ?? null;
+        $label = $meta['label'] ?? ucfirst(str_replace(['-', '_'], ' ', $kind));
+
+        $this->confirmingAction = true;
+        $this->confirmAction = 'remove-messenger-kind';
+        $this->confirmEntryId = null;
+        $this->confirmGeoCode = null;
+        $this->confirmMessengerKind = $kind;
+        $this->confirmSiteStatus = null;
+        $this->confirmTitle = 'Видалити платформу?';
+        $this->confirmSubject = $label;
+        $this->confirmMessage = 'Платформа зникне з перемикача месенджерів для цього сайту і не повернеться після оновлення сторінки.';
+        $this->confirmButtonLabel = 'Видалити';
+        $this->confirmIsDanger = true;
     }
 
     public function removeMessengerKind(string $kind): void
@@ -951,6 +1104,25 @@ class Show extends Component
             ->values();
         $msgPrimaries   = $allMsgs->filter(fn($e) => is_null($e->parent_id))->values();
 
+        // Socials + addresses — flat (no reserves), sliced by the same preview geo tabs.
+        $allSocialsAll   = $this->site->contactEntries()->where('type', 'social')->orderBy('order')->get();
+        $allAddressesAll = $this->site->contactEntries()->where('type', 'address')->orderBy('order')->get();
+        $socialPrimariesByGeo = [];
+        $hiddenSocialsByGeo   = [];
+        $addressPrimariesByGeo = [];
+        $hiddenAddressesByGeo  = [];
+        $socialKindCountsByGeo = [];
+        foreach (array_merge(['all'], $this->geoTabs) as $gk) {
+            $fs = $this->filterByPreviewTab($allSocialsAll, $gk);
+            $socialPrimariesByGeo[$gk]  = $fs->filter(fn($e) => $e->visible)->values();
+            $hiddenSocialsByGeo[$gk]    = $fs->filter(fn($e) => !$e->visible)->values();
+            $socialKindCountsByGeo[$gk] = $fs->filter(fn($e) => $e->visible)->groupBy('kind')->map(fn($g) => $g->count())->all();
+            $fa = $this->filterByPreviewTab($allAddressesAll, $gk);
+            $addressPrimariesByGeo[$gk] = $fa->filter(fn($e) => $e->visible)->values();
+            $hiddenAddressesByGeo[$gk]  = $fa->filter(fn($e) => !$e->visible)->values();
+        }
+        $socialKinds = $allSocialsAll->pluck('kind')->filter()->unique()->values()->all();
+
         // Prices
         $allPrices = $this->site->contactEntries()->where('type', 'price')->where('visible', true)->get();
         $priceBySku = $allPrices->groupBy('sku');
@@ -962,6 +1134,15 @@ class Show extends Component
             ->latest()
             ->take(20)
             ->get();
+
+        $failoverLogs = ActivityLog::where('subject_type', Site::class)
+            ->where('subject_id', $this->site->id)
+            ->where('action', 'like', '%failover%')
+            ->with('user')
+            ->latest()
+            ->take(20)
+            ->get();
+        $siteGroups = SiteGroup::orderBy('name')->get();
 
         // All entries including hidden (for full Data tab list)
         // Extra categories
@@ -1004,8 +1185,13 @@ class Show extends Component
             'msgKindCountsByGeo', 'messengerKinds', 'availableMessengerKinds',
             'priceBySku', 'priceBySkuAll',
             'activityLogs',
+            'failoverLogs',
+            'siteGroups',
             'phoneCount', 'msgCount', 'priceCount',
             'addressCount', 'socialCount',
+            'allSocialsAll', 'allAddressesAll',
+            'socialPrimariesByGeo', 'hiddenSocialsByGeo', 'addressPrimariesByGeo', 'hiddenAddressesByGeo',
+            'socialKindCountsByGeo', 'socialKinds',
             'geoTabs', 'dataCategories', 'geoRules', 'newRuleA', 'newRuleB',
         ));
     }

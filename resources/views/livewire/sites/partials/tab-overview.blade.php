@@ -3,6 +3,10 @@
 
     {{-- ── Що бачать відвідувачі ── --}}
     <div class="card ov-card">
+        @php
+            $maxPhoneRows = collect($overviewByGeo)->map(fn ($col) => ($col['phones'] ?? collect())->count())->max() ?: 0;
+            $maxMessengerRows = collect($overviewByGeo)->map(fn ($col) => ($col['messengers'] ?? collect())->count())->max() ?: 0;
+        @endphp
         <div class="ov-card__head">
             <span class="eyebrow eyebrow-xs">Що бачать відвідувачі</span>
         </div>
@@ -29,6 +33,9 @@
                             @else
                                 <div class="ov-empty">&mdash;</div>
                             @endif
+                            @for($i = 0; $i < max(0, $maxPhoneRows - $phones->count()); $i++)
+                                <div class="ov-entry ov-entry--placeholder" aria-hidden="true"></div>
+                            @endfor
                         </div>
                     @endforeach
                 </div>
@@ -43,7 +50,12 @@
                             @php $messengers = $col['messengers'] ?? collect(); @endphp
                             @if($messengers->count())
                                 @foreach($messengers as $msg)
-                                    @php $mk = \App\Models\ContactEntry::MSG_KINDS[$msg->kind] ?? ['short' => '?', 'color' => '#888']; @endphp
+                                    @php
+                                        $mk = \App\Models\ContactEntry::MSG_KINDS[$msg->kind] ?? [
+                                            'short' => strtoupper(substr(preg_replace('/[^a-z0-9]/i', '', (string) $msg->kind), 0, 2) ?: '?'),
+                                            'color' => '#888',
+                                        ];
+                                    @endphp
                                     <div class="ov-entry">
                                         <div class="ov-val">{{ $msg->value }}</div>
                                         <div class="ov-sub">
@@ -60,6 +72,9 @@
                             @else
                                 <div class="ov-empty">&mdash;</div>
                             @endif
+                            @for($i = 0; $i < max(0, $maxMessengerRows - $messengers->count()); $i++)
+                                <div class="ov-entry ov-entry--placeholder" aria-hidden="true"></div>
+                            @endfor
                         </div>
                     @endforeach
                 </div>
@@ -102,7 +117,12 @@
                             @php $messengers = $col['messengers'] ?? collect(); @endphp
                             @if($messengers->count())
                                 @foreach($messengers as $msg)
-                                    @php $mk = \App\Models\ContactEntry::MSG_KINDS[$msg->kind] ?? ['short' => '?', 'color' => '#888']; @endphp
+                                    @php
+                                        $mk = \App\Models\ContactEntry::MSG_KINDS[$msg->kind] ?? [
+                                            'short' => strtoupper(substr(preg_replace('/[^a-z0-9]/i', '', (string) $msg->kind), 0, 2) ?: '?'),
+                                            'color' => '#888',
+                                        ];
+                                    @endphp
                                     <div class="ov-entry">
                                         <div class="ov-val">{{ $msg->value }}</div>
                                         <div class="ov-sub">
@@ -160,7 +180,12 @@
                         @endphp
                         @if($messengers->count())
                             @foreach($messengers as $msg)
-                                @php $mk = \App\Models\ContactEntry::MSG_KINDS[$msg->kind] ?? ['short' => '?', 'color' => '#888']; @endphp
+                                @php
+                                    $mk = \App\Models\ContactEntry::MSG_KINDS[$msg->kind] ?? [
+                                        'short' => strtoupper(substr(preg_replace('/[^a-z0-9]/i', '', (string) $msg->kind), 0, 2) ?: '?'),
+                                        'color' => '#888',
+                                    ];
+                                @endphp
                                 <div class="ov-entry">
                                     <div class="ov-val">{{ $msg->value }}</div>
                                     <div class="ov-sub">

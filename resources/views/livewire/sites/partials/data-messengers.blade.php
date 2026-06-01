@@ -6,6 +6,13 @@
     $messengerKinds = $messengerKinds ?? array_keys($msgKindCounts);
     $availableMessengerKinds = $availableMessengerKinds ?? [];
     $gkParam = isset($geoKey) && $geoKey !== 'all' ? "'{$geoKey}'" : 'null';
+    $resolveMsgKindMeta = function (?string $kind) use ($kinds) {
+        $kind = (string) $kind;
+        $customLabel = ucfirst(str_replace(['-', '_'], ' ', $kind));
+        $customShort = strtoupper(substr(preg_replace('/[^a-z0-9]/i', '', $kind), 0, 2) ?: '??');
+
+        return $kinds[$kind] ?? ['label' => $customLabel, 'color' => '#888', 'short' => $customShort];
+    };
 @endphp
 
 {{-- Platform tabs --}}
@@ -19,9 +26,7 @@
 
     @foreach($messengerKinds as $kindKey)
         @php
-            $customLabel = ucfirst(str_replace(['-', '_'], ' ', $kindKey));
-            $customShort = strtoupper(substr(preg_replace('/[^a-z0-9]/i', '', $kindKey), 0, 2) ?: '??');
-            $kd = $kinds[$kindKey] ?? ['label'=>$customLabel,'color'=>'#888','short'=>$customShort];
+            $kd = $resolveMsgKindMeta($kindKey);
             $count = $msgKindCounts[$kindKey] ?? 0;
         @endphp
         <span class="msg-pill-tab">
@@ -35,7 +40,7 @@
             <button class="msg-pill__remove"
                     type="button"
                     title="Видалити платформу"
-                    @click.stop="if (msgKind===@js($kindKey)) msgKind='all'; $wire.removeMessengerKind(@js($kindKey));">
+                    @click.stop="if (msgKind===@js($kindKey)) msgKind='all'; $wire.requestRemoveMessengerKind(@js($kindKey));">
                 &times;
             </button>
         </span>
@@ -84,7 +89,7 @@
     {{-- Sortable primary entries --}}
     <div x-data="sortable()">
         @forelse($msgPrimaries as $i => $msg)
-            @php $k = $kinds[$msg->kind] ?? ['label'=>$msg->kind,'color'=>'#888','short'=>'??']; @endphp
+            @php $k = $resolveMsgKindMeta($msg->kind); @endphp
             <div class="ctable-group"
                  data-entry-id="{{ $msg->id }}"
                  data-msg-kind="{{ $msg->kind }}"
@@ -132,7 +137,7 @@
                         {{-- Backup rows — sortable --}}
                         <div x-show="open" x-data="backupSortable({{ $msg->id }})">
                             @foreach($msg->backups as $j => $backup)
-                                @php $bk = $kinds[$backup->kind] ?? ['label'=>$backup->kind,'color'=>'#888','short'=>'??']; @endphp
+                                @php $bk = $resolveMsgKindMeta($backup->kind); @endphp
                                 <div class="crow crow--msg crow--backup" data-backup-id="{{ $backup->id }}">
                                     <span class="cc-drag" @click.stop style="color:var(--ink-4);">&#x2807;</span>
                                     <span class="cc-num cc-num--backup">#{{ $i+1 }}.{{ $j+1 }}</span>
@@ -140,9 +145,9 @@
                                         <span class="msg-badge msg-badge--sm" style="background:{{ $bk['color'] }};">{{ $bk['short'] }}</span>
                                         <span class="mono cc-val--sub">{{ $backup->value }}</span>
                                     </div>
-                                    <span class="cc-iso">@include('livewire.sites.partials.preview-tag-badge', ['entry' => $backup])</span>
+                                    <span class="cc-iso">@include('livewire.sites.partials.preview-tag-badge', ['entry' => $msg])</span>
                                     <span class="cc-label--muted">{{ $backup->label }}</span>
-                                    <span class="cc-geo">—</span>
+                                    <span class="cc-geo">{{ $msg->geo_label }}</span>
                                     <span class="cc-role cc-role--muted">
                                         <span class="role-dot" style="background:var(--info);"></span> Резерв
                                     </span>
@@ -172,7 +177,7 @@
 
     {{-- Hidden entries --}}
     @foreach($hiddenMsgs as $msg)
-        @php $k = $kinds[$msg->kind] ?? ['label'=>$msg->kind,'color'=>'#888','short'=>'??']; @endphp
+        @php $k = $resolveMsgKindMeta($msg->kind); @endphp
         <div wire:click="editEntry({{ $msg->id }})"
              class="crow crow--msg crow--hidden"
              data-msg-kind="{{ $msg->kind }}"

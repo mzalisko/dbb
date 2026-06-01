@@ -60,6 +60,39 @@ class DataBrowserBulkTest extends TestCase
             ->assertSet('selectAllMatching', false);
     }
 
+    public function test_select_all_filtered_action_selects_all_matching_messengers(): void
+    {
+        $owner = User::factory()->create(['role' => 'owner']);
+        $site = $this->siteForOwner($owner);
+        ContactEntry::factory()->for($site)->messenger('telegram')->count(8)->create();
+        ContactEntry::factory()->for($site)->phone()->count(2)->create();
+
+        $ids = ContactEntry::where('type', 'messenger')->limit(2)->pluck('id')->all();
+
+        Livewire::actingAs($owner)
+            ->test(DataBrowser::class, ['typeFilter' => 'messenger'])
+            ->call('selectPage', $ids)
+            ->assertSet('selectAllMatching', false)
+            ->call('selectAllFiltered')
+            ->assertSet('selectAllMatching', true)
+            ->assertSee('усі 8');
+    }
+
+    public function test_custom_messenger_kind_is_available_in_data_browser_filter(): void
+    {
+        $owner = User::factory()->create(['role' => 'owner']);
+        $site = $this->siteForOwner($owner);
+        ContactEntry::factory()->for($site)->messenger('max')->create(['value' => '@max_support']);
+        ContactEntry::factory()->for($site)->messenger('telegram')->create(['value' => '@telegram_support']);
+
+        Livewire::actingAs($owner)
+            ->test(DataBrowser::class, ['typeFilter' => 'messenger'])
+            ->assertSee('Max')
+            ->set('kindFilter', 'max')
+            ->assertSee('@max_support')
+            ->assertDontSee('@telegram_support');
+    }
+
     public function test_bulk_delete_soft_deletes_selected_and_dispatches_undo(): void
     {
         $owner = User::factory()->create(['role' => 'owner']);
@@ -412,22 +445,52 @@ class DataBrowserBulkTest extends TestCase
             ->assertSet('editingField', true); // label is a free annotation, type-agnostic
     }
 
-    public function test_bulk_role_sets_archive(): void
+    public function test_bulk_role_hides_selected(): void
     {
         $owner = User::factory()->create(['role' => 'owner']);
         $ids = ContactEntry::factory()->for($this->siteForOwner($owner))->phone()->count(2)
-            ->create(['role' => 'primary'])->pluck('id')->map(fn ($i) => (int) $i)->all();
+            ->create(['role' => 'primary', 'visible' => true])->pluck('id')->map(fn ($i) => (int) $i)->all();
 
         Livewire::actingAs($owner)
             ->test(DataBrowser::class)
             ->call('selectPage', $ids)
-            ->call('openEdit', 'role')
-            ->assertSet('editingField', true)
-            ->set('editValue', 'archive')
-            ->call('applyEdit')
-            ->assertSet('editingField', false);
+            ->call('openRole')
+            ->assertSet('editingRole', true)
+            ->set('roleValue', 'hidden')
+            ->call('applyRole')
+            ->assertSet('editingRole', false)
+            ->assertDispatched('toast', fn ($e, $p) => ($p['action'] ?? null) === 'bulkRestoreRole');
 
-        $this->assertSame(2, ContactEntry::whereIn('id', $ids)->where('role', 'archive')->count());
+        // hidden role and visibility move together (canonical role = primary|backup|hidden).
+        $this->assertSame(2, ContactEntry::whereIn('id', $ids)->where('role', 'hidden')->where('visible', false)->count());
+    }
+
+    public function test_bulk_role_primary_detaches_reserve_and_keeps_geo(): void
+    {
+        $owner = User::factory()->create(['role' => 'owner']);
+        $site = $this->siteForOwner($owner);
+        $primary = ContactEntry::factory()->for($site)->phone()->create([
+            'role' => 'primary', 'geo_tag' => 'UA', 'geo_mode' => 'except', 'countries' => ['PL'],
+        ]);
+        $reserve = ContactEntry::factory()->backup($primary)->create([
+            'geo_tag' => null, 'geo_mode' => 'all', 'countries' => null,
+        ]);
+
+        Livewire::actingAs($owner)
+            ->test(DataBrowser::class)
+            ->call('selectPage', [(int) $reserve->id])
+            ->call('openRole')
+            ->set('roleValue', 'primary')
+            ->call('applyRole')
+            ->assertSet('editingRole', false);
+
+        $reserve->refresh();
+        // Promoting a reserve detaches it and captures the geo it had inherited.
+        $this->assertNull($reserve->parent_id);
+        $this->assertSame('primary', $reserve->role);
+        $this->assertSame('UA', $reserve->geo_tag);
+        $this->assertSame('except', $reserve->geo_mode);
+        $this->assertSame(['PL'], $reserve->countries);
     }
 
     public function test_bulk_role_rejects_backup_value(): void
@@ -438,13 +501,29 @@ class DataBrowserBulkTest extends TestCase
         Livewire::actingAs($owner)
             ->test(DataBrowser::class)
             ->call('selectPage', [(int) $e->id])
-            ->call('openEdit', 'role')
-            ->set('editValue', 'backup') // needs a parent → not a bulk role
-            ->call('applyEdit')
-            ->assertSet('editingField', true)
+            ->call('openRole')
+            ->set('roleValue', 'backup') // needs a parent → not a bulk role
+            ->call('applyRole')
+            ->assertSet('editingRole', true)
             ->assertDispatched('toast', fn ($ev, $p) => ($p['type'] ?? null) === 'error');
 
         $this->assertSame('primary', $e->fresh()->role);
+    }
+
+    public function test_role_filter_scopes_the_list(): void
+    {
+        $owner = User::factory()->create(['role' => 'owner']);
+        $site = $this->siteForOwner($owner);
+        $primary = ContactEntry::factory()->for($site)->phone()->create(['role' => 'primary', 'value' => '+PRIMARY']);
+        $reserve = ContactEntry::factory()->backup($primary)->create(['value' => '+RESERVE']);
+
+        Livewire::actingAs($owner)
+            ->test(DataBrowser::class)
+            ->set('typeFilter', 'phone')
+            ->set('roleFilter', 'backup')
+            ->assertViewHas('entries', fn ($e) => $e->total() === 1 && (int) $e->first()->id === (int) $reserve->id)
+            ->assertSee('+RESERVE')
+            ->assertDontSee('+PRIMARY');
     }
 
     public function test_replace_value_is_blocked_for_mixed_messenger_kinds(): void
@@ -682,5 +761,85 @@ class DataBrowserBulkTest extends TestCase
         $component->call('bulkRestoreGeo', [$entry->id => ['geo_mode' => 'except', 'countries' => ['RU'], 'geo_tag' => null]]);
         $this->assertSame('except', $entry->fresh()->geo_mode);
         $this->assertSame(['RU'], $entry->fresh()->countries);
+    }
+
+    public function test_bulk_price_edit_changes_currency_and_undo_restores(): void
+    {
+        $owner = User::factory()->create(['role' => 'owner']);
+        $site = $this->siteForOwner($owner);
+        $a = ContactEntry::factory()->for($site)->price()->create(['currency' => 'EUR']);
+        $b = ContactEntry::factory()->for($site)->price()->create(['currency' => 'USD']);
+
+        $component = Livewire::actingAs($owner)
+            ->test(DataBrowser::class)
+            ->set('typeFilter', 'price')
+            ->call('selectPage', [(int) $a->id, (int) $b->id])
+            ->call('openPriceEdit')
+            ->assertSet('editingPrice', true)
+            ->set('priceField', 'currency')
+            ->set('priceValue', 'PLN')
+            ->call('applyPriceEdit')
+            ->assertSet('editingPrice', false)
+            ->assertDispatched('toast', fn ($e, $p) => ($p['action'] ?? null) === 'bulkRestoreField'
+                && ($p['actionData']['field'] ?? null) === 'currency');
+
+        $this->assertSame('PLN', $a->fresh()->currency);
+        $this->assertSame('PLN', $b->fresh()->currency);
+
+        // Undo writes each row's own previous currency back.
+        $component->call('bulkRestoreField', [$a->id => 'EUR', $b->id => 'USD'], 'currency');
+        $this->assertSame('EUR', $a->fresh()->currency);
+        $this->assertSame('USD', $b->fresh()->currency);
+    }
+
+    public function test_bulk_price_edit_clears_old_price_when_empty(): void
+    {
+        $owner = User::factory()->create(['role' => 'owner']);
+        $site = $this->siteForOwner($owner);
+        $id = (int) ContactEntry::factory()->for($site)->price()->create(['old_price' => 99])->id;
+
+        Livewire::actingAs($owner)
+            ->test(DataBrowser::class)
+            ->set('typeFilter', 'price')
+            ->call('selectPage', [$id])
+            ->call('openPriceEdit')
+            ->set('priceField', 'old_price')
+            ->set('priceValue', '')   // empty numeric = clear
+            ->call('applyPriceEdit')
+            ->assertSet('editingPrice', false);
+
+        $this->assertNull(ContactEntry::find($id)->old_price);
+    }
+
+    public function test_bulk_price_edit_rejects_unknown_currency(): void
+    {
+        $owner = User::factory()->create(['role' => 'owner']);
+        $id = (int) ContactEntry::factory()->for($this->siteForOwner($owner))->price()->create(['currency' => 'EUR'])->id;
+
+        Livewire::actingAs($owner)
+            ->test(DataBrowser::class)
+            ->set('typeFilter', 'price')
+            ->call('selectPage', [$id])
+            ->call('openPriceEdit')
+            ->set('priceField', 'currency')
+            ->set('priceValue', 'XYZ')
+            ->call('applyPriceEdit')
+            ->assertSet('editingPrice', true) // stays open on validation error
+            ->assertDispatched('toast', fn ($e, $p) => ($p['type'] ?? null) === 'error');
+
+        $this->assertSame('EUR', ContactEntry::find($id)->currency);
+    }
+
+    public function test_price_edit_is_unavailable_for_non_price_types(): void
+    {
+        $owner = User::factory()->create(['role' => 'owner']);
+        $e = ContactEntry::factory()->for($this->siteForOwner($owner))->phone()->create();
+
+        Livewire::actingAs($owner)
+            ->test(DataBrowser::class)
+            ->set('typeFilter', 'phone')
+            ->call('selectPage', [(int) $e->id])
+            ->call('openPriceEdit')
+            ->assertSet('editingPrice', false); // guarded — price fields only for the price type
     }
 }

@@ -108,7 +108,7 @@
                         <span style="font:12px var(--font-mono); color:var(--ink-5);">{{ $site->last_checked_at?->diffForHumans(null, true) ?? '—' }}</span>
                         <span style="font:14px var(--font-mono); color:var(--ink-9);">—</span>
                         <span style="font:14px var(--font-mono); color:{{ $errors > 0 ? 'var(--bad)' : 'var(--ink-4)' }};">{{ $errors ?: '—' }}</span>
-                        <a href="{{ route('sites.show', $site) }}" wire:navigate style="display:inline-flex; align-items:center; gap:4px; font:12px var(--font-sans); color:var(--ink-9); justify-self:end;">
+                        <a href="{{ route('sites.show', $site) }}#activity" wire:navigate style="display:inline-flex; align-items:center; gap:4px; font:12px var(--font-sans); color:var(--ink-9); justify-self:end;">
                             Логи <x-icon.arrow width="11" height="11" />
                         </a>
                     </div>

@@ -20,12 +20,12 @@
         foreach ($phonePrimaries as $primary) {
             $geo = $primary->preview_geo_label ?? (($primary->geo_mode === 'all') ? 'ALL' : '');
             $group = ['items' => [
-                ['id' => 'p' . $primary->id, 'num' => $primary->value ?? '—', 'geo' => $geo, 'status' => 'active', 'label' => 'АКТИВНИЙ'],
+                ['id' => 'p' . $primary->id, 'entryId' => $primary->id, 'num' => $primary->value ?? '—', 'geo' => $geo, 'status' => 'active', 'label' => 'АКТИВНИЙ'],
             ]];
             $rn = 1;
             foreach ($primary->backups->where('visible', true)->sortBy('order') as $backup) {
                 $bgeo = $backup->preview_geo_label ?? $geo;
-                $group['items'][] = ['id' => 'b' . $backup->id, 'num' => $backup->value ?? '—', 'geo' => $bgeo, 'status' => 'reserve', 'label' => 'РЕЗЕРВ ' . $rn++];
+                $group['items'][] = ['id' => 'b' . $backup->id, 'entryId' => $backup->id, 'num' => $backup->value ?? '—', 'geo' => $bgeo, 'status' => 'reserve', 'label' => 'РЕЗЕРВ ' . $rn++];
             }
             $queueGroups[] = $group;
         }
@@ -48,6 +48,7 @@
              const active  = items.find(n => n.status === 'active');
              const reserve = items.find(n => n.status === 'reserve');
              if (!active || !reserve) return;
+             this.$wire.triggerFailover(active.entryId, reserve.entryId);
              active.status  = 'waiting'; active.label  = 'ОЧІКУВАННЯ';
              reserve.status = 'active';  reserve.label = 'АКТИВНИЙ';
              this.renumber(gi);
@@ -59,6 +60,7 @@
              const current = items.find(n => n.status === 'active');
              const target  = items.find(n => n.id === itemId);
              if (!target) return;
+             if (current) this.$wire.restoreFailover(current.entryId, target.entryId);
              if (current) { current.status = 'reserve'; }
              target.status = 'active'; target.label = 'АКТИВНИЙ';
              this.renumber(gi);
@@ -72,12 +74,17 @@
         </p>
 
         {{-- Stats — повна ширина --}}
+        @php
+            $latestFailover = $failoverLogs->first();
+            $latestFailoverProps = $latestFailover?->properties ?? [];
+            $latestFailoverMode = $latestFailoverProps['mode'] ?? null;
+        @endphp
         <div class="card set-stats">
             @foreach([
                 ['l'=>'Статус','v'=>'<span class="set-stat__status"><span class="role-dot" style="background:var(--ok);"></span>Стабільно</span>','m'=>'усі активні відповідають'],
                 ['l'=>'Активних правил','v'=>'4','m'=>'у 2 гео-пулах'],
                 ['l'=>'Резервів','v'=>(string)$phonePrimaries->flatMap->backups->count(),'m'=>'у середньому 1.25 / пул'],
-                ['l'=>'Останній failover','v'=>'13 трав','m'=>'manual · PL пул'],
+                ['l'=>'Останній failover','v'=>$latestFailover?->created_at?->format('d M') ?? '—','m'=>$latestFailover ? (($latestFailoverMode ?? 'manual') . ' · журнал') : 'подій ще немає'],
             ] as $s)
                 <div class="set-stat">
                     <div class="eyebrow eyebrow-xxs" style="margin-bottom:8px;">{{ $s['l'] }}</div>
@@ -129,15 +136,6 @@
                         <span style="font:12px var(--font-sans);color:var(--ink-5);padding-left:4px;">підряд</span>
                     </div>
                 </div>
-                <div class="set-row">
-                    <div class="set-row__info">
-                        <div class="set-row__title">Сповіщення</div>
-                        <div class="set-row__desc">Слати email + webhook коли спрацював failover.</div>
-                    </div>
-                    <div class="toggle is-on" style="cursor:pointer;">
-                        <span class="toggle__knob"></span>
-                    </div>
-                </div>
                 <div class="set-rules__foot">
                     <button class="btn btn-primary btn-sm" wire:click="saveFailover">Зберегти</button>
                 </div>
@@ -157,45 +155,49 @@
                     <div class="set-journal__head">
                         <div>
                             <span class="eyebrow eyebrow-xs">Журнал перемикань</span>
-                            <span class="set-journal__meta">5 подій &middot; 30 днів</span>
+                            <span class="set-journal__meta">{{ $failoverLogs->count() }} подій</span>
                         </div>
-                        <button class="btn btn-secondary btn-xs">Експорт CSV</button>
                     </div>
                     <div class="set-jrow set-jrow--head">
                         <span>З / НА</span>
                         <span>Причина / Коли</span>
                     </div>
-                    @foreach([
-                        ['geo'=>false,'from'=>'+48 00 000 00 00','to'=>'+48 99 999 99 99','type'=>'manual','cause'=>'manual · SIM block','when'=>'13 трав 18:54','ok'=>true],
-                        ['geo'=>false,'from'=>'11111111111',      'to'=>'+099 11 22 33',   'type'=>'auto',  'cause'=>'auto · 5xx · 3/3','when'=>'10 трав 03:22','ok'=>true],
-                        ['geo'=>false,'from'=>'+48 22 555 33 11', 'to'=>'+48 71 222 11 00','type'=>'auto',  'cause'=>'auto · timeout · 3/3','when'=>'08 трав 21:09','ok'=>true],
-                        ['geo'=>true, 'from'=>'@demo_main',       'to'=>'@demo_support',  'type'=>'manual','cause'=>'manual · перевірка','when'=>'05 трав 12:40','ok'=>true],
-                        ['geo'=>false,'from'=>'+38 099 11 22 33', 'to'=>'+38 073 000 11 22','type'=>'auto', 'cause'=>'auto · no-answer','when'=>'02 трав 09:18','ok'=>false],
-                    ] as $row)
-                    <div class="set-jrow">
-                        <div>
-                            <div class="set-jfrom">
-                                @if($row['geo'])<span style="font-size:13px;">🌐</span>@endif
-                                {{ $row['from'] }}
-                                <span class="set-jarrow">→</span>
+                    @forelse($failoverLogs as $log)
+                        @php
+                            $props = $log->properties ?? [];
+                            $type = $props['mode'] ?? (str_contains($log->action, 'auto') ? 'auto' : 'manual');
+                            $from = $props['from'] ?? '—';
+                            $to = $props['to'] ?? '—';
+                            $geo = $props['geo'] ?? null;
+                            $cause = $props['cause'] ?? $log->action;
+                            $ok = $props['ok'] ?? true;
+                        @endphp
+                        <div class="set-jrow">
+                            <div>
+                                <div class="set-jfrom">
+                                    @if($geo)<span style="font-size:13px;">{{ $geo }}</span>@endif
+                                    {{ $from }}
+                                    <span class="set-jarrow">→</span>
+                                </div>
+                                <div class="set-jto">{{ $to }}</div>
                             </div>
-                            <div class="set-jto">{{ $row['to'] }}</div>
+                            <div>
+                                <div style="margin-bottom:2px;">
+                                    <span class="set-jbadge set-jbadge--{{ $type }}">{{ strtoupper($type) }}</span>
+                                    <span class="set-jcause">{{ $cause }}</span>
+                                </div>
+                                <div class="set-jwhen">{{ $log->created_at?->format('d M H:i') }}
+                                    @if($ok)
+                                        <span class="set-jrollback">&#10003; rollback</span>
+                                    @else
+                                        <span style="color:var(--ink-4);">Rollback</span>
+                                    @endif
+                                </div>
+                            </div>
                         </div>
-                        <div>
-                            <div style="margin-bottom:2px;">
-                                <span class="set-jbadge set-jbadge--{{ $row['type'] }}">{{ strtoupper($row['type']) }}</span>
-                                <span class="set-jcause">{{ $row['cause'] }}</span>
-                            </div>
-                            <div class="set-jwhen">{{ $row['when'] }}
-                                @if($row['ok'])
-                                    <span class="set-jrollback">&#10003; rollback</span>
-                                @else
-                                    <span style="color:var(--ink-4);">Rollback</span>
-                                @endif
-                            </div>
-                        </div>
-                    </div>
-                    @endforeach
+                    @empty
+                        <div class="ctable__empty">Журнал порожній: перемикань ще не було.</div>
+                    @endforelse
                 </div>
 
                 {{-- Tab: Черга номерів --}}
@@ -320,6 +322,37 @@
                             @disabled($site->status === 'maintenance')>Пауза</button>
                 </div>
             </div>
+            <div class="set-row">
+                <div class="set-row__info">
+                    <div class="set-row__title">Група сайту</div>
+                    <div class="set-row__desc">Поточна група: {{ $site->group ? ucfirst($site->group) : 'без групи' }}.</div>
+                </div>
+                <div class="group-select" x-data="{ open: false }" @click.outside="open = false">
+                    <button type="button" class="group-select__button" @click="open = !open">
+                        @if($site->group)
+                            <span class="pill-dot" style="background:{{ $site->group_color ?? '#a39d8c' }};"></span>
+                            <span>{{ ucfirst($site->group) }}</span>
+                        @else
+                            <span>Оберіть групу</span>
+                        @endif
+                        <x-icon.chevron-down width="13" height="13" />
+                    </button>
+                    <div class="dropdown group-select__dropdown" x-show="open" x-cloak>
+                        @foreach($siteGroups as $group)
+                            <button type="button"
+                                    class="pill-menu-item {{ $site->group === $group->name ? 'is-active' : '' }}"
+                                    wire:click="setSiteGroup({{ $group->id }})"
+                                    @click="open = false">
+                                <span class="pill-dot" style="background:{{ $group->color }};"></span>
+                                <span>{{ ucfirst($group->name) }}</span>
+                                @if($site->group === $group->name)
+                                    <x-icon.check width="12" height="12" class="group-select__check" />
+                                @endif
+                            </button>
+                        @endforeach
+                    </div>
+                </div>
+            </div>
             @can('delete', $site)
                 <div class="set-row">
                     <div class="set-row__info">
@@ -333,10 +366,29 @@
             @endcan
         </div>
         <h3 class="set-title" style="margin-top:24px;">API доступ</h3>
-        <div class="card api-card">
+        @php $siteApiKey = 'db_live_' . substr(md5($site->id . 'key'), 0, 10); @endphp
+        <div class="card api-card"
+             x-data="{
+                 copied: false,
+                 key: @js($siteApiKey),
+                 copyKey() {
+                     if (navigator.clipboard) {
+                         navigator.clipboard.writeText(this.key).catch(() => {});
+                     }
+                     this.copied = true;
+                     setTimeout(() => this.copied = false, 1400);
+                 }
+             }">
             <x-icon.key width="18" height="18" style="color:var(--ink-5);" />
-            <span class="mono api-key">db_live_{{ substr(md5($site->id.'key'),0,10) }}…</span>
+            <span class="mono api-key">{{ $siteApiKey }}…</span>
             <span class="mono api-status">активний</span>
+            <button class="btn btn-secondary btn-sm"
+                    type="button"
+                    @click="copyKey()"
+                    :title="copied ? 'Скопійовано' : 'Скопіювати ключ'">
+                <x-icon.copy width="13" height="13" />
+                <span x-text="copied ? 'Скопійовано' : 'Копіювати'"></span>
+            </button>
             <button class="btn btn-secondary btn-sm">Перегенерувати</button>
         </div>
     </div>

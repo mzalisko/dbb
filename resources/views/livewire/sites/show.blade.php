@@ -9,7 +9,7 @@
          $watch('settingsSub', s => { if(tab==='settings') history.replaceState(null,'',location.pathname+'#settings/'+s); });
      ">
 
-    <x-ui.topbar :crumbs="['Сайти', $site->name]" :back="true">
+    <x-ui.topbar :crumbs="['Сайти', $site->name]" :back="true" :back-href="route('sites.index')">
         <button class="btn btn-ghost btn-sm">
             <x-icon.refresh width="13" height="13" /> Sync
         </button>
@@ -86,6 +86,8 @@
     @include('livewire.sites.partials.phone-drawer')
     @include('livewire.sites.partials.messenger-drawer')
     @include('livewire.sites.partials.price-drawer')
+    @include('livewire.sites.partials.social-drawer')
+    @include('livewire.sites.partials.address-drawer')
     @include('livewire.sites.partials.confirm-action-modal')
 
 </div>

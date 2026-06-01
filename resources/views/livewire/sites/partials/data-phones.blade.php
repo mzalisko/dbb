@@ -72,9 +72,9 @@
                                     <span class="cc-drag" @click.stop style="color:var(--ink-4);">&#x2807;</span>
                                     <span class="cc-num cc-num--backup">#{{ $i+1 }}.{{ $j+1 }}</span>
                                     <span wire:click="editEntry({{ $backup->id }})" class="mono cc-val--sub" style="cursor:pointer;">{{ $backup->value }}</span>
-                                    <span class="cc-iso">@include('livewire.sites.partials.preview-tag-badge', ['entry' => $backup])</span>
+                                    <span class="cc-iso">@include('livewire.sites.partials.preview-tag-badge', ['entry' => $phone])</span>
                                     <span class="cc-label--muted">{{ $backup->label }}</span>
-                                    <span class="cc-geo">—</span>
+                                    <span class="cc-geo">{{ $phone->geo_label }}</span>
                                     <span class="cc-role cc-role--muted">
                                         <span class="role-dot" style="background:var(--info);"></span> Резерв
                                     </span>

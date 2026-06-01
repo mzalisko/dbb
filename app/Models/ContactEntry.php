@@ -51,9 +51,25 @@ class ContactEntry extends Model implements AuditableContract
         return $this->hasMany(self::class, 'parent_id')->orderBy('order');
     }
 
+    /**
+     * Geo source of truth for this entry. A reserve (parent_id set) carries no
+     * geo of its own — belonging, visibility rule and per-country visibility all
+     * read through to its primary, so the two can never drift apart. Primaries
+     * own their geo and resolve to themselves.
+     */
+    public function geoOwner(): self
+    {
+        return $this->parent_id ? ($this->parent ?? $this) : $this;
+    }
+
     /** Returns true when this entry is visible for a given geo code (ISO-2 or 'world'). */
     public function visibleForGeo(string $geo): bool
     {
+        // A reserve inherits its primary's geo targeting (single source of truth).
+        if ($this->parent_id && ($owner = $this->geoOwner()) !== $this) {
+            return $owner->visibleForGeo($geo);
+        }
+
         $visible = $this->getAttribute('visible');
         if ($visible === false || $visible === 0 || $visible === '0') return false;
         if ($this->geo_mode === 'all') return true;
@@ -91,6 +107,11 @@ class ContactEntry extends Model implements AuditableContract
 
     public function getGeoLabelAttribute(): string
     {
+        // A reserve shows its primary's rule, not its own (unused) columns.
+        if ($this->parent_id && ($owner = $this->geoOwner()) !== $this) {
+            return $owner->geo_label;
+        }
+
         $codes = collect($this->countries ?? [])->implode(' · ');
 
         $codes = collect($this->visibilityCountries())->join(' · ');
@@ -105,6 +126,11 @@ class ContactEntry extends Model implements AuditableContract
 
     public function getPreviewGeoLabelAttribute(): ?string
     {
+        // A reserve shows its primary's belonging tag (read-through).
+        if ($this->parent_id && ($owner = $this->geoOwner()) !== $this) {
+            return $owner->preview_geo_label;
+        }
+
         if ($this->geo_tag) {
             return strtoupper($this->geo_tag);
         }
@@ -132,6 +158,15 @@ class ContactEntry extends Model implements AuditableContract
         'skype'     => ['label' => 'Skype',     'color' => '#00AFF0', 'short' => 'SK'],
     ];
 
+    public const SOCIAL_KINDS = [
+        'facebook'  => ['label' => 'Facebook',    'color' => '#1877F2', 'short' => 'FB'],
+        'instagram' => ['label' => 'Instagram',   'color' => '#E4405F', 'short' => 'IG'],
+        'tiktok'    => ['label' => 'TikTok',      'color' => '#010101', 'short' => 'TT'],
+        'youtube'   => ['label' => 'YouTube',     'color' => '#FF0000', 'short' => 'YT'],
+        'x'         => ['label' => 'X / Twitter', 'color' => '#010101', 'short' => 'X'],
+        'linkedin'  => ['label' => 'LinkedIn',    'color' => '#0A66C2', 'short' => 'IN'],
+    ];
+
     /**
      * Central registry of entry types → label + optional sub-kinds. Single source
      * of truth: add a type here (plus its factory/migration) and it surfaces in the
@@ -143,6 +178,8 @@ class ContactEntry extends Model implements AuditableContract
         'phone'     => ['label' => 'Телефони',   'kinds' => []],
         'messenger' => ['label' => 'Месенджери', 'kinds' => self::MSG_KINDS],
         'price'     => ['label' => 'Ціни',        'kinds' => []],
+        'social'    => ['label' => 'Соцмережі',   'kinds' => self::SOCIAL_KINDS],
+        'address'   => ['label' => 'Адреси',      'kinds' => []],
     ];
 
     /** @return array<string,string> type key → label */

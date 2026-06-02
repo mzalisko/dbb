@@ -84,4 +84,53 @@ final class AuditEntry
     {
         return $this->changes() !== [];
     }
+
+    /** Human field name (UA) for the diff — falls back to the raw key. */
+    public static function humanField(string $field): string
+    {
+        return [
+            'value' => 'Значення', 'label' => 'Мітка', 'role' => 'Стан', 'kind' => 'Платформа',
+            'geo_tag' => 'Приналежність', 'geo_mode' => 'Правило видимості', 'countries' => 'Країни',
+            'visible' => 'Видимість', 'price' => 'Ціна', 'old_price' => 'Стара ціна',
+            'currency' => 'Валюта', 'price_unit' => 'Одиниця', 'sku' => 'SKU',
+            'parent_id' => 'Активний контакт', 'name' => 'Назва', 'url' => 'Адреса сайту',
+            'status' => 'Статус', 'notes' => 'Нотатки', 'group' => 'Група', 'group_color' => 'Колір групи',
+            'geo_tabs' => 'Гео-вкладки', 'data_categories' => 'Категорії даних',
+            'geo_rules' => 'Правила ізоляції', 'messenger_kinds' => 'Платформи',
+            'suspended_at' => 'Призупинення', 'failover_enabled' => 'Failover',
+            'failover_interval' => 'Інтервал', 'failover_threshold' => 'Поріг',
+            'order' => 'Порядок', 'site_id' => 'Сайт',
+            'done' => 'Змінено', 'skipped' => 'Пропущено', 'count' => 'Усього',
+        ][$field] ?? $field;
+    }
+
+    /** Human-readable value for the diff — maps enums, joins arrays, никаких raw JSON. */
+    public static function humanValue(string $field, mixed $value): string
+    {
+        if (is_null($value) || $value === '' || $value === []) {
+            return '—';
+        }
+        if (is_bool($value)) {
+            return $value ? 'так' : 'ні';
+        }
+
+        $enums = [
+            'geo_mode' => ['all' => 'Усім', 'only' => 'Тільки вибраним', 'except' => 'Крім вибраних'],
+            'role'     => ['primary' => 'Активний', 'backup' => 'Резерв', 'hidden' => 'Приховано'],
+            'status'   => ['active' => 'Активний', 'maintenance' => 'Пауза', 'offline' => 'Офлайн'],
+            'visible'  => ['1' => 'так', '0' => 'ні'],
+        ];
+        if (isset($enums[$field]) && is_scalar($value) && isset($enums[$field][(string) $value])) {
+            return $enums[$field][(string) $value];
+        }
+
+        if (is_array($value)) {
+            $parts = array_map(fn ($v) => is_scalar($v) ? trim((string) $v) : implode(' ', array_map('strval', (array) $v)), $value);
+
+            return implode(' · ', array_filter($parts, fn ($p) => $p !== '')) ?: '—';
+        }
+
+        return (string) $value;
+    }
 }
+

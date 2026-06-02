@@ -96,14 +96,6 @@
 
     {{-- Detail drawer (old → new diff) --}}
     @if ($detail)
-        @php
-            $fmt = function ($v) {
-                if (is_null($v) || $v === '') return '—';
-                if (is_bool($v)) return $v ? 'так' : 'ні';
-                if (is_array($v)) return empty($v) ? '—' : implode(' · ', array_map(fn ($x) => is_scalar($x) ? $x : json_encode($x, JSON_UNESCAPED_UNICODE), $v));
-                return (string) $v;
-            };
-        @endphp
         <div wire:key="log-detail">
             <x-ui.drawer :open="true" :title="$detail['label']" :sub="$detail['occurredAt']"
                          @drawer-close.window="$wire.closeDetail()">
@@ -114,10 +106,11 @@
 
                     @if ($detail['isBulk'])
                         <div style="display:flex; flex-direction:column; gap:6px;">
-                            @foreach ($detail['summary'] as $k => $v)
+                            @foreach (['done', 'skipped', 'count'] as $k)
+                                @continue (! array_key_exists($k, $detail['summary']))
                                 <div style="display:flex; justify-content:space-between; gap:12px; padding:8px 12px; border-radius:8px; background:var(--paper-2);">
-                                    <span class="mono" style="font:12px var(--font-mono); color:var(--ink-5);">{{ $k }}</span>
-                                    <span class="mono" style="font:12px var(--font-mono); color:var(--ink-9); text-align:right;">{{ $fmt($v) }}</span>
+                                    <span style="font:12.5px var(--font-sans); color:var(--ink-5);">{{ \App\Support\AuditEntry::humanField($k) }}</span>
+                                    <span style="font:13px var(--font-sans); color:var(--ink-9);">{{ $detail['summary'][$k] }}</span>
                                 </div>
                             @endforeach
                         </div>
@@ -131,10 +124,10 @@
                             </div>
                             @foreach ($detail['changes'] as $c)
                                 <div style="display:grid; grid-template-columns:1fr 1fr 16px 1fr; gap:8px; align-items:center; padding:9px 2px; border-top:1px solid var(--ink-2);">
-                                    <span class="mono" style="font:12px var(--font-mono); color:var(--ink-7);">{{ $c['field'] }}</span>
-                                    <span class="mono" style="font:12px var(--font-mono); color:var(--bad); word-break:break-word;">{{ $fmt($c['old']) }}</span>
+                                    <span style="font:12px var(--font-sans); color:var(--ink-7);">{{ \App\Support\AuditEntry::humanField($c['field']) }}</span>
+                                    <span style="font:12px var(--font-sans); color:var(--bad); word-break:break-word;">{{ \App\Support\AuditEntry::humanValue($c['field'], $c['old']) }}</span>
                                     <x-icon.arrow width="12" height="12" style="color:var(--ink-4);" />
-                                    <span class="mono" style="font:12px var(--font-mono); color:var(--ok); word-break:break-word;">{{ $fmt($c['new']) }}</span>
+                                    <span style="font:12px var(--font-sans); color:var(--ok); word-break:break-word;">{{ \App\Support\AuditEntry::humanValue($c['field'], $c['new']) }}</span>
                                 </div>
                             @endforeach
                         </div>

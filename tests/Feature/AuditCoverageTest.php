@@ -98,9 +98,27 @@ class AuditCoverageTest extends TestCase
             ->assertSee('Запис змінено')                 // semantic label, not raw "entry updated"
             ->call('openDetail', 'audit', $updated->id)
             ->assertSet('detail.actionCode', 'entry.updated')
-            ->assertSee('label')                          // the changed field
-            ->assertSee('old')                            // before
-            ->assertSee('new');                           // after
+            ->assertSee('Мітка')                          // human field name, not raw "label"
+            ->assertSee('old')                            // before value
+            ->assertSee('new');                           // after value
+    }
+
+    public function test_editing_a_phone_is_entry_updated_not_price_changed(): void
+    {
+        $owner = User::factory()->create(['role' => 'owner']);
+        $site = Site::factory()->for(Client::factory()->for($owner))->create();
+        $phone = ContactEntry::factory()->for($site)->phone()->create(['value' => '+1', 'currency' => null]);
+
+        Livewire::actingAs($owner)->test(\App\Livewire\Sites\Show::class, ['site' => $site])
+            ->call('editEntry', $phone->id)
+            ->set('entryValue', '+99999')
+            ->call('saveEntry');
+
+        $codes = \App\Services\AuditFeed::collect(['site_id' => $site->id])
+            ->filter(fn ($e) => $e->subjectId === $phone->id)->pluck('actionCode')->all();
+
+        $this->assertContains('entry.updated', $codes);
+        $this->assertNotContains('entry.price.changed', $codes, 'a phone edit must not look like a price change');
     }
 
     public function test_force_delete_leaves_an_audit_trail(): void

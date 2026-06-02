@@ -84,10 +84,10 @@
                         <div class="tl-diffs">
                             @foreach ($changes as $c)
                                 <div class="tl-diff">
-                                    <span class="eyebrow eyebrow-xs">{{ $c['field'] }}</span>
-                                    <span class="diff-val {{ ($c['old'] === null || $c['old'] === '' || $c['old'] === []) ? 'diff-val--empty' : 'diff-val--old' }}">{{ $fmt($c['old']) }}</span>
+                                    <span class="eyebrow eyebrow-xs">{{ \App\Support\AuditEntry::humanField($c['field']) }}</span>
+                                    <span class="diff-val {{ ($c['old'] === null || $c['old'] === '' || $c['old'] === []) ? 'diff-val--empty' : 'diff-val--old' }}">{{ \App\Support\AuditEntry::humanValue($c['field'], $c['old']) }}</span>
                                     <span class="tl-arrow">→</span>
-                                    <span class="diff-val {{ ($c['new'] === null || $c['new'] === '' || $c['new'] === []) ? 'diff-val--empty' : 'diff-val--new' }}">{{ $fmt($c['new']) }}</span>
+                                    <span class="diff-val {{ ($c['new'] === null || $c['new'] === '' || $c['new'] === []) ? 'diff-val--empty' : 'diff-val--new' }}">{{ \App\Support\AuditEntry::humanValue($c['field'], $c['new']) }}</span>
                                 </div>
                             @endforeach
                         </div>

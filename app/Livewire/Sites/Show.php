@@ -575,11 +575,14 @@ class Show extends Component
             'geo_mode'   => $entryGeoMode,
             'countries'  => $entryCountries ?: null,
             'parent_id'  => $this->entryRole === 'backup' ? $this->entryParentId : null,
-            'currency'   => $this->entryCurrency ?: null,
-            'price'      => $this->entryPrice,
-            'old_price'  => $this->entryOldPrice,
-            'price_unit' => $this->entryPriceUnit ?: null,
-            'sku'        => $this->entrySku ?: null,
+            // Price columns belong to the price type only — otherwise the form's
+            // default currency ('EUR') would leak onto phones/messengers and a plain
+            // edit would look like "price changed" in the audit feed.
+            'currency'   => $this->entryType === 'price' ? ($this->entryCurrency ?: null) : null,
+            'price'      => $this->entryType === 'price' ? $this->entryPrice : null,
+            'old_price'  => $this->entryType === 'price' ? $this->entryOldPrice : null,
+            'price_unit' => $this->entryType === 'price' ? ($this->entryPriceUnit ?: null) : null,
+            'sku'        => $this->entryType === 'price' ? ($this->entrySku ?: null) : null,
             'visible'    => $this->entryRole !== 'hidden',
             'order'      => 1,
         ];

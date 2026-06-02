@@ -1,6 +1,6 @@
 <div style="flex:1; display:flex; flex-direction:column; overflow-y:auto;">
     <x-ui.topbar :crumbs="['Логи']">
-        <x-ui.button variant="secondary" size="sm" disabled title="Скоро">
+        <x-ui.button variant="secondary" size="sm" wire:click="export">
             <x-icon.export width="13" height="13" /> Експорт
         </x-ui.button>
     </x-ui.topbar>

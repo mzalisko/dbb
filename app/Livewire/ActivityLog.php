@@ -89,6 +89,38 @@ class ActivityLog extends Component
         $this->resetPage();
     }
 
+    /** Stream the current filtered feed as CSV (capped to AuditFeed's window). */
+    public function export()
+    {
+        $events = AuditFeed::collect($this->filters());
+        $filename = 'audit-'.now()->format('Y-m-d-His').'.csv';
+
+        return response()->streamDownload(function () use ($events) {
+            $out = fopen('php://output', 'w');
+            fwrite($out, "\xEF\xBB\xBF"); // BOM so Excel reads UTF-8
+            fputcsv($out, ['Час', 'Подія', 'Код', 'Сайт', 'Користувач', 'Важливість', 'IP', 'Зміни']);
+
+            foreach ($events as $e) {
+                $changes = collect($e->changes())
+                    ->map(fn ($c) => $c['field'].': '.json_encode($c['old'], JSON_UNESCAPED_UNICODE).' → '.json_encode($c['new'], JSON_UNESCAPED_UNICODE))
+                    ->implode('; ');
+
+                fputcsv($out, [
+                    $e->occurredAt->format('Y-m-d H:i:s'),
+                    $e->label(),
+                    $e->actionCode,
+                    $e->siteId,
+                    $e->userName ?? 'Система',
+                    $e->severityLabel(),
+                    $e->ip,
+                    $changes,
+                ]);
+            }
+
+            fclose($out);
+        }, $filename, ['Content-Type' => 'text/csv; charset=UTF-8']);
+    }
+
     public function render()
     {
         $events = AuditFeed::paginate($this->filters(), 30);

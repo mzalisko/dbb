@@ -102,4 +102,75 @@ class AuditCoverageTest extends TestCase
             ->assertSee('old')                            // before
             ->assertSee('new');                           // after
     }
+
+    public function test_force_delete_leaves_an_audit_trail(): void
+    {
+        $owner = User::factory()->create(['role' => 'owner']);
+        $this->actingAs($owner);
+        $site = Site::factory()->for(Client::factory()->for($owner))->create();
+        $entry = ContactEntry::factory()->for($site)->phone()->create();
+        $entry->forceDelete();
+
+        // owen-it conflates forceDelete with a soft delete (both fire 'deleted'),
+        // so a single purge is tracked as entry.deleted — the point is it leaves a
+        // trail. The distinct entry.bulk.purged code covers the bulk purge path.
+        $event = \App\Services\AuditFeed::collect([])
+            ->first(fn ($e) => $e->subjectId === $entry->id && in_array($e->actionCode, ['entry.deleted', 'entry.purged'], true));
+        $this->assertNotNull($event, 'a purge must leave an audit trail');
+    }
+
+    public function test_suspending_a_user_resolves_to_user_suspended(): void
+    {
+        $owner = User::factory()->create(['role' => 'owner']);
+        $this->actingAs($owner);
+        $target = User::factory()->create();
+        $target->forceFill(['suspended_at' => now()])->save(); // mirrors toggleSuspend
+
+        $suspended = \App\Services\AuditFeed::collect(['domain' => 'user'])
+            ->first(fn ($e) => $e->subjectId === $target->id && $e->actionCode === 'user.suspended');
+        $this->assertNotNull($suspended, 'suspended_at change must resolve to user.suspended');
+    }
+
+    public function test_bulk_with_no_permission_writes_nothing(): void
+    {
+        $owner = User::factory()->create(['role' => 'owner']);
+        $manager = User::factory()->create(['role' => 'manager']);
+        $site = Site::factory()->for(Client::factory()->for($owner))->create();
+        $ids = ContactEntry::factory()->for($site)->phone()->count(3)->create()
+            ->pluck('id')->map(fn ($i) => (int) $i)->all();
+
+        $this->actingAs($manager);
+        $logsBefore = ActivityLog::count();
+
+        $result = BulkActionService::apply(
+            ContactEntry::class, $ids, 'delete', fn ($e) => $e->delete(),
+            auditAction: 'entry.bulk.deleted',
+        );
+
+        $this->assertSame(0, $result['done']); // manager may not delete others' entries
+        $this->assertSame(0, ActivityLog::count() - $logsBefore, 'done === 0 → no summary row');
+    }
+
+    public function test_prune_command_removes_old_rows_and_logs_itself(): void
+    {
+        ActivityLog::insert([
+            'action' => 'entry.updated', 'severity' => 0, 'created_at' => now()->subDays(200),
+        ]);
+
+        $this->artisan('audit:prune', ['--days' => 180])->assertSuccessful();
+
+        $this->assertSame(0, ActivityLog::where('action', 'entry.updated')->count(), 'old row pruned');
+        $this->assertDatabaseHas('activity_log', ['action' => 'system.audit.pruned']);
+    }
+
+    public function test_prune_dry_run_deletes_nothing(): void
+    {
+        ActivityLog::insert([
+            'action' => 'entry.updated', 'severity' => 0, 'created_at' => now()->subDays(200),
+        ]);
+
+        $this->artisan('audit:prune', ['--days' => 180, '--dry-run' => true])->assertSuccessful();
+
+        $this->assertSame(1, ActivityLog::where('action', 'entry.updated')->count(), 'dry run keeps the row');
+    }
 }

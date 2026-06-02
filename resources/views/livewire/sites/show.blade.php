@@ -2,7 +2,7 @@
      x-data="{
          tab:         (['overview','data','activity','settings'].includes((location.hash.slice(1)||'').split('/')[0]) ? location.hash.slice(1).split('/')[0] : 'overview'),
          settingsSub: ((location.hash.slice(1).split('/')[1] || 'failover') === 'api' ? 'general' : (location.hash.slice(1).split('/')[1] || 'failover')),
-         cat: 'phones', geo: 'all', msgKind: 'all', actFilter: 'all'
+         cat: @js($initialDataCat), geo: 'all', msgKind: 'all', actFilter: 'all'
      }"
      x-init="
          $watch('tab',         t => history.replaceState(null,'',location.pathname+'#'+t+(t==='settings'?'/'+settingsSub:'')));
@@ -14,13 +14,15 @@
             <x-icon.refresh width="13" height="13" /> Sync
         </button>
         <button class="btn btn-primary btn-sm"
-                x-show="tab === 'data'"
+                x-show="tab === 'data' && cat"
                 x-cloak
                 x-on:click="
                     const tag = (geo && geo !== 'all') ? geo : null;
                     if (cat === 'phones') $wire.addEntry('phone', null, tag);
                     else if (cat === 'messengers') $wire.addEntry('messenger', null, tag);
                     else if (cat === 'prices') $wire.addEntry('price');
+                    else if (cat === 'addresses') $wire.addEntry('address', null, tag);
+                    else if (cat === 'socials') $wire.addEntry('social', null, tag);
                 ">
             <x-icon.plus width="13" height="13" /> Додати
         </button>
@@ -62,7 +64,6 @@
     </div>
 
     {{-- Tabs --}}
-    @php $dataCount = $phoneCount + $msgCount; @endphp
     <div class="tabs site-tabs">
         @foreach ([
             ['key'=>'overview','label'=>'Огляд','count'=>null],

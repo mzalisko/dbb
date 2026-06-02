@@ -133,6 +133,30 @@ class DataBrowserBulkTest extends TestCase
         $this->assertArrayNotHasKey('price', $types);
     }
 
+    public function test_data_type_permissions_hide_disallowed_types_in_data_browser(): void
+    {
+        $permissions = User::ROLE_PERMISSIONS['manager'];
+        $permissions['data_prices']['read'] = false;
+        $manager = User::factory()->create(['role' => 'manager', 'permissions' => $permissions]);
+        $site = $this->siteForOwner($manager);
+        $site->forceFill(['data_categories' => ['phones', 'messengers', 'prices']])->save();
+
+        ContactEntry::factory()->for($site)->phone()->create(['value' => '+PHONE-OK']);
+        ContactEntry::factory()->for($site)->price()->create(['sku' => 'PRICE-DENIED', 'label' => 'Hidden price']);
+
+        $component = Livewire::actingAs($manager)
+            ->test(DataBrowser::class, ['typeFilter' => 'price']);
+
+        $types = $component->viewData('types');
+
+        $this->assertArrayHasKey('phone', $types);
+        $this->assertArrayNotHasKey('price', $types);
+        $component
+            ->assertSet('typeFilter', 'phone')
+            ->assertSee('+PHONE-OK')
+            ->assertDontSee('PRICE-DENIED');
+    }
+
     public function test_bulk_delete_soft_deletes_selected_and_dispatches_undo(): void
     {
         $owner = User::factory()->create(['role' => 'owner']);

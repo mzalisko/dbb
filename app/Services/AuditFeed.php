@@ -190,7 +190,9 @@ class AuditFeed
             return self::resolveSiteUpdate($keys);
         }
         if ($model === 'entry') {
-            return array_intersect(['price', 'old_price', 'currency'], $keys) ? 'entry.price.changed' : 'entry.updated';
+            // Only an actual amount change is a "price change" — a currency tweak
+            // alone (or a stale EUR being cleared) stays a plain update.
+            return array_intersect(['price', 'old_price'], $keys) ? 'entry.price.changed' : 'entry.updated';
         }
         if ($model === 'user') {
             if (in_array('suspended_at', $keys, true)) return 'user.suspended';
@@ -242,6 +244,7 @@ class AuditFeed
     private static function applyFilters(Collection $events, array $filters): Collection
     {
         return $events
+            ->when(array_key_exists('allowed_entry_types', $filters), fn ($c) => self::filterEntryTypes($c, (array) $filters['allowed_entry_types']))
             ->when(! empty($filters['domain']), fn ($c) => $c->filter(fn (AuditEntry $e) => $e->domain() === $filters['domain']))
             ->when(isset($filters['severity']) && $filters['severity'] !== '' && $filters['severity'] !== null,
                 fn ($c) => $c->filter(fn (AuditEntry $e) => $e->severity === (int) $filters['severity']))
@@ -251,5 +254,46 @@ class AuditFeed
                 fn (AuditEntry $e) => str_contains(mb_strtolower($e->label()), mb_strtolower((string) $filters['search']))
             ))
             ->values();
+    }
+
+    /**
+     * Hide ContactEntry audit/activity rows for data types the current user cannot read.
+     *
+     * @param Collection<int, AuditEntry> $events
+     * @param array<int, string> $allowedTypes
+     * @return Collection<int, AuditEntry>
+     */
+    private static function filterEntryTypes(Collection $events, array $allowedTypes): Collection
+    {
+        $allowed = collect($allowedTypes)->filter()->values();
+
+        if ($allowed->isEmpty()) {
+            return $events->reject(fn (AuditEntry $e) => $e->domain() === 'entry');
+        }
+
+        $entryIds = $events
+            ->filter(fn (AuditEntry $e) => $e->subjectType === ContactEntry::class && $e->subjectId)
+            ->pluck('subjectId')
+            ->unique()
+            ->values();
+
+        $typesById = $entryIds->isNotEmpty()
+            ? ContactEntry::withTrashed()->whereIn('id', $entryIds)->pluck('type', 'id')
+            : collect();
+
+        return $events->filter(function (AuditEntry $e) use ($allowed, $typesById) {
+            if ($e->domain() !== 'entry') {
+                return true;
+            }
+
+            $type = null;
+            if ($e->subjectType === ContactEntry::class && $e->subjectId) {
+                $type = $typesById[$e->subjectId] ?? null;
+            }
+
+            $type ??= $e->new['type'] ?? $e->old['type'] ?? null;
+
+            return $type !== null && $allowed->contains($type);
+        });
     }
 }

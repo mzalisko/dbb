@@ -14,6 +14,10 @@ class ContactEntryPolicy
 
     public function view(User $user, ContactEntry $entry): bool
     {
+        if (! $user->canEntryType((string) $entry->type, 'read')) {
+            return false;
+        }
+
         if (in_array($user->role, ['owner', 'admin'], true)) {
             return true;
         }
@@ -28,6 +32,10 @@ class ContactEntryPolicy
 
     public function update(User $user, ContactEntry $entry): bool
     {
+        if (! $user->canEntryType((string) $entry->type, 'edit')) {
+            return false;
+        }
+
         if (in_array($user->role, ['owner', 'admin'], true)) {
             return true;
         }
@@ -37,6 +45,10 @@ class ContactEntryPolicy
 
     public function delete(User $user, ContactEntry $entry): bool
     {
+        if (! $user->canEntryType((string) $entry->type, 'delete')) {
+            return false;
+        }
+
         if (in_array($user->role, ['owner', 'admin'], true)) {
             return true;
         }

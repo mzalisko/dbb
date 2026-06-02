@@ -11,7 +11,7 @@
             ['key'=>'addresses',  'label'=>'Адреси',     'count'=>$addressCount],
             ['key'=>'socials',    'label'=>'Соц. мережі','count'=>$socialCount],
         ] as $cat)
-            @if(in_array($cat['key'], $dataCategories, true))
+            @if(in_array($cat['key'], $visibleDataCategories, true))
                 <button @click="cat='{{ $cat['key'] }}'"
                         :class="cat==='{{ $cat['key'] }}' ? 'is-active' : ''"
                         class="filter-pill">
@@ -20,7 +20,7 @@
                 </button>
             @endif
         @endforeach
-        @if(in_array('custom', $dataCategories, true))
+        @if(in_array('custom', $visibleDataCategories, true))
             <button @click="cat='custom'" :class="cat==='custom' ? 'is-active' : ''" class="filter-pill">
                 + Custom <span class="pill-count">0</span>
             </button>

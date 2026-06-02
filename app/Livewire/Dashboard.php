@@ -22,9 +22,14 @@ class Dashboard extends Component
 
     public function render()
     {
+        $user = auth()->user();
+        $allowedEntryTypes = $user?->readableEntryTypes() ?? [];
+        $canPhones = $user?->canEntryType('phone') ?? false;
+        $canMessengers = $user?->canEntryType('messenger') ?? false;
+
         $totalSites = Site::count();
 
-        $favourites = Site::with(['contactEntries'])
+        $favourites = Site::with(['contactEntries' => fn ($q) => $q->whereIn('type', $allowedEntryTypes)])
             ->where('is_favourite', true)
             ->latest('last_checked_at')
             ->get();
@@ -37,11 +42,15 @@ class Dashboard extends Component
 
         $sites = Site::with('client')->latest('last_checked_at')->get();
 
-        $recentLogs = ActivityLog::with(['user', 'subject'])
-            ->latest('created_at')
+        // Recent site activity from the unified feed (semantic labels + severity).
+        // Auth noise is excluded — this widget is about what changed on sites; click
+        // a row to dive into that site's logs.
+        $recentLogs = \App\Services\AuditFeed::collect(['allowed_entry_types' => $allowedEntryTypes])
+            ->filter(fn ($e) => $e->siteId !== null)
             ->take(7)
-            ->get();
+            ->values();
+        $logSiteNames = Site::pluck('name', 'id');
 
-        return view('livewire.dashboard', compact('sites', 'recentLogs', 'totalSites', 'favourites', 'groups'));
+        return view('livewire.dashboard', compact('sites', 'recentLogs', 'logSiteNames', 'totalSites', 'favourites', 'groups', 'canPhones', 'canMessengers'));
     }
 }

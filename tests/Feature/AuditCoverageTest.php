@@ -191,4 +191,14 @@ class AuditCoverageTest extends TestCase
 
         $this->assertSame(1, ActivityLog::where('action', 'entry.updated')->count(), 'dry run keeps the row');
     }
+
+    public function test_login_stamps_last_activity_for_the_team_page(): void
+    {
+        $user = User::factory()->create(['last_login_at' => null]);
+
+        event(new \Illuminate\Auth\Events\Login('web', $user, false));
+
+        $this->assertNotNull($user->fresh()->last_login_at, 'login must update last_login_at');
+        $this->assertDatabaseHas('activity_log', ['action' => 'auth.login']);
+    }
 }

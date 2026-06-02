@@ -112,4 +112,16 @@ class AuditFeedTest extends TestCase
         $this->assertArrayHasKey('auth', $counts['byDomain']);
         $this->assertGreaterThan(0, $counts['total']);
     }
+
+    public function test_entry_type_filter_hides_disallowed_entry_logs(): void
+    {
+        [, $site] = $this->ownerSite();
+        $phone = ContactEntry::factory()->for($site)->phone()->create();
+        $price = ContactEntry::factory()->for($site)->price()->create();
+
+        $events = AuditFeed::collect(['allowed_entry_types' => ['phone']]);
+
+        $this->assertTrue($events->contains(fn ($e) => $e->subjectId === $phone->id));
+        $this->assertFalse($events->contains(fn ($e) => $e->subjectId === $price->id));
+    }
 }

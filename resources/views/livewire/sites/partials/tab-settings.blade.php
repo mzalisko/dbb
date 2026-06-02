@@ -4,7 +4,7 @@
     <div class="tabs sub-tabs">
         @foreach([
             ['key'=>'failover','label'=>'Failover','count'=>$phonePrimaries->count()],
-            ['key'=>'categories','label'=>'Категорії даних','count'=>count($dataCategories)],
+            ['key'=>'categories','label'=>'Категорії даних','count'=>count($visibleDataCategories)],
             ['key'=>'general','label'=>'Загальне','count'=>2],
         ] as $st)
             <button class="tab" :class="settingsSub==='{{ $st['key'] }}' ? 'active' : ''" @click="settingsSub='{{ $st['key'] }}'">
@@ -268,6 +268,7 @@
                 ['id'=>'socials','label'=>'Соц. мережі','n'=>$socialCount,'req'=>false],
                 ['id'=>'custom','label'=>'Custom','n'=>0,'req'=>false],
             ] as $cat)
+                @continue(! in_array($cat['id'], $visibleDataCategories, true))
                 @php $isOn = in_array($cat['id'], $dataCategories, true); @endphp
                 <div class="cat-row">
                     <div class="cat-row__name">

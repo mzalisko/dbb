@@ -10,7 +10,7 @@ use App\Services\ActivityLogService;
 use Livewire\Component;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Title;
-use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Collection;
 
 #[Layout('components.layouts.app')]
 #[Title('Сайт')]
@@ -26,7 +26,7 @@ class Show extends Component
     /** Data-category key → ContactEntry type ('custom' has no backing type yet). */
     private const CATEGORY_TYPES = [
         'phones' => 'phone', 'messengers' => 'messenger', 'prices' => 'price',
-        'addresses' => 'address', 'socials' => 'social',
+        'addresses' => 'address', 'socials' => 'social', 'custom' => 'custom',
     ];
 
     public Site $site;
@@ -220,6 +220,26 @@ class Show extends Component
 
         return collect($all)
             ->filter(fn($key) => in_array($key, $enabled, true))
+            ->values()
+            ->all();
+    }
+
+    private function canEntryType(string $type, string $action = 'read'): bool
+    {
+        return auth()->user()?->canEntryType($type, $action) ?? false;
+    }
+
+    private function canCategory(string $category, string $action = 'read'): bool
+    {
+        $type = self::CATEGORY_TYPES[$category] ?? null;
+
+        return $type ? $this->canEntryType($type, $action) : false;
+    }
+
+    private function visibleDataCategories(): array
+    {
+        return collect($this->dataCategories)
+            ->filter(fn (string $category) => $this->canCategory($category))
             ->values()
             ->all();
     }
@@ -473,6 +493,12 @@ class Show extends Component
     public function addEntry(string $type, ?int $parentId = null, ?string $geoTag = null): void
     {
         $this->authorize('create', \App\Models\ContactEntry::class);
+        if (! $this->canEntryType($type, 'create')) {
+            $this->dispatch('toast', type: 'error', message: 'Немає прав на створення цього типу даних');
+
+            return;
+        }
+
         $this->resetEntryForm();
         $this->entryType     = $type;
         $this->entryParentId = $parentId;
@@ -501,6 +527,11 @@ class Show extends Component
     public function addPriceToSku(string $sku): void
     {
         $this->authorize('create', \App\Models\ContactEntry::class);
+        if (! $this->canEntryType('price', 'create')) {
+            $this->dispatch('toast', type: 'error', message: 'Немає прав на створення цін');
+
+            return;
+        }
 
         $template = $this->site->contactEntries()
             ->where('type', 'price')
@@ -546,6 +577,13 @@ class Show extends Component
         }
 
         $this->validate($rules);
+
+        $requiredAction = $this->editEntryId ? 'edit' : 'create';
+        if (! $this->canEntryType($this->entryType, $requiredAction)) {
+            $this->dispatch('toast', type: 'error', message: 'Немає прав для цього типу даних');
+
+            return;
+        }
 
         $parentEntry = null;
         if ($this->entryRole === 'backup' && $this->entryParentId) {
@@ -1123,8 +1161,19 @@ class Show extends Component
 
     public function render()
     {
-        $allPhones = $this->site->contactEntries()->where('type', 'phone')->where('visible', true)->orderBy('order')->with('backups')->get();
-        $allMsgs   = $this->site->contactEntries()->where('type', 'messenger')->where('visible', true)->orderBy('order')->with('backups')->get();
+        $canPhones = $this->canEntryType('phone');
+        $canMessengers = $this->canEntryType('messenger');
+        $canPrices = $this->canEntryType('price');
+        $canAddresses = $this->canEntryType('address');
+        $canSocials = $this->canEntryType('social');
+        $canCustom = $this->canEntryType('custom');
+
+        $allPhones = $canPhones
+            ? $this->site->contactEntries()->where('type', 'phone')->where('visible', true)->orderBy('order')->with('backups')->get()
+            : collect();
+        $allMsgs = $canMessengers
+            ? $this->site->contactEntries()->where('type', 'messenger')->where('visible', true)->orderBy('order')->with('backups')->get()
+            : collect();
 
         // Overview: what each geo group sees + "all" universal column
         $overviewByGeo = [];
@@ -1189,9 +1238,15 @@ class Show extends Component
         $conflictPhoneIds = array_keys($conflictPhoneIds);
 
         // Pre-render geo variants for Data tab — tag-based: 'all'=все, 'UA'=тільки geo_mode=only+UA
-        $allPhonesAll = $this->site->contactEntries()->where('type', 'phone')->orderBy('order')->with('backups')->get();
-        $allMsgsAll   = $this->site->contactEntries()->where('type', 'messenger')->orderBy('order')->with('backups')->get();
-        $allPricesAll = $this->site->contactEntries()->where('type', 'price')->orderBy('order')->get();
+        $allPhonesAll = $canPhones
+            ? $this->site->contactEntries()->where('type', 'phone')->orderBy('order')->with('backups')->get()
+            : collect();
+        $allMsgsAll = $canMessengers
+            ? $this->site->contactEntries()->where('type', 'messenger')->orderBy('order')->with('backups')->get()
+            : collect();
+        $allPricesAll = $canPrices
+            ? $this->site->contactEntries()->where('type', 'price')->orderBy('order')->get()
+            : collect();
 
         $phonePrimariesByGeo = [];
         $hiddenPhonesByGeo = [];
@@ -1214,8 +1269,12 @@ class Show extends Component
         $msgPrimaries   = $allMsgs->filter(fn($e) => is_null($e->parent_id))->values();
 
         // Socials + addresses — flat (no reserves), sliced by the same preview geo tabs.
-        $allSocialsAll   = $this->site->contactEntries()->where('type', 'social')->orderBy('order')->get();
-        $allAddressesAll = $this->site->contactEntries()->where('type', 'address')->orderBy('order')->get();
+        $allSocialsAll = $canSocials
+            ? $this->site->contactEntries()->where('type', 'social')->orderBy('order')->get()
+            : collect();
+        $allAddressesAll = $canAddresses
+            ? $this->site->contactEntries()->where('type', 'address')->orderBy('order')->get()
+            : collect();
         $socialPrimariesByGeo = [];
         $hiddenSocialsByGeo   = [];
         $addressPrimariesByGeo = [];
@@ -1233,9 +1292,13 @@ class Show extends Component
         $socialKinds = $allSocialsAll->pluck('kind')->filter()->unique()->values()->all();
 
         // Prices
-        $allPrices = $this->site->contactEntries()->where('type', 'price')->where('visible', true)->get();
+        $allPrices = $canPrices
+            ? $this->site->contactEntries()->where('type', 'price')->where('visible', true)->get()
+            : collect();
         $priceBySku = $allPrices->groupBy('sku');
-        $allCustomAll = $this->site->contactEntries()->where('type', 'custom')->orderBy('order')->get();
+        $allCustomAll = $canCustom
+            ? $this->site->contactEntries()->where('type', 'custom')->orderBy('order')->get()
+            : collect();
         $overviewExtrasByGeo = [];
         foreach (array_merge(['all'], $this->geoTabs) as $gk) {
             $overviewExtrasByGeo[$gk] = [
@@ -1250,7 +1313,10 @@ class Show extends Component
         // Activity
         // Per-site feed from the unified read-model: owen-it diffs + activity_log,
         // semantic codes + real old/new (PM-T07).
-        $activityLogs = \App\Services\AuditFeed::collect(['site_id' => $this->site->id])->take(40);
+        $activityLogs = \App\Services\AuditFeed::collect([
+            'site_id' => $this->site->id,
+            'allowed_entry_types' => auth()->user()?->readableEntryTypes() ?? [],
+        ])->take(40);
 
         $failoverLogs = ActivityLog::where('subject_type', Site::class)
             ->where('subject_id', $this->site->id)
@@ -1263,8 +1329,8 @@ class Show extends Component
 
         // All entries including hidden (for full Data tab list)
         // Extra categories
-        $addressCount = $this->site->contactEntries()->where('type', 'address')->count();
-        $socialCount  = $this->site->contactEntries()->where('type', 'social')->count();
+        $addressCount = $allAddressesAll->count();
+        $socialCount  = $allSocialsAll->count();
         $customCount  = $allCustomAll->count();
 
         // Messenger kinds grouped (for platform pills)
@@ -1289,7 +1355,9 @@ class Show extends Component
 
         $geoTabs = $this->geoTabs;
         $messengerKinds = $this->messengerKinds;
-        $dataCategories = $this->dataCategories;
+        $visibleDataCategories = $this->visibleDataCategories();
+        $initialDataCat = $visibleDataCategories[0] ?? '';
+        $dataCount = $phoneCount + $msgCount + $priceCount + $addressCount + $socialCount + $customCount;
 
         $geoRules = $this->geoRules;
         $newRuleA = $this->newRuleA;
@@ -1305,13 +1373,13 @@ class Show extends Component
             'activityLogs',
             'failoverLogs',
             'siteGroups',
-            'phoneCount', 'msgCount', 'priceCount',
+            'phoneCount', 'msgCount', 'priceCount', 'dataCount', 'initialDataCat',
             'addressCount', 'socialCount',
             'allSocialsAll', 'allAddressesAll', 'allCustomAll',
             'socialPrimariesByGeo', 'hiddenSocialsByGeo', 'addressPrimariesByGeo', 'hiddenAddressesByGeo',
             'socialKindCountsByGeo', 'socialKinds',
             'customCount',
-            'geoTabs', 'dataCategories', 'geoRules', 'newRuleA', 'newRuleB',
+            'geoTabs', 'visibleDataCategories', 'geoRules', 'newRuleA', 'newRuleB',
         ));
     }
 }

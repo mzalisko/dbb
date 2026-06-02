@@ -42,12 +42,16 @@ class ActivityLog extends Component
     /** @return array<string,mixed> active filters for AuditFeed. */
     private function filters(): array
     {
-        return array_filter([
+        $filters = array_filter([
             'domain'   => $this->filterDomain ?: null,
             'severity' => $this->filterSeverity !== '' ? (int) $this->filterSeverity : null,
             'site_id'  => $this->filterSite ?: null,
             'search'   => $this->search ?: null,
         ], fn ($v) => $v !== null && $v !== '');
+
+        $filters['allowed_entry_types'] = auth()->user()?->readableEntryTypes() ?? [];
+
+        return $filters;
     }
 
     public function openDetail(string $source, int $id): void
@@ -101,9 +105,13 @@ class ActivityLog extends Component
             fputcsv($out, ['Час', 'Подія', 'Код', 'Сайт', 'Користувач', 'Важливість', 'IP', 'Зміни']);
 
             foreach ($events as $e) {
-                $changes = collect($e->changes())
-                    ->map(fn ($c) => $c['field'].': '.json_encode($c['old'], JSON_UNESCAPED_UNICODE).' → '.json_encode($c['new'], JSON_UNESCAPED_UNICODE))
-                    ->implode('; ');
+                $changes = collect($e->changes())->map(function ($c) {
+                    $field = \App\Support\AuditEntry::humanField($c['field']);
+
+                    return \App\Support\AuditEntry::isListField($c['field'])
+                        ? $field.': '.\App\Support\AuditEntry::arrayDelta($c['field'], $c['old'], $c['new'])
+                        : $field.': '.\App\Support\AuditEntry::humanValue($c['field'], $c['old']).' → '.\App\Support\AuditEntry::humanValue($c['field'], $c['new']);
+                })->implode('; ');
 
                 fputcsv($out, [
                     $e->occurredAt->format('Y-m-d H:i:s'),

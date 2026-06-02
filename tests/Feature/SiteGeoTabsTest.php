@@ -145,6 +145,33 @@ class SiteGeoTabsTest extends TestCase
             ->assertDontSee('цін');
     }
 
+    public function test_site_show_hides_price_tabs_and_rows_when_price_permission_is_denied(): void
+    {
+        $permissions = User::ROLE_PERMISSIONS['manager'];
+        $permissions['data_prices']['read'] = false;
+        $manager = User::factory()->create(['role' => 'manager', 'permissions' => $permissions]);
+        $client = Client::factory()->for($manager)->create();
+        $site = Site::factory()->for($client)->create(['data_categories' => ['phones', 'messengers', 'prices']]);
+
+        ContactEntry::factory()->for($site)->phone()->create(['value' => '+PHONE-VISIBLE']);
+        ContactEntry::factory()->for($site)->price()->create([
+            'sku' => 'WAVE-DENIED',
+            'label' => 'Hidden price',
+            'price' => 149,
+        ]);
+
+        $component = Livewire::actingAs($manager)
+            ->test(Show::class, ['site' => $site])
+            ->assertViewHas('priceCount', 0);
+
+        $this->assertNotContains('prices', $component->viewData('visibleDataCategories'));
+
+        $component
+            ->assertSee('+PHONE-VISIBLE')
+            ->assertDontSee('WAVE-DENIED')
+            ->assertDontSee('Hidden price');
+    }
+
     public function test_site_card_delete_requires_confirmation(): void
     {
         $user = User::factory()->create(['role' => 'owner']);

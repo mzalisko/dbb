@@ -81,7 +81,12 @@
                         <x-dynamic-component :component="'icon.' . $e->icon()" width="13" height="13" style="color:var(--ink-5); flex-shrink:0;" />
                         <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ $e->label() }}</span>
                     </span>
-                    <span class="mono" style="font:12px var(--font-mono); color:var(--ink-7); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ $siteNames[$e->siteId] ?? '—' }}</span>
+                    @if ($e->siteId)
+                        <button type="button" wire:click.stop="$set('filterSite', '{{ $e->siteId }}')" title="Показати лише цей сайт"
+                                class="mono" style="font:12px var(--font-mono); color:var(--ink-9); background:transparent; border:0; padding:0; cursor:pointer; text-align:left; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-decoration:underline; text-decoration-color:var(--ink-3); text-underline-offset:2px;">{{ $siteNames[$e->siteId] ?? '—' }}</button>
+                    @else
+                        <span class="mono" style="font:12px var(--font-mono); color:var(--ink-5);">—</span>
+                    @endif
                     <span style="font:12.5px var(--font-sans); color:var(--ink-5);">{{ $e->userName ?? 'Система' }}</span>
                     <span style="font:11px var(--font-mono); color:{{ $sevColor }};">{{ $e->severityLabel() }}</span>
                     <x-icon.arrow width="13" height="13" style="color:var(--ink-4);" />
@@ -123,12 +128,19 @@
                                 <span class="eyebrow" style="font-size:10px;">Стало</span>
                             </div>
                             @foreach ($detail['changes'] as $c)
-                                <div style="display:grid; grid-template-columns:1fr 1fr 16px 1fr; gap:8px; align-items:center; padding:9px 2px; border-top:1px solid var(--ink-2);">
-                                    <span style="font:12px var(--font-sans); color:var(--ink-7);">{{ \App\Support\AuditEntry::humanField($c['field']) }}</span>
-                                    <span style="font:12px var(--font-sans); color:var(--bad); word-break:break-word;">{{ \App\Support\AuditEntry::humanValue($c['field'], $c['old']) }}</span>
-                                    <x-icon.arrow width="12" height="12" style="color:var(--ink-4);" />
-                                    <span style="font:12px var(--font-sans); color:var(--ok); word-break:break-word;">{{ \App\Support\AuditEntry::humanValue($c['field'], $c['new']) }}</span>
-                                </div>
+                                @if (\App\Support\AuditEntry::isListField($c['field']))
+                                    <div style="display:grid; grid-template-columns:1fr 2.6fr; gap:8px; align-items:center; padding:9px 2px; border-top:1px solid var(--ink-2);">
+                                        <span style="font:12px var(--font-sans); color:var(--ink-7);">{{ \App\Support\AuditEntry::humanField($c['field']) }}</span>
+                                        <span style="font:12px var(--font-sans); color:var(--ink-9); word-break:break-word;">{{ \App\Support\AuditEntry::arrayDelta($c['field'], $c['old'], $c['new']) }}</span>
+                                    </div>
+                                @else
+                                    <div style="display:grid; grid-template-columns:1fr 1fr 16px 1fr; gap:8px; align-items:center; padding:9px 2px; border-top:1px solid var(--ink-2);">
+                                        <span style="font:12px var(--font-sans); color:var(--ink-7);">{{ \App\Support\AuditEntry::humanField($c['field']) }}</span>
+                                        <span style="font:12px var(--font-sans); color:var(--bad); word-break:break-word;">{{ \App\Support\AuditEntry::humanValue($c['field'], $c['old']) }}</span>
+                                        <x-icon.arrow width="12" height="12" style="color:var(--ink-4);" />
+                                        <span style="font:12px var(--font-sans); color:var(--ok); word-break:break-word;">{{ \App\Support\AuditEntry::humanValue($c['field'], $c['new']) }}</span>
+                                    </div>
+                                @endif
                             @endforeach
                         </div>
                     @else

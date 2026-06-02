@@ -4,9 +4,11 @@
             <x-icon.trash width="13" height="13" /> {{ $trashed ? 'До активних' : 'Кошик' }}
         </x-ui.button>
         @unless ($trashed)
+            @if(count($types) > 0)
             <x-ui.button variant="primary" size="sm" wire:click="openCreate">
                 <x-icon.plus width="13" height="13" /> Додати
             </x-ui.button>
+            @endif
             <x-ui.button variant="secondary" size="sm" wire:click="export">
                 <x-icon.export width="13" height="13" /> Експорт
             </x-ui.button>

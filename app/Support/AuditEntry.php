@@ -125,12 +125,59 @@ final class AuditEntry
         }
 
         if (is_array($value)) {
-            $parts = array_map(fn ($v) => is_scalar($v) ? trim((string) $v) : implode(' ', array_map('strval', (array) $v)), $value);
+            $parts = array_map(fn ($v) => self::humanItem($field, $v), $value);
 
             return implode(' · ', array_filter($parts, fn ($p) => $p !== '')) ?: '—';
         }
 
         return (string) $value;
+    }
+
+    /** Whether this field's values are lists (show an added/removed delta, not two arrays). */
+    public static function isListField(string $field): bool
+    {
+        return in_array($field, ['countries', 'geo_tabs', 'data_categories', 'messenger_kinds'], true);
+    }
+
+    /** Plain-language delta for a list field: "Додано: Адреси · Прибрано: Ціни". */
+    public static function arrayDelta(string $field, mixed $old, mixed $new): string
+    {
+        $old = is_array($old) ? $old : [];
+        $new = is_array($new) ? $new : [];
+
+        $added = array_values(array_diff($new, $old));
+        $removed = array_values(array_diff($old, $new));
+
+        $parts = [];
+        if ($added) {
+            $parts[] = 'Додано: '.implode(', ', array_map(fn ($v) => self::humanItem($field, $v), $added));
+        }
+        if ($removed) {
+            $parts[] = 'Прибрано: '.implode(', ', array_map(fn ($v) => self::humanItem($field, $v), $removed));
+        }
+
+        return $parts ? implode(' · ', $parts) : 'без змін';
+    }
+
+    /** Human label for one list item (category key, messenger kind, country code…). */
+    private static function humanItem(string $field, mixed $v): string
+    {
+        if (! is_scalar($v)) {
+            return implode(' ', array_map('strval', (array) $v));
+        }
+        $v = (string) $v;
+
+        if ($field === 'data_categories') {
+            return [
+                'phones' => 'Телефони', 'messengers' => 'Месенджери', 'prices' => 'Ціни',
+                'addresses' => 'Адреси', 'socials' => 'Соцмережі', 'custom' => 'Інше',
+            ][$v] ?? $v;
+        }
+        if ($field === 'messenger_kinds') {
+            return \App\Models\ContactEntry::MSG_KINDS[$v]['label'] ?? ucfirst($v);
+        }
+
+        return $v; // countries / geo_tabs are ISO codes — keep as-is
     }
 }
 

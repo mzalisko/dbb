@@ -50,8 +50,12 @@
                                         <span>{{ ucfirst($fav->group) }}</span>
                                     </span>
                                 @endif
-                                <span class="fav-card__chip"><x-icon.phone width="10" height="10" /> {{ $phones }}</span>
-                                <span class="fav-card__chip"><x-icon.chat width="10" height="10" /> {{ $msgs }}</span>
+                                @if($canPhones)
+                                    <span class="fav-card__chip"><x-icon.phone width="10" height="10" /> {{ $phones }}</span>
+                                @endif
+                                @if($canMessengers)
+                                    <span class="fav-card__chip"><x-icon.chat width="10" height="10" /> {{ $msgs }}</span>
+                                @endif
                             </div>
                         </a>
                     </div>
@@ -149,21 +153,17 @@
                 </header>
 
                 @forelse ($recentLogs as $log)
-                    @php
-                        $dotClass = str_contains($log->action, 'fail') || str_contains($log->action, 'offline') ? 'dot-bad' : 'dot-ok';
-                    @endphp
-                    <div class="log-row">
+                    @php $dotClass = $log->severity === 2 ? 'dot-bad' : ($log->severity === 1 ? 'dot-warn' : 'dot-ok'); @endphp
+                    <a href="{{ route('activity.index', ['filterSite' => $log->siteId]) }}" wire:navigate class="log-row" style="text-decoration:none;" title="Логи сайту">
                         <div class="log-row__inner">
                             <div class="log-row__text">
                                 <span class="dot {{ $dotClass }}"></span>
-                                <span class="mono log-row__subj">
-                                    {{ $log->subject?->name ?? ($log->subject_type ? class_basename($log->subject_type) : '—') }}
-                                </span>
-                                <span class="log-row__action">{{ $log->action }}</span>
+                                <span class="mono log-row__subj">{{ $logSiteNames[$log->siteId] ?? '—' }}</span>
+                                <span class="log-row__action">{{ $log->label() }}</span>
                             </div>
-                            <span class="mono log-row__time">{{ $log->created_at->format('H:i:s') }}</span>
+                            <span class="mono log-row__time">{{ $log->occurredAt->format('H:i:s') }}</span>
                         </div>
-                    </div>
+                    </a>
                 @empty
                     <div class="dash-empty">Немає подій.</div>
                 @endforelse

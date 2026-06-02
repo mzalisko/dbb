@@ -1,7 +1,7 @@
-<div x-show="tab==='overview'" x-cloak class="tab-pane" x-data="{ overviewSub: 'contacts' }">
+<div x-show="tab==='overview'" x-cloak class="tab-pane" x-data="{ overviewSub: @js(($phoneCount + $msgCount) > 0 ? 'contacts' : ($addressCount > 0 ? 'addresses' : ($priceCount > 0 ? 'prices' : ($socialCount > 0 ? 'socials' : ($customCount > 0 ? 'custom' : ''))))) }">
     @php
         $overviewTabs = [
-            ['key' => 'contacts', 'label' => 'Контакти', 'count' => $phoneCount + $msgCount, 'show' => true],
+            ['key' => 'contacts', 'label' => 'Контакти', 'count' => $phoneCount + $msgCount, 'show' => ($phoneCount + $msgCount) > 0],
             ['key' => 'addresses', 'label' => 'Адреси', 'count' => $addressCount, 'show' => $addressCount > 0],
             ['key' => 'prices', 'label' => 'Ціни', 'count' => $priceCount, 'show' => $priceCount > 0],
             ['key' => 'socials', 'label' => 'Соц. мережі', 'count' => $socialCount, 'show' => $socialCount > 0],

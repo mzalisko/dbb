@@ -2,7 +2,6 @@
 
 namespace App\Models;
 
-// use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
@@ -23,54 +22,81 @@ class User extends Authenticatable implements AuditableContract
     /** Never audit secrets or login-timestamp noise. */
     protected $auditExclude = ['password', 'remember_token', 'updated_at', 'last_login_at'];
 
-    /** Resources and actions used in the permission matrix. */
     public const RESOURCES = [
-        'sites'   => 'Сайти',
-        'phones'  => 'Телефони',
-        'groups'  => 'Групи сайтів',
-        'team'    => 'Команда',
-        'api'     => 'API ключі',
+        'sites'           => 'Сайти',
+        'data_phones'     => 'Телефони',
+        'data_messengers' => 'Месенджери',
+        'data_prices'     => 'Ціни',
+        'data_addresses'  => 'Адреси',
+        'data_socials'    => 'Соц. мережі',
+        'data_custom'     => 'Custom',
+        'groups'          => 'Групи сайтів',
+        'team'            => 'Команда',
+        'api'             => 'API ключі',
+    ];
+
+    public const ENTRY_TYPE_RESOURCES = [
+        'phone'     => 'data_phones',
+        'messenger' => 'data_messengers',
+        'price'     => 'data_prices',
+        'address'   => 'data_addresses',
+        'social'    => 'data_socials',
+        'custom'    => 'data_custom',
     ];
 
     public const ACTIONS = ['read', 'create', 'edit', 'delete'];
 
-    /** Default permission matrices per role. */
     public const ROLE_PERMISSIONS = [
         'owner' => [
-            'sites'  => ['read' => true, 'create' => true,  'edit' => true,  'delete' => true],
-            'phones' => ['read' => true, 'create' => true,  'edit' => true,  'delete' => true],
-            'groups' => ['read' => true, 'create' => true,  'edit' => true,  'delete' => true],
-            'team'   => ['read' => true, 'create' => true,  'edit' => true,  'delete' => true],
-            'api'    => ['read' => true, 'create' => true,  'edit' => true,  'delete' => true],
+            'sites'           => ['read' => true, 'create' => true,  'edit' => true,  'delete' => true],
+            'data_phones'     => ['read' => true, 'create' => true,  'edit' => true,  'delete' => true],
+            'data_messengers' => ['read' => true, 'create' => true,  'edit' => true,  'delete' => true],
+            'data_prices'     => ['read' => true, 'create' => true,  'edit' => true,  'delete' => true],
+            'data_addresses'  => ['read' => true, 'create' => true,  'edit' => true,  'delete' => true],
+            'data_socials'    => ['read' => true, 'create' => true,  'edit' => true,  'delete' => true],
+            'data_custom'     => ['read' => true, 'create' => true,  'edit' => true,  'delete' => true],
+            'groups'          => ['read' => true, 'create' => true,  'edit' => true,  'delete' => true],
+            'team'            => ['read' => true, 'create' => true,  'edit' => true,  'delete' => true],
+            'api'             => ['read' => true, 'create' => true,  'edit' => true,  'delete' => true],
         ],
         'admin' => [
-            'sites'  => ['read' => true, 'create' => true,  'edit' => true,  'delete' => true],
-            'phones' => ['read' => true, 'create' => true,  'edit' => true,  'delete' => true],
-            'groups' => ['read' => true, 'create' => true,  'edit' => true,  'delete' => false],
-            'team'   => ['read' => true, 'create' => true,  'edit' => true,  'delete' => true],
-            'api'    => ['read' => true, 'create' => true,  'edit' => false, 'delete' => true],
+            'sites'           => ['read' => true, 'create' => true,  'edit' => true,  'delete' => true],
+            'data_phones'     => ['read' => true, 'create' => true,  'edit' => true,  'delete' => true],
+            'data_messengers' => ['read' => true, 'create' => true,  'edit' => true,  'delete' => true],
+            'data_prices'     => ['read' => true, 'create' => true,  'edit' => true,  'delete' => true],
+            'data_addresses'  => ['read' => true, 'create' => true,  'edit' => true,  'delete' => true],
+            'data_socials'    => ['read' => true, 'create' => true,  'edit' => true,  'delete' => true],
+            'data_custom'     => ['read' => true, 'create' => true,  'edit' => true,  'delete' => true],
+            'groups'          => ['read' => true, 'create' => true,  'edit' => true,  'delete' => false],
+            'team'            => ['read' => true, 'create' => true,  'edit' => true,  'delete' => true],
+            'api'             => ['read' => true, 'create' => true,  'edit' => false, 'delete' => true],
         ],
         'manager' => [
-            'sites'  => ['read' => true,  'create' => true,  'edit' => true,  'delete' => false],
-            'phones' => ['read' => true,  'create' => true,  'edit' => true,  'delete' => false],
-            'groups' => ['read' => true,  'create' => false, 'edit' => false, 'delete' => false],
-            'team'   => ['read' => true,  'create' => false, 'edit' => false, 'delete' => false],
-            'api'    => ['read' => false, 'create' => false, 'edit' => false, 'delete' => false],
+            'sites'           => ['read' => true,  'create' => true,  'edit' => true,  'delete' => false],
+            'data_phones'     => ['read' => true,  'create' => true,  'edit' => true,  'delete' => false],
+            'data_messengers' => ['read' => true,  'create' => true,  'edit' => true,  'delete' => false],
+            'data_prices'     => ['read' => true,  'create' => true,  'edit' => true,  'delete' => false],
+            'data_addresses'  => ['read' => true,  'create' => true,  'edit' => true,  'delete' => false],
+            'data_socials'    => ['read' => true,  'create' => true,  'edit' => true,  'delete' => false],
+            'data_custom'     => ['read' => true,  'create' => true,  'edit' => true,  'delete' => false],
+            'groups'          => ['read' => true,  'create' => false, 'edit' => false, 'delete' => false],
+            'team'            => ['read' => true,  'create' => false, 'edit' => false, 'delete' => false],
+            'api'             => ['read' => false, 'create' => false, 'edit' => false, 'delete' => false],
         ],
         'viewer' => [
-            'sites'  => ['read' => true,  'create' => false, 'edit' => false, 'delete' => false],
-            'phones' => ['read' => true,  'create' => false, 'edit' => false, 'delete' => false],
-            'groups' => ['read' => true,  'create' => false, 'edit' => false, 'delete' => false],
-            'team'   => ['read' => true,  'create' => false, 'edit' => false, 'delete' => false],
-            'api'    => ['read' => false, 'create' => false, 'edit' => false, 'delete' => false],
+            'sites'           => ['read' => true,  'create' => false, 'edit' => false, 'delete' => false],
+            'data_phones'     => ['read' => true,  'create' => false, 'edit' => false, 'delete' => false],
+            'data_messengers' => ['read' => true,  'create' => false, 'edit' => false, 'delete' => false],
+            'data_prices'     => ['read' => true,  'create' => false, 'edit' => false, 'delete' => false],
+            'data_addresses'  => ['read' => true,  'create' => false, 'edit' => false, 'delete' => false],
+            'data_socials'    => ['read' => true,  'create' => false, 'edit' => false, 'delete' => false],
+            'data_custom'     => ['read' => true,  'create' => false, 'edit' => false, 'delete' => false],
+            'groups'          => ['read' => true,  'create' => false, 'edit' => false, 'delete' => false],
+            'team'            => ['read' => true,  'create' => false, 'edit' => false, 'delete' => false],
+            'api'             => ['read' => false, 'create' => false, 'edit' => false, 'delete' => false],
         ],
     ];
 
-    /**
-     * Get the attributes that should be cast.
-     *
-     * @return array<string, string>
-     */
     protected function casts(): array
     {
         return [
@@ -84,7 +110,6 @@ class User extends Authenticatable implements AuditableContract
         ];
     }
 
-    /** Effective permission matrix: custom override if present, else role defaults. */
     public function effectivePermissions(): array
     {
         $defaults = self::ROLE_PERMISSIONS[$this->role] ?? self::ROLE_PERMISSIONS['viewer'];
@@ -93,9 +118,10 @@ class User extends Authenticatable implements AuditableContract
             return $defaults;
         }
 
-        // Merge custom over defaults so newly-added resources still have a baseline.
         $merged = $defaults;
         foreach ($this->permissions as $resource => $actions) {
+            $resource = $resource === 'phones' ? 'data_phones' : $resource;
+
             if (! isset($merged[$resource]) || ! is_array($actions)) {
                 continue;
             }
@@ -109,10 +135,27 @@ class User extends Authenticatable implements AuditableContract
 
     public function can_(string $resource, string $action): bool
     {
-        return (bool) (self::effectivePermissions()[$resource][$action] ?? false);
+        return (bool) ($this->effectivePermissions()[$resource][$action] ?? false);
     }
 
-    /** Whether the user can reach a given site, honouring the access scope. */
+    public static function resourceForEntryType(string $type): string
+    {
+        return self::ENTRY_TYPE_RESOURCES[$type] ?? 'data_custom';
+    }
+
+    public function canEntryType(string $type, string $action = 'read'): bool
+    {
+        return $this->can_(self::resourceForEntryType($type), $action);
+    }
+
+    public function readableEntryTypes(): array
+    {
+        return collect(array_keys(self::ENTRY_TYPE_RESOURCES))
+            ->filter(fn (string $type) => $this->canEntryType($type))
+            ->values()
+            ->all();
+    }
+
     public function canAccessSite(Site $site): bool
     {
         if ($this->access_scope !== 'limited') {

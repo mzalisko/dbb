@@ -171,37 +171,51 @@ class Index extends Component
 
     public function render()
     {
+        $user = auth()->user();
+        $canPhones = $user?->canEntryType('phone') ?? false;
+        $canMessengers = $user?->canEntryType('messenger') ?? false;
+        $canPrices = $user?->canEntryType('price') ?? false;
+
         $groups = \App\Models\Site::whereNotNull('group')
             ->selectRaw('`group`, group_color, count(*) as sites_count')
             ->groupBy('group', 'group_color')
             ->get();
 
         $groupFilter = strtolower($this->urlGroup);
+        $counts = [];
+
+        if ($canPhones) {
+            $counts['contactEntries as active_phones_count'] = fn($q) => $q
+                ->where('type', 'phone')
+                ->where('role', 'primary')
+                ->where('visible', true);
+            $counts['contactEntries as backup_phones_count'] = fn($q) => $q
+                ->where('type', 'phone')
+                ->where('role', 'backup')
+                ->where('visible', true);
+        }
+
+        if ($canMessengers) {
+            $counts['contactEntries as active_messengers_count'] = fn($q) => $q
+                ->where('type', 'messenger')
+                ->where('role', 'primary')
+                ->where('visible', true);
+            $counts['contactEntries as backup_messengers_count'] = fn($q) => $q
+                ->where('type', 'messenger')
+                ->where('role', 'backup')
+                ->where('visible', true);
+        }
+
+        if ($canPrices) {
+            $counts['contactEntries as active_prices_count'] = fn($q) => $q
+                ->where('type', 'price')
+                ->where('role', 'primary')
+                ->where('visible', true);
+        }
 
         $sitesQuery = Site::query()
             ->with('client')
-            ->withCount([
-                'contactEntries as active_phones_count' => fn($q) => $q
-                    ->where('type', 'phone')
-                    ->where('role', 'primary')
-                    ->where('visible', true),
-                'contactEntries as backup_phones_count' => fn($q) => $q
-                    ->where('type', 'phone')
-                    ->where('role', 'backup')
-                    ->where('visible', true),
-                'contactEntries as active_messengers_count' => fn($q) => $q
-                    ->where('type', 'messenger')
-                    ->where('role', 'primary')
-                    ->where('visible', true),
-                'contactEntries as backup_messengers_count' => fn($q) => $q
-                    ->where('type', 'messenger')
-                    ->where('role', 'backup')
-                    ->where('visible', true),
-                'contactEntries as active_prices_count' => fn($q) => $q
-                    ->where('type', 'price')
-                    ->where('role', 'primary')
-                    ->where('visible', true),
-            ]);
+            ->withCount($counts);
 
         if ($groupFilter !== '') {
             $sitesQuery->whereRaw('LOWER(`group`) = ?', [$groupFilter]);
@@ -213,6 +227,6 @@ class Index extends Component
 
         $urlGroup = $groupFilter;
 
-        return view('livewire.sites.index', compact('sites', 'groups', 'siteGroups', 'urlGroup'));
+        return view('livewire.sites.index', compact('sites', 'groups', 'siteGroups', 'urlGroup', 'canPhones', 'canMessengers', 'canPrices'));
     }
 }

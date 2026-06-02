@@ -188,6 +188,13 @@ class DataBrowser extends Component
     protected function applyVisibility(Builder $query): Builder
     {
         $user = Auth::user();
+        $readableTypes = $user?->readableEntryTypes() ?? [];
+
+        if (empty($readableTypes)) {
+            return $query->whereRaw('1 = 0');
+        }
+
+        $query->whereIn('type', $readableTypes);
 
         if (in_array($user?->role, ['owner', 'admin'], true)) {
             return $query;
@@ -220,6 +227,12 @@ class DataBrowser extends Component
 
     private function enabledTypeLabels(): array
     {
+        $readableTypes = collect(Auth::user()?->readableEntryTypes() ?? []);
+
+        if ($readableTypes->isEmpty()) {
+            return [];
+        }
+
         $enabledTypes = $this->sitesVisibleToUserQuery()
             ->get(['data_categories'])
             ->flatMap(fn (Site $site) => collect($this->normalizeDataCategories($site->data_categories))
@@ -229,7 +242,7 @@ class DataBrowser extends Component
             ->values();
 
         return collect(ContactEntry::typeLabels())
-            ->filter(fn ($label, $key) => $enabledTypes->contains($key))
+            ->filter(fn ($label, $key) => $enabledTypes->contains($key) && $readableTypes->contains($key))
             ->all();
     }
 
@@ -237,7 +250,14 @@ class DataBrowser extends Component
     {
         $enabled = $this->enabledTypeLabels();
 
-        if ($enabled && ! array_key_exists($this->typeFilter, $enabled)) {
+        if (! $enabled) {
+            $this->typeFilter = '';
+            $this->kindFilter = '';
+
+            return;
+        }
+
+        if (! array_key_exists($this->typeFilter, $enabled)) {
             $this->typeFilter = (string) array_key_first($enabled);
             $this->kindFilter = '';
         }
@@ -254,6 +274,7 @@ class DataBrowser extends Component
     protected function bulkQuery(): Builder
     {
         return $this->applyVisibility(ContactEntry::query())
+            ->when($this->typeFilter === '', fn ($q) => $q->whereRaw('1 = 0'))
             ->when($this->trashed, fn ($q) => $q->onlyTrashed())
             ->when($this->typeFilter, fn ($q) => $q->where('type', $this->typeFilter))
             ->when($this->kindFilter, fn ($q) => $q->where('kind', $this->kindFilter))
@@ -989,8 +1010,12 @@ class DataBrowser extends Component
         $created = [];
         ContactEntry::disableAuditing();
         try {
-            $this->selectedSourceQuery()->chunkById(500, function ($rows) use ($targets, &$created) {
+            $this->selectedSourceQuery()->chunkById(500, function ($rows) use ($targets, $user, &$created) {
                 foreach ($rows as $src) {
+                    // The selection may span several types — check each row's type permission.
+                    if (! $user->canEntryType($src->type, 'create')) {
+                        continue;
+                    }
                     foreach ($targets as $sid) {
                         $copy = $src->replicate();
                         $copy->site_id = $sid;
@@ -1108,6 +1133,13 @@ class DataBrowser extends Component
 
     public function openCreate(): void
     {
+        $user = Auth::user();
+        if ($this->typeFilter === '' || ! $user || ! $user->can('create', ContactEntry::class) || ! $user->canEntryType($this->typeFilter, 'create')) {
+            $this->dispatch('toast', type: 'error', message: 'Немає прав на створення');
+
+            return;
+        }
+
         $this->createValue = '';
         $this->createLabel = '';
         $this->createKind = $this->kindFilter ?: (string) (array_key_first($this->kindLabelsForType($this->typeFilter)) ?? '');

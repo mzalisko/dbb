@@ -1743,6 +1743,7 @@ svg { display: block; }
     text-align: left;
 }
 .team-action-btn:hover { background: var(--paper-2); color: var(--ink-9); border-color: var(--ink-5); }
+.team-temp-reset-action > span:not(.team-temp-reset-label) { display: none; }
 .team-action-btn--danger { color: var(--bad); border-color: transparent; }
 .team-action-btn--danger:hover { background: var(--bad-soft); border-color: var(--bad-soft); }
 .team-action-btn--warn { color: var(--warn); border-color: transparent; }
@@ -1759,6 +1760,21 @@ svg { display: block; }
 .team-temp-pass__value {
     font-size: 13px; color: var(--ink-9);
     overflow-wrap: anywhere; text-align: right;
+}
+.team-temp-pass__copy {
+    flex-shrink: 0;
+    height: 26px;
+    padding: 0 9px;
+    border-radius: 4px;
+    background: var(--card);
+    color: var(--ink-7);
+    border: 1px solid var(--ink-3);
+    font: 12px var(--font-sans);
+    cursor: pointer;
+}
+.team-temp-pass__copy:hover {
+    color: var(--ink-9);
+    border-color: var(--ink-5);
 }
 .team-pass-fields {
     margin-top: 4px; display: flex; flex-direction: column; gap: 16px;

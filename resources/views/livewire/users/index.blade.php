@@ -302,14 +302,28 @@
 
                     @if (!$isOwner)
                         <button wire:click="generateTemporaryPassword"
-                                class="team-action-btn">
+                                class="team-action-btn team-temp-reset-action">
                             <x-icon.refresh width="14" height="14" style="color:var(--ink-5); flex-shrink:0;" />
+                            <span class="team-temp-reset-label">Скинути і показати тимчасовий пароль</span>
                             <span>Згенерувати тимчасовий пароль</span>
                         </button>
                     @endif
 
+                    @if ($generatedPassword !== '')
+                        <div class="team-temp-pass">
+                            <span class="team-temp-pass__label">Тимчасовий пароль</span>
+                            <span class="team-temp-pass__value mono">{{ $generatedPassword }}</span>
+                            <button type="button"
+                                    class="team-temp-pass__copy"
+                                    x-data
+                                    x-on:click="navigator.clipboard?.writeText(@js($generatedPassword))">
+                                Копіювати
+                            </button>
+                        </div>
+                    @endif
+
                     @if ($changingPassword)
-                        @if ($generatedPassword !== '')
+                        @if (false && $generatedPassword !== '')
                             <div class="team-temp-pass">
                                 <span class="team-temp-pass__label">Тимчасовий пароль</span>
                                 <span class="team-temp-pass__value mono">{{ $generatedPassword }}</span>

@@ -91,13 +91,11 @@ class UsersPermissionsTest extends TestCase
             ->test(Index::class)
             ->call('viewUser', $target->id)
             ->call('generateTemporaryPassword')
-            ->assertSet('changingPassword', true);
+            ->assertSet('changingPassword', false);
 
         $password = $component->get('generatedPassword');
 
         $this->assertNotSame('', $password);
-
-        $component->call('saveUser');
 
         $this->assertTrue(Hash::check($password, $target->fresh()->password));
     }

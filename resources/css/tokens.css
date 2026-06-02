@@ -2259,6 +2259,9 @@ svg { display: block; }
 .data-value__parent > span:not(.data-value__parent-label) {
     display: none;
 }
+.data-value__parent > span:nth-of-type(2) {
+    display: none;
+}
 .data-value__parent-label {
     color: var(--ink-5);
 }

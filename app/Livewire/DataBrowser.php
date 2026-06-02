@@ -200,19 +200,14 @@ class DataBrowser extends Component
             return $query;
         }
 
-        return $query->whereHas('site.client', fn ($q) => $q->where('user_id', $user?->id));
+        // accessibleTo folds in client ownership AND access_scope (group/site) —
+        // so limited users never see, search or bulk-act on out-of-scope sites' data.
+        return $query->whereHas('site', fn ($q) => $q->accessibleTo($user));
     }
 
     protected function sitesVisibleToUserQuery(): Builder
     {
-        $user = Auth::user();
-        $query = Site::query();
-
-        if (! in_array($user?->role, ['owner', 'admin'], true)) {
-            $query->whereHas('client', fn ($q) => $q->where('user_id', $user?->id));
-        }
-
-        return $query;
+        return Site::query()->accessibleTo(Auth::user());
     }
 
     private function normalizeDataCategories(?array $categories): array

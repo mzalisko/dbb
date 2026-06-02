@@ -176,7 +176,7 @@ class Index extends Component
         $canMessengers = $user?->canEntryType('messenger') ?? false;
         $canPrices = $user?->canEntryType('price') ?? false;
 
-        $groups = \App\Models\Site::whereNotNull('group')
+        $groups = \App\Models\Site::accessibleTo($user)->whereNotNull('group')
             ->selectRaw('`group`, group_color, count(*) as sites_count')
             ->groupBy('group', 'group_color')
             ->get();
@@ -214,6 +214,7 @@ class Index extends Component
         }
 
         $sitesQuery = Site::query()
+            ->accessibleTo($user)
             ->with('client')
             ->withCount($counts);
 

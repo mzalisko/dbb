@@ -137,11 +137,13 @@ class ActivityLog extends Component
 
         $events = null;
         $sitesSummary = null;
+        // Site names + dive are limited to sites the user may access.
+        $siteNames = Site::accessibleTo(auth()->user())->pluck('name', 'id');
 
         if ($this->tab === 'sites') {
-            // Group site activity by site → one card per site, dive into its page.
+            // Group site activity by site → one card per (accessible) site.
             $sitesSummary = AuditFeed::collect($this->tabFilters())
-                ->filter(fn ($e) => $e->siteId !== null)
+                ->filter(fn ($e) => $e->siteId !== null && $siteNames->has($e->siteId))
                 ->groupBy('siteId')
                 ->map(fn ($evs, $sid) => (object) [
                     'siteId' => (int) $sid,
@@ -163,7 +165,7 @@ class ActivityLog extends Component
             'counts'       => $counts,
             'events'       => $events,
             'sitesSummary' => $sitesSummary,
-            'siteNames'    => Site::pluck('name', 'id'),
+            'siteNames'    => $siteNames,
         ]);
     }
 }

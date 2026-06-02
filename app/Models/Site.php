@@ -48,6 +48,28 @@ class Site extends Model implements AuditableContract
         return $this->hasMany(ContactEntry::class)->orderBy('order');
     }
 
+    /**
+     * Restrict a query to sites the user may see: owner/admin see all; everyone
+     * else only sites of their client, further narrowed by access_scope=limited
+     * (group_access / site_access). Used by every site list, the dashboard and search.
+     */
+    public function scopeAccessibleTo($query, ?User $user)
+    {
+        if (! $user || in_array($user->role, ['owner', 'admin'], true)) {
+            return $query;
+        }
+
+        $query->whereHas('client', fn ($q) => $q->where('user_id', $user->id));
+
+        if ($user->access_scope === 'limited') {
+            $groups = $user->group_access ?: ['__none__'];
+            $sites = $user->site_access ?: [0];
+            $query->where(fn ($q) => $q->whereIn('group', $groups)->orWhereIn('id', $sites));
+        }
+
+        return $query;
+    }
+
     /** Filter contact entries visible for a given geo (ISO-2 or 'world'). */
     public function entriesForGeo(string $type, string $geo): \Illuminate\Database\Eloquent\Collection
     {

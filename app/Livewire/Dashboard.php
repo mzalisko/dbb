@@ -27,20 +27,21 @@ class Dashboard extends Component
         $canPhones = $user?->canEntryType('phone') ?? false;
         $canMessengers = $user?->canEntryType('messenger') ?? false;
 
-        $totalSites = Site::count();
+        $totalSites = Site::accessibleTo($user)->count();
 
-        $favourites = Site::with(['contactEntries' => fn ($q) => $q->whereIn('type', $allowedEntryTypes)])
+        $favourites = Site::accessibleTo($user)
+            ->with(['contactEntries' => fn ($q) => $q->whereIn('type', $allowedEntryTypes)])
             ->where('is_favourite', true)
             ->latest('last_checked_at')
             ->get();
 
-        $groups = Site::whereNotNull('group')
+        $groups = Site::accessibleTo($user)->whereNotNull('group')
             ->selectRaw('`group`, group_color')
             ->groupBy('group', 'group_color')
             ->orderBy('group')
             ->get();
 
-        $sites = Site::with('client')->latest('last_checked_at')->get();
+        $sites = Site::accessibleTo($user)->with('client')->latest('last_checked_at')->get();
 
         // Recent site activity from the unified feed (semantic labels + severity).
         // Auth noise is excluded — this widget is about what changed on sites; click
@@ -49,7 +50,7 @@ class Dashboard extends Component
             ->filter(fn ($e) => $e->siteId !== null)
             ->take(7)
             ->values();
-        $logSiteNames = Site::pluck('name', 'id');
+        $logSiteNames = Site::accessibleTo($user)->pluck('name', 'id');
 
         return view('livewire.dashboard', compact('sites', 'recentLogs', 'logSiteNames', 'totalSites', 'favourites', 'groups', 'canPhones', 'canMessengers'));
     }

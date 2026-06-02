@@ -179,7 +179,10 @@
             </div>
 
             @forelse ($entries as $i => $entry)
-                @php $sel = $selectAllMatching || in_array($entry->id, $selected, true); @endphp
+                @php
+                    $sel = $selectAllMatching || in_array($entry->id, $selected, true);
+                    $isReserveEntry = ! is_null($entry->parent_id);
+                @endphp
                 <div wire:key="entry-{{ $entry->id }}" wire:click="toggleSelected({{ $entry->id }})"
                      style="display:grid; grid-template-columns:32px 1.4fr 1.6fr 1fr 100px 80px; gap:12px; padding:14px 18px; border-top:{{ $i ? '1px solid var(--ink-3)' : 'none' }}; background:{{ $sel ? 'var(--accent-soft)' : 'transparent' }}; align-items:center; cursor:pointer; transition:background .12s;">
                     <span class="row-check {{ $sel ? 'is-checked' : '' }}">
@@ -209,9 +212,10 @@
                         @else
                             <span class="mono" style="font:13.5px var(--font-mono); color:{{ $trashed ? 'var(--ink-6)' : 'var(--ink-9)' }};">{{ $entry->value }}</span>
                         @endif
-                        @if($entry->role === 'backup' && $entry->parent)
+                        @if($isReserveEntry && $entry->parent)
                             <span class="data-value__parent" title="Резерв для {{ $entry->parent->value }}">
                                 <x-icon.arrow width="11" height="11" />
+                                <span class="data-value__parent-label">Резерв для</span>
                                 <span>для</span>
                                 <strong>{{ $entry->parent->value }}</strong>
                                 @if($entry->parent->label)
@@ -227,7 +231,18 @@
                         <span style="font:12px var(--font-sans); color:var(--ink-5);">{{ $entry->deleted_at?->diffForHumans() }}</span>
                     @else
                         <span class="data-role">
-                            @if ($entry->role === 'primary')
+                            @if ($entry->role === 'hidden')
+                                <span class="data-role__state">
+                                    <x-icon.eye-off width="13" height="13" class="state-icon state-icon--hidden" /> Приховано
+                                </span>
+                                @if($isReserveEntry)
+                                    <span class="data-role__state data-role__state--muted">
+                                        <span class="dot dot-info"></span> Резерв
+                                    </span>
+                                @endif
+                            @elseif ($isReserveEntry)
+                                <span class="data-role__state"><span class="dot dot-info"></span> Резерв</span>
+                            @elseif ($entry->role === 'primary')
                                 <span class="dot dot-ok"></span> Активний
                             @elseif ($entry->role === 'backup')
                                 <span class="dot dot-info"></span> Резерв

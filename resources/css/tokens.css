@@ -2189,8 +2189,19 @@ svg { display: block; }
     display: inline-flex;
     align-items: center;
     gap: 6px;
+    flex-wrap: wrap;
     white-space: nowrap;
     font: 12.5px var(--font-sans);
+}
+.data-role__state {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    min-height: 18px;
+}
+.data-role__state--muted {
+    color: var(--ink-5);
+    font-size: 12px;
 }
 .data-value {
     min-width: 0;
@@ -2244,6 +2255,12 @@ svg { display: block; }
     font: 11px var(--font-sans);
     color: var(--ink-5);
     white-space: nowrap;
+}
+.data-value__parent > span:not(.data-value__parent-label) {
+    display: none;
+}
+.data-value__parent-label {
+    color: var(--ink-5);
 }
 .data-value__parent strong {
     max-width: 160px;

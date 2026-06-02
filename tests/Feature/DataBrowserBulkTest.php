@@ -1006,4 +1006,46 @@ class DataBrowserBulkTest extends TestCase
             ->assertSet('attaching', false) // a reserve lives on its primary's site
             ->assertDispatched('toast', fn ($e, $p) => ($p['type'] ?? null) === 'error');
     }
+
+    public function test_hidden_reserves_show_their_parent_context_in_data_browser(): void
+    {
+        $owner = User::factory()->create(['role' => 'owner']);
+        $site = $this->siteForOwner($owner);
+        $phone = ContactEntry::factory()->for($site)->phone()->create([
+            'value' => '+MAIN-PHONE',
+            'label' => 'Головний номер',
+        ]);
+        ContactEntry::factory()->backup($phone)->create([
+            'value' => '+HIDDEN-PHONE',
+            'label' => 'PL резерв',
+            'role' => 'hidden',
+            'visible' => false,
+        ]);
+        $telegram = ContactEntry::factory()->for($site)->messenger('telegram')->create([
+            'value' => '@main_tg',
+            'label' => 'Головний Telegram',
+        ]);
+        ContactEntry::factory()->backup($telegram)->create([
+            'value' => '@hidden_tg',
+            'label' => 'TG резерв',
+            'role' => 'hidden',
+            'visible' => false,
+        ]);
+
+        Livewire::actingAs($owner)
+            ->test(DataBrowser::class, ['typeFilter' => 'phone', 'roleFilter' => 'hidden'])
+            ->assertSee('+HIDDEN-PHONE')
+            ->assertSee('Резерв для')
+            ->assertSee('+MAIN-PHONE')
+            ->assertSee('Приховано')
+            ->assertSee('Резерв');
+
+        Livewire::actingAs($owner)
+            ->test(DataBrowser::class, ['typeFilter' => 'messenger', 'kindFilter' => 'telegram', 'roleFilter' => 'hidden'])
+            ->assertSee('@hidden_tg')
+            ->assertSee('Резерв для')
+            ->assertSee('@main_tg')
+            ->assertSee('Приховано')
+            ->assertSee('Резерв');
+    }
 }

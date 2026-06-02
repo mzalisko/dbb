@@ -85,9 +85,14 @@
                             @foreach ($changes as $c)
                                 <div class="tl-diff">
                                     <span class="eyebrow eyebrow-xs">{{ \App\Support\AuditEntry::humanField($c['field']) }}</span>
-                                    <span class="diff-val {{ ($c['old'] === null || $c['old'] === '' || $c['old'] === []) ? 'diff-val--empty' : 'diff-val--old' }}">{{ \App\Support\AuditEntry::humanValue($c['field'], $c['old']) }}</span>
-                                    <span class="tl-arrow">→</span>
-                                    <span class="diff-val {{ ($c['new'] === null || $c['new'] === '' || $c['new'] === []) ? 'diff-val--empty' : 'diff-val--new' }}">{{ \App\Support\AuditEntry::humanValue($c['field'], $c['new']) }}</span>
+                                    @if (\App\Support\AuditEntry::isListField($c['field']))
+                                        <span class="diff-val diff-val--new">{{ \App\Support\AuditEntry::arrayDelta($c['field'], $c['old'], $c['new']) }}</span>
+                                        <span></span><span></span>
+                                    @else
+                                        <span class="diff-val {{ ($c['old'] === null || $c['old'] === '' || $c['old'] === []) ? 'diff-val--empty' : 'diff-val--old' }}">{{ \App\Support\AuditEntry::humanValue($c['field'], $c['old']) }}</span>
+                                        <span class="tl-arrow">→</span>
+                                        <span class="diff-val {{ ($c['new'] === null || $c['new'] === '' || $c['new'] === []) ? 'diff-val--empty' : 'diff-val--new' }}">{{ \App\Support\AuditEntry::humanValue($c['field'], $c['new']) }}</span>
+                                    @endif
                                 </div>
                             @endforeach
                         </div>
@@ -105,6 +110,12 @@
                         <span class="tl-meta">IP {{ $e->ip }}</span>
                     @endif
                     <span class="tl-meta--mid">{{ $e->occurredAt->format('d M Y · H:i:s') }}</span>
+                    @if ($e->source === 'audit' && ! $isBulk && $type === 'update' && count($changes))
+                        <button class="btn btn-ghost btn-sm btn-xs" wire:click="rollbackAudit({{ $e->id }})"
+                                wire:confirm="Відновити попередні значення цього запису?">
+                            <x-icon.refresh width="10" height="10" /> Відновити
+                        </button>
+                    @endif
                 </footer>
             </article>
         </div>

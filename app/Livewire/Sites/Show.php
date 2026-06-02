@@ -669,6 +669,42 @@ class Show extends Component
         }
     }
 
+    /**
+     * Roll back a field edit: write an owen-it audit's old_values back onto the
+     * record. Only 'updated' events (the rollback itself is logged as a new edit).
+     */
+    public function rollbackAudit(int $auditId): void
+    {
+        $audit = \OwenIt\Auditing\Models\Audit::find($auditId);
+        if (! $audit || $audit->event !== 'updated') {
+            return;
+        }
+
+        $model = $audit->auditable;
+        if (! $model) {
+            $this->dispatch('toast', type: 'error', message: 'Запис недоступний для відновлення');
+
+            return;
+        }
+
+        $this->authorize('update', $model);
+
+        $old = collect((array) $audit->old_values)
+            ->reject(fn ($v, $k) => in_array($k, ['updated_at', 'created_at'], true))
+            ->all();
+
+        if (empty($old)) {
+            return;
+        }
+
+        $model->update($old);
+        $this->dispatch('toast', type: 'success', message: 'Відновлено попередні значення');
+
+        if ($model instanceof \App\Models\ContactEntry && $model->type === 'phone') {
+            $this->dispatch('phones-updated');
+        }
+    }
+
     public function deleteEntry(int $id): void
     {
         $entry = \App\Models\ContactEntry::findOrFail($id);

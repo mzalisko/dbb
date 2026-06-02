@@ -253,6 +253,8 @@ class AuditFeed
             ->when(! empty($filters['search']), fn ($c) => $c->filter(
                 fn (AuditEntry $e) => str_contains(mb_strtolower($e->label()), mb_strtolower((string) $filters['search']))
             ))
+            ->when(! empty($filters['bulk']), fn ($c) => $c->filter(fn (AuditEntry $e) => str_contains($e->actionCode, '.bulk.')))
+            ->when(! empty($filters['exclude_bulk']), fn ($c) => $c->reject(fn (AuditEntry $e) => str_contains($e->actionCode, '.bulk.')))
             ->values();
     }
 

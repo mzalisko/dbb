@@ -201,4 +201,21 @@ class AuditCoverageTest extends TestCase
         $this->assertNotNull($user->fresh()->last_login_at, 'login must update last_login_at');
         $this->assertDatabaseHas('activity_log', ['action' => 'auth.login']);
     }
+
+    public function test_rollback_restores_previous_field_values(): void
+    {
+        $owner = User::factory()->create(['role' => 'owner']);
+        $site = Site::factory()->for(Client::factory()->for($owner))->create();
+        $entry = ContactEntry::factory()->for($site)->phone()->create(['label' => 'before']);
+        $entry->update(['label' => 'after']);
+
+        $audit = \OwenIt\Auditing\Models\Audit::where('auditable_type', ContactEntry::class)
+            ->where('auditable_id', $entry->id)->where('event', 'updated')->latest('id')->first();
+        $this->assertNotNull($audit);
+
+        Livewire::actingAs($owner)->test(\App\Livewire\Sites\Show::class, ['site' => $site])
+            ->call('rollbackAudit', $audit->id);
+
+        $this->assertSame('before', $entry->fresh()->label, 'rollback restores the old value');
+    }
 }

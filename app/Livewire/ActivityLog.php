@@ -4,7 +4,6 @@ namespace App\Livewire;
 
 use App\Models\Site;
 use App\Services\AuditFeed;
-use App\Support\AuditAction;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Title;
 use Livewire\Attributes\Url;
@@ -17,14 +16,9 @@ class ActivityLog extends Component
 {
     use WithPagination;
 
+    /** sites | auth | bulk | perms */
     #[Url]
-    public string $filterDomain = '';
-
-    #[Url]
-    public string $filterSeverity = '';
-
-    #[Url]
-    public string $filterSite = '';
+    public string $tab = 'sites';
 
     #[Url]
     public string $search = '';
@@ -34,29 +28,36 @@ class ActivityLog extends Component
 
     public function updating($name): void
     {
-        if (str_starts_with($name, 'filter') || $name === 'search') {
+        if ($name === 'tab' || $name === 'search') {
             $this->resetPage();
+            $this->detail = null;
         }
     }
 
-    /** @return array<string,mixed> active filters for AuditFeed. */
-    private function filters(): array
+    private function allowedEntryTypes(): array
     {
-        $filters = array_filter([
-            'domain'   => $this->filterDomain ?: null,
-            'severity' => $this->filterSeverity !== '' ? (int) $this->filterSeverity : null,
-            'site_id'  => $this->filterSite ?: null,
-            'search'   => $this->search ?: null,
-        ], fn ($v) => $v !== null && $v !== '');
+        return auth()->user()?->readableEntryTypes() ?? [];
+    }
 
-        $filters['allowed_entry_types'] = auth()->user()?->readableEntryTypes() ?? [];
+    /** Filters for the active tab's event stream. */
+    private function tabFilters(): array
+    {
+        $f = ['allowed_entry_types' => $this->allowedEntryTypes()];
+        if ($this->search !== '') {
+            $f['search'] = $this->search;
+        }
 
-        return $filters;
+        return match ($this->tab) {
+            'auth'  => $f + ['domain' => 'auth'],
+            'bulk'  => $f + ['bulk' => true],
+            'perms' => $f + ['domain' => 'user'],
+            default => $f + ['exclude_bulk' => true], // sites
+        };
     }
 
     public function openDetail(string $source, int $id): void
     {
-        $event = AuditFeed::collect($this->filters())
+        $event = AuditFeed::collect($this->tabFilters())
             ->first(fn ($e) => $e->source === $source && $e->id === $id);
 
         if (! $event) {
@@ -87,22 +88,17 @@ class ActivityLog extends Component
         $this->detail = null;
     }
 
-    public function clearFilters(): void
-    {
-        $this->reset('filterDomain', 'filterSeverity', 'filterSite', 'search');
-        $this->resetPage();
-    }
-
-    /** Stream the current filtered feed as CSV (capped to AuditFeed's window). */
+    /** Stream the active tab's feed as CSV in plain language. */
     public function export()
     {
-        $events = AuditFeed::collect($this->filters());
-        $filename = 'audit-'.now()->format('Y-m-d-His').'.csv';
+        $events = AuditFeed::collect($this->tabFilters());
+        $siteNames = Site::pluck('name', 'id');
+        $filename = 'audit-'.$this->tab.'-'.now()->format('Y-m-d-His').'.csv';
 
-        return response()->streamDownload(function () use ($events) {
+        return response()->streamDownload(function () use ($events, $siteNames) {
             $out = fopen('php://output', 'w');
-            fwrite($out, "\xEF\xBB\xBF"); // BOM so Excel reads UTF-8
-            fputcsv($out, ['Час', 'Подія', 'Код', 'Сайт', 'Користувач', 'Важливість', 'IP', 'Зміни']);
+            fwrite($out, "\xEF\xBB\xBF"); // BOM for Excel
+            fputcsv($out, ['Час', 'Подія', 'Сайт', 'Користувач', 'Важливість', 'IP', 'Зміни']);
 
             foreach ($events as $e) {
                 $changes = collect($e->changes())->map(function ($c) {
@@ -116,8 +112,7 @@ class ActivityLog extends Component
                 fputcsv($out, [
                     $e->occurredAt->format('Y-m-d H:i:s'),
                     $e->label(),
-                    $e->actionCode,
-                    $e->siteId,
+                    $e->siteId ? ($siteNames[$e->siteId] ?? $e->siteId) : '—',
                     $e->userName ?? 'Система',
                     $e->severityLabel(),
                     $e->ip,
@@ -131,27 +126,44 @@ class ActivityLog extends Component
 
     public function render()
     {
-        $events = AuditFeed::paginate($this->filters(), 30);
-        $counts = AuditFeed::counts($this->filters());
+        // One pass over the authorised feed for the tab counts.
+        $all = AuditFeed::collect(['allowed_entry_types' => $this->allowedEntryTypes()]);
+        $counts = [
+            'sites' => $all->filter(fn ($e) => $e->siteId !== null && ! str_contains($e->actionCode, '.bulk.'))->count(),
+            'auth'  => $all->filter(fn ($e) => $e->domain() === 'auth')->count(),
+            'bulk'  => $all->filter(fn ($e) => str_contains($e->actionCode, '.bulk.'))->count(),
+            'perms' => $all->filter(fn ($e) => $e->domain() === 'user')->count(),
+        ];
+
+        $events = null;
+        $sitesSummary = null;
+
+        if ($this->tab === 'sites') {
+            // Group site activity by site → one card per site, dive into its page.
+            $sitesSummary = AuditFeed::collect($this->tabFilters())
+                ->filter(fn ($e) => $e->siteId !== null)
+                ->groupBy('siteId')
+                ->map(fn ($evs, $sid) => (object) [
+                    'siteId' => (int) $sid,
+                    'last'   => $evs->first(),
+                    'count'  => $evs->count(),
+                ])
+                ->values();
+        } else {
+            $events = AuditFeed::paginate($this->tabFilters(), 30);
+        }
 
         return view('livewire.activity-log', [
-            'events'     => $events,
-            'counts'     => $counts,
-            'sites'      => Site::orderBy('name')->get(['id', 'name']),
-            'siteNames'  => Site::pluck('name', 'id'),
-            'domains'    => [
-                'entry'  => 'Дані',
-                'site'   => 'Сайти',
-                'group'  => 'Групи',
-                'user'   => 'Команда',
-                'auth'   => 'Авторизація',
-                'system' => 'Система',
+            'tabs' => [
+                'sites' => 'Сайти',
+                'auth'  => 'Авторизація',
+                'bulk'  => 'Масові зміни',
+                'perms' => 'Дозволи',
             ],
-            'severities' => [
-                AuditAction::INFO     => 'Інфо',
-                AuditAction::WARN     => 'Увага',
-                AuditAction::CRITICAL => 'Критичні',
-            ],
+            'counts'       => $counts,
+            'events'       => $events,
+            'sitesSummary' => $sitesSummary,
+            'siteNames'    => Site::pluck('name', 'id'),
         ]);
     }
 }

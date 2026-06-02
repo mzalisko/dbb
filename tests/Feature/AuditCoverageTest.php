@@ -82,4 +82,24 @@ class AuditCoverageTest extends TestCase
         $this->assertSame(1, ActivityLog::count() - $logsBefore, 'exactly one summary row');
         $this->assertSame(0, DB::table('audits')->count() - $auditsBefore, 'no per-row audits during bulk');
     }
+
+    public function test_logs_page_shows_semantic_labels_and_diff_drawer(): void
+    {
+        $owner = User::factory()->create(['role' => 'owner']);
+        $this->actingAs($owner);
+        $site = Site::factory()->for(Client::factory()->for($owner))->create();
+        $entry = ContactEntry::factory()->for($site)->phone()->create(['label' => 'old']);
+        $entry->update(['label' => 'new']);
+
+        $updated = \App\Services\AuditFeed::collect([])->firstWhere('actionCode', 'entry.updated');
+
+        Livewire::test(\App\Livewire\ActivityLog::class)
+            ->assertStatus(200)
+            ->assertSee('Запис змінено')                 // semantic label, not raw "entry updated"
+            ->call('openDetail', 'audit', $updated->id)
+            ->assertSet('detail.actionCode', 'entry.updated')
+            ->assertSee('label')                          // the changed field
+            ->assertSee('old')                            // before
+            ->assertSee('new');                           // after
+    }
 }

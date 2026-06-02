@@ -1234,12 +1234,9 @@ class Show extends Component
         $priceBySku = $allPrices->groupBy('sku');
 
         // Activity
-        $activityLogs = ActivityLog::where('subject_type', Site::class)
-            ->where('subject_id', $this->site->id)
-            ->with('user')
-            ->latest()
-            ->take(20)
-            ->get();
+        // Per-site feed from the unified read-model: owen-it diffs + activity_log,
+        // semantic codes + real old/new (PM-T07).
+        $activityLogs = \App\Services\AuditFeed::collect(['site_id' => $this->site->id])->take(40);
 
         $failoverLogs = ActivityLog::where('subject_type', Site::class)
             ->where('subject_id', $this->site->id)

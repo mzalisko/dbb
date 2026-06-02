@@ -144,6 +144,7 @@ class AuditFeed
             ->map(function (ActivityLog $l) {
                 $props = $l->properties ?? [];
                 $siteId = $props['site_id'] ?? ($l->subject_type === Site::class ? $l->subject_id : null);
+                $hasDiff = array_key_exists('old', $props) || array_key_exists('new', $props);
 
                 return new AuditEntry(
                     id: $l->id,
@@ -156,8 +157,11 @@ class AuditFeed
                     subjectType: $l->subject_type,
                     subjectId: $l->subject_id,
                     siteId: $siteId !== null ? (int) $siteId : null,
-                    old: is_array($props['old'] ?? null) ? $props['old'] : [],
-                    new: is_array($props['new'] ?? null) ? $props['new'] : [],
+                    old: $hasDiff && is_array($props['old'] ?? null) ? $props['old'] : [],
+                    // Non-diff rows (bulk summary, auth, cascade) expose their props as "new".
+                    new: $hasDiff
+                        ? (is_array($props['new'] ?? null) ? $props['new'] : [])
+                        : array_diff_key($props, ['site_id' => null]),
                     ip: $l->ip_address,
                     batchId: $l->batch_id,
                     context: $l->context,

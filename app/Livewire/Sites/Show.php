@@ -633,6 +633,14 @@ class Show extends Component
         $entry = \App\Models\ContactEntry::findOrFail($id);
         $this->authorize('delete', $entry);
         $isPhone = $entry->type === 'phone';
+        // backups()->delete() is a builder mass-delete that bypasses owen-it — log
+        // the cascade explicitly so the reserves' removal leaves a trail (critic B3).
+        $backupIds = $entry->backups()->pluck('id');
+        if ($backupIds->isNotEmpty()) {
+            \App\Services\ActivityLogService::log('entry.deleted', $entry, [
+                'cascade' => 'backups', 'backup_ids' => $backupIds->all(), 'count' => $backupIds->count(),
+            ]);
+        }
         $entry->backups()->delete();
         $entry->delete();
         $this->resetEntryForm();

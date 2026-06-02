@@ -48,10 +48,22 @@ class Index extends Component
     {
         $this->authorize('delete', SiteGroup::class);
 
-        // Ungroup sites that belonged to this group (sites are NOT deleted).
+        $group = SiteGroup::where('name', $name)->first();
+
+        // Mass-ungroup is a query-builder update (fast) that bypasses owen-it —
+        // capture one explicit reassignment log before it (critic B2).
+        $ids = Site::where('group', $name)->pluck('id');
+        if ($ids->isNotEmpty()) {
+            \App\Services\ActivityLogService::log('group.sites.reassigned', $group, [
+                'from'     => $name,
+                'count'    => $ids->count(),
+                'site_ids' => $ids->take(50)->all(),
+            ]);
+        }
         Site::where('group', $name)->update(['group' => null, 'group_color' => null]);
 
-        SiteGroup::where('name', $name)->delete();
+        // Model-instance delete so owen-it records group.deleted (not a builder delete).
+        $group?->delete();
 
         $this->dispatch('group-deleted');
     }

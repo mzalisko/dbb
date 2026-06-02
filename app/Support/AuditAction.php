@@ -28,9 +28,17 @@ final class AuditAction
         'entry.messenger.added'  => ['Месенджер додано',         self::INFO,     'plus'],
 
         // ── Bulk (one summary row per batch) ─────────────────────────
-        'entry.bulk.deleted'     => ['Масове видалення',         self::WARN,     'trash'],
-        'entry.bulk.visibility'  => ['Масова зміна видимості',   self::INFO,     'edit'],
-        'entry.bulk.restored'    => ['Масове відновлення',       self::INFO,     'refresh'],
+        'entry.bulk.deleted'     => ['Масове видалення',          self::WARN,     'trash'],
+        'entry.bulk.visibility'  => ['Масова зміна видимості',    self::INFO,     'edit'],
+        'entry.bulk.restored'    => ['Масове відновлення',        self::INFO,     'refresh'],
+        'entry.bulk.updated'     => ['Масова зміна',              self::INFO,     'edit'],
+        'entry.bulk.role'        => ['Масова зміна стану',        self::INFO,     'bolt'],
+        'entry.bulk.geo'         => ['Масова зміна гео',          self::INFO,     'globe'],
+        'entry.bulk.price'       => ['Масова зміна цін',          self::INFO,     'tag'],
+        'entry.bulk.created'     => ['Масове створення',          self::INFO,     'plus'],
+        'entry.bulk.moved'       => ['Масове переміщення',        self::INFO,     'share'],
+        'entry.bulk.attached'    => ['Масове приєднання резерву', self::INFO,     'link'],
+        'entry.bulk.purged'      => ['Масове видалення назавжди', self::CRITICAL, 'trash'],
 
         // ── Site ──────────────────────────────────────────────────────
         'site.created'           => ['Сайт створено',            self::INFO,     'plus'],

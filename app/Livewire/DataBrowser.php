@@ -5,6 +5,7 @@ namespace App\Livewire;
 use App\Livewire\Concerns\WithBulkSelection;
 use App\Models\ContactEntry;
 use App\Models\Site;
+use App\Services\ActivityLogService;
 use App\Services\BulkActionService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
@@ -438,6 +439,7 @@ class DataBrowser extends Component
                 $snapshot[$e->id] = $e->{$field};
                 $e->update([$field => $new]);
             },
+            auditAction: 'entry.bulk.updated',
         );
 
         $this->closeEdit();
@@ -534,6 +536,7 @@ class DataBrowser extends Component
                 }
                 $e->update($data);
             },
+            auditAction: 'entry.bulk.role',
         );
 
         $this->closeRole();
@@ -634,6 +637,7 @@ class DataBrowser extends Component
                 $snapshot[$e->id] = $e->{$field};
                 $e->update([$field => $value]);
             },
+            auditAction: 'entry.bulk.price',
         );
 
         $this->closePriceEdit();
@@ -726,6 +730,7 @@ class DataBrowser extends Component
                 $e->update(['value' => str_replace($find, $replace, $current)]);
                 $changed++;
             },
+            auditAction: 'entry.bulk.updated',
         );
 
         if ($changed === 0) {
@@ -809,6 +814,7 @@ class DataBrowser extends Component
                     'geo_tag' => $geoTag,
                 ]);
             },
+            auditAction: 'entry.bulk.geo',
         );
 
         $this->closeGeo();
@@ -871,6 +877,7 @@ class DataBrowser extends Component
                 $e->delete();
                 $deleted[] = $e->id;
             },
+            auditAction: 'entry.bulk.deleted',
         );
 
         $this->clearSelected();
@@ -900,6 +907,7 @@ class DataBrowser extends Component
             'delete',
             fn (ContactEntry $e) => $e->restore(),
             withTrashed: true,
+            auditAction: 'entry.bulk.restored',
         );
 
         $this->dispatch('toast', type: 'success', message: "Відновлено {$result['done']}");
@@ -915,6 +923,7 @@ class DataBrowser extends Component
             'delete',
             fn (ContactEntry $e) => $e->restore(),
             withTrashed: true,
+            auditAction: 'entry.bulk.restored',
         );
 
         $this->clearSelected();
@@ -930,6 +939,7 @@ class DataBrowser extends Component
             'delete',
             fn (ContactEntry $e) => $e->forceDelete(),
             withTrashed: true,
+            auditAction: 'entry.bulk.purged',
         );
 
         $this->clearSelected();
@@ -977,20 +987,29 @@ class DataBrowser extends Component
         }
 
         $created = [];
-        $this->selectedSourceQuery()->chunkById(500, function ($rows) use ($targets, &$created) {
-            foreach ($rows as $src) {
-                foreach ($targets as $sid) {
-                    $copy = $src->replicate();
-                    $copy->site_id = $sid;
-                    $copy->parent_id = null;       // a copy stands alone on the target site
-                    if ($copy->role === 'backup') {
-                        $copy->role = 'primary';   // a reserve becomes primary when copied
+        ContactEntry::disableAuditing();
+        try {
+            $this->selectedSourceQuery()->chunkById(500, function ($rows) use ($targets, &$created) {
+                foreach ($rows as $src) {
+                    foreach ($targets as $sid) {
+                        $copy = $src->replicate();
+                        $copy->site_id = $sid;
+                        $copy->parent_id = null;       // a copy stands alone on the target site
+                        if ($copy->role === 'backup') {
+                            $copy->role = 'primary';   // a reserve becomes primary when copied
+                        }
+                        $copy->save();
+                        $created[] = $copy->id;
                     }
-                    $copy->save();
-                    $created[] = $copy->id;
                 }
-            }
-        });
+            });
+        } finally {
+            ContactEntry::enableAuditing();
+        }
+
+        if ($created) {
+            ActivityLogService::log('entry.bulk.created', null, ['done' => count($created), 'targets' => count($targets)], context: 'bulk');
+        }
 
         $this->closeDuplicate();
         $this->clearSelected();
@@ -1040,23 +1059,32 @@ class DataBrowser extends Component
         $snapshot = [];   // id => previous site_id
         $done = 0;
 
-        $this->selectedSourceQuery()->with('backups')->chunkById(500, function ($rows) use ($target, $user, &$snapshot, &$done) {
-            foreach ($rows as $e) {
-                if (! $user || ! $user->can('update', $e) || $e->site_id === $target) {
-                    continue;
-                }
-                $snapshot[$e->id] = $e->site_id;
-                $e->update(['site_id' => $target]);
-                // A primary takes its reserves along so the group stays on one site.
-                if (is_null($e->parent_id)) {
-                    foreach ($e->backups as $b) {
-                        $snapshot[$b->id] = $b->site_id;
-                        $b->update(['site_id' => $target]);
+        ContactEntry::disableAuditing();
+        try {
+            $this->selectedSourceQuery()->with('backups')->chunkById(500, function ($rows) use ($target, $user, &$snapshot, &$done) {
+                foreach ($rows as $e) {
+                    if (! $user || ! $user->can('update', $e) || $e->site_id === $target) {
+                        continue;
                     }
+                    $snapshot[$e->id] = $e->site_id;
+                    $e->update(['site_id' => $target]);
+                    // A primary takes its reserves along so the group stays on one site.
+                    if (is_null($e->parent_id)) {
+                        foreach ($e->backups as $b) {
+                            $snapshot[$b->id] = $b->site_id;
+                            $b->update(['site_id' => $target]);
+                        }
+                    }
+                    $done++;
                 }
-                $done++;
-            }
-        });
+            });
+        } finally {
+            ContactEntry::enableAuditing();
+        }
+
+        if ($done > 0) {
+            ActivityLogService::log('entry.bulk.moved', null, ['done' => $done, 'site_id' => $target], context: 'bulk');
+        }
 
         $this->closeMove();
         $this->clearSelected();
@@ -1134,19 +1162,26 @@ class DataBrowser extends Component
 
         $role = in_array($this->createRole, ['primary', 'hidden'], true) ? $this->createRole : 'primary';
         $created = [];
-        foreach ($targets as $sid) {
-            $created[] = ContactEntry::create([
-                'site_id'  => $sid,
-                'type'     => $type,
-                'kind'     => $kind ?: null,
-                'value'    => $value,
-                'label'    => trim($this->createLabel) ?: null,
-                'role'     => $role,
-                'geo_mode' => 'all',
-                'visible'  => $role !== 'hidden',
-                'order'    => 1,
-            ])->id;
+        ContactEntry::disableAuditing();
+        try {
+            foreach ($targets as $sid) {
+                $created[] = ContactEntry::create([
+                    'site_id'  => $sid,
+                    'type'     => $type,
+                    'kind'     => $kind ?: null,
+                    'value'    => $value,
+                    'label'    => trim($this->createLabel) ?: null,
+                    'role'     => $role,
+                    'geo_mode' => 'all',
+                    'visible'  => $role !== 'hidden',
+                    'order'    => 1,
+                ])->id;
+            }
+        } finally {
+            ContactEntry::enableAuditing();
         }
+
+        ActivityLogService::log('entry.bulk.created', null, ['done' => count($created), 'type' => $type], context: 'bulk');
 
         $this->closeCreate();
 
@@ -1224,19 +1259,28 @@ class DataBrowser extends Component
         $snapshot = [];
         $done = 0;
 
-        $this->selectedSourceQuery()->chunkById(500, function ($rows) use ($parent, $user, &$snapshot, &$done) {
-            foreach ($rows as $e) {
-                if (! $user || ! $user->can('update', $e) || $e->id === $parent->id
-                    || $e->site_id !== $parent->site_id || $e->type !== $parent->type
-                    || ($parent->kind && $e->kind !== $parent->kind) || $e->backups()->exists()) {
-                    continue;
+        ContactEntry::disableAuditing();
+        try {
+            $this->selectedSourceQuery()->chunkById(500, function ($rows) use ($parent, $user, &$snapshot, &$done) {
+                foreach ($rows as $e) {
+                    if (! $user || ! $user->can('update', $e) || $e->id === $parent->id
+                        || $e->site_id !== $parent->site_id || $e->type !== $parent->type
+                        || ($parent->kind && $e->kind !== $parent->kind) || $e->backups()->exists()) {
+                        continue;
+                    }
+                    $snapshot[$e->id] = ['role' => $e->role, 'parent_id' => $e->parent_id, 'geo_tag' => $e->geo_tag, 'geo_mode' => $e->geo_mode, 'countries' => $e->countries, 'visible' => $e->visible];
+                    // A reserve stores neutral geo and reads through to its primary.
+                    $e->update(['role' => 'backup', 'parent_id' => $parent->id, 'geo_tag' => null, 'geo_mode' => 'all', 'countries' => null, 'visible' => true]);
+                    $done++;
                 }
-                $snapshot[$e->id] = ['role' => $e->role, 'parent_id' => $e->parent_id, 'geo_tag' => $e->geo_tag, 'geo_mode' => $e->geo_mode, 'countries' => $e->countries, 'visible' => $e->visible];
-                // A reserve stores neutral geo and reads through to its primary.
-                $e->update(['role' => 'backup', 'parent_id' => $parent->id, 'geo_tag' => null, 'geo_mode' => 'all', 'countries' => null, 'visible' => true]);
-                $done++;
-            }
-        });
+            });
+        } finally {
+            ContactEntry::enableAuditing();
+        }
+
+        if ($done > 0) {
+            ActivityLogService::log('entry.bulk.attached', null, ['done' => $done, 'parent_id' => $parent->id], context: 'bulk');
+        }
 
         $this->closeAttach();
         $this->clearSelected();

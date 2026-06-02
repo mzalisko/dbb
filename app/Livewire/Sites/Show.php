@@ -680,8 +680,22 @@ class Show extends Component
             return;
         }
 
+        // Allow-list of rollbackable fields per type — never restore identity/scope
+        // columns (role, site_id, parent_id, client_id…) even if owen-it captured them.
+        $allowedFields = match ($audit->auditable_type) {
+            \App\Models\ContactEntry::class => ['value', 'label', 'kind', 'geo_tag', 'geo_mode', 'countries', 'visible', 'currency', 'price', 'old_price', 'price_unit', 'sku', 'order'],
+            \App\Models\Site::class         => ['name', 'url', 'status', 'notes', 'group', 'group_color', 'geo_tabs', 'geo_rules', 'data_categories', 'messenger_kinds', 'failover_enabled', 'failover_interval', 'failover_threshold'],
+            default                         => null,
+        };
+        if ($allowedFields === null) {
+            return;
+        }
+
         $model = $audit->auditable;
-        if (! $model) {
+        // Anti-IDOR: this component only rolls back records of THIS site.
+        $belongsToSite = ($model instanceof \App\Models\ContactEntry && (int) $model->site_id === (int) $this->site->id)
+            || ($model instanceof \App\Models\Site && (int) $model->id === (int) $this->site->id);
+        if (! $model || ! $belongsToSite) {
             $this->dispatch('toast', type: 'error', message: 'Запис недоступний для відновлення');
 
             return;
@@ -689,9 +703,7 @@ class Show extends Component
 
         $this->authorize('update', $model);
 
-        $old = collect((array) $audit->old_values)
-            ->reject(fn ($v, $k) => in_array($k, ['updated_at', 'created_at'], true))
-            ->all();
+        $old = collect((array) $audit->old_values)->only($allowedFields)->all();
 
         if (empty($old)) {
             return;

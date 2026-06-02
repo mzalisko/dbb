@@ -218,4 +218,22 @@ class AuditCoverageTest extends TestCase
 
         $this->assertSame('before', $entry->fresh()->label, 'rollback restores the old value');
     }
+
+    public function test_rollback_rejects_an_audit_from_another_site(): void
+    {
+        $owner = User::factory()->create(['role' => 'owner']);
+        $siteA = Site::factory()->for(Client::factory()->for($owner))->create();
+        $siteB = Site::factory()->for(Client::factory()->for($owner))->create();
+        $entryB = ContactEntry::factory()->for($siteB)->phone()->create(['label' => 'before']);
+        $entryB->update(['label' => 'after']);
+
+        $auditB = \OwenIt\Auditing\Models\Audit::where('auditable_id', $entryB->id)
+            ->where('auditable_type', ContactEntry::class)->where('event', 'updated')->latest('id')->first();
+
+        // Acting on siteA's page, attempt to roll back siteB's entry (IDOR).
+        Livewire::actingAs($owner)->test(\App\Livewire\Sites\Show::class, ['site' => $siteA])
+            ->call('rollbackAudit', $auditB->id);
+
+        $this->assertSame('after', $entryB->fresh()->label, 'cross-site rollback must be rejected');
+    }
 }

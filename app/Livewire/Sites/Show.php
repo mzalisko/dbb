@@ -1235,6 +1235,17 @@ class Show extends Component
         // Prices
         $allPrices = $this->site->contactEntries()->where('type', 'price')->where('visible', true)->get();
         $priceBySku = $allPrices->groupBy('sku');
+        $allCustomAll = $this->site->contactEntries()->where('type', 'custom')->orderBy('order')->get();
+        $overviewExtrasByGeo = [];
+        foreach (array_merge(['all'], $this->geoTabs) as $gk) {
+            $overviewExtrasByGeo[$gk] = [
+                'label' => $gk === 'all' ? "\u{0412}\u{0441}\u{0456}" : $gk,
+                'addresses' => $this->filterByPreviewTab($allAddressesAll, $gk)->filter(fn($e) => $e->visible)->values(),
+                'prices' => $this->filterByPreviewTab($allPricesAll, $gk)->filter(fn($e) => $e->visible)->values(),
+                'socials' => $this->filterByPreviewTab($allSocialsAll, $gk)->filter(fn($e) => $e->visible)->values(),
+                'custom' => $this->filterByPreviewTab($allCustomAll, $gk)->filter(fn($e) => $e->visible)->values(),
+            ];
+        }
 
         // Activity
         // Per-site feed from the unified read-model: owen-it diffs + activity_log,
@@ -1254,6 +1265,7 @@ class Show extends Component
         // Extra categories
         $addressCount = $this->site->contactEntries()->where('type', 'address')->count();
         $socialCount  = $this->site->contactEntries()->where('type', 'social')->count();
+        $customCount  = $allCustomAll->count();
 
         // Messenger kinds grouped (for platform pills)
         $msgKindCountsByGeo = [];
@@ -1284,7 +1296,7 @@ class Show extends Component
         $newRuleB = $this->newRuleB;
 
         return view('livewire.sites.show', compact(
-            'overviewByGeo', 'geoMatrix', 'conflicts', 'conflictPhoneIds',
+            'overviewByGeo', 'overviewExtrasByGeo', 'geoMatrix', 'conflicts', 'conflictPhoneIds',
             'allPhones', 'allMsgs', 'allPhonesAll', 'allMsgsAll', 'allPricesAll',
             'phonePrimaries', 'msgPrimaries',
             'phonePrimariesByGeo', 'hiddenPhonesByGeo', 'msgPrimariesByGeo', 'hiddenMsgsByGeo',
@@ -1295,9 +1307,10 @@ class Show extends Component
             'siteGroups',
             'phoneCount', 'msgCount', 'priceCount',
             'addressCount', 'socialCount',
-            'allSocialsAll', 'allAddressesAll',
+            'allSocialsAll', 'allAddressesAll', 'allCustomAll',
             'socialPrimariesByGeo', 'hiddenSocialsByGeo', 'addressPrimariesByGeo', 'hiddenAddressesByGeo',
             'socialKindCountsByGeo', 'socialKinds',
+            'customCount',
             'geoTabs', 'dataCategories', 'geoRules', 'newRuleA', 'newRuleB',
         ));
     }

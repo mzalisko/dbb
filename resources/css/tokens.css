@@ -121,6 +121,7 @@
 /* --- Base resets --- */
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; }
+html { scrollbar-gutter: stable; }
 body {
   font-family: var(--font-sans);
   font-size: 15px;
@@ -130,6 +131,57 @@ body {
   letter-spacing: -0.005em;
   -webkit-font-smoothing: antialiased;
   font-feature-settings: "ss01", "cv11";
+  overflow-x: clip;
+}
+body > main,
+.page,
+.team-scroll,
+.drawer-body,
+.modal-body,
+main > [style*="overflow-y:auto"],
+main > [style*="overflow-y: auto"] {
+  scrollbar-gutter: stable;
+  overflow-x: clip;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(128, 122, 108, .32) transparent;
+}
+body > main::-webkit-scrollbar,
+.page::-webkit-scrollbar,
+.team-scroll::-webkit-scrollbar,
+.drawer-body::-webkit-scrollbar,
+.modal-body::-webkit-scrollbar,
+main > [style*="overflow-y:auto"]::-webkit-scrollbar,
+main > [style*="overflow-y: auto"]::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+body > main::-webkit-scrollbar-track,
+.page::-webkit-scrollbar-track,
+.team-scroll::-webkit-scrollbar-track,
+.drawer-body::-webkit-scrollbar-track,
+.modal-body::-webkit-scrollbar-track,
+main > [style*="overflow-y:auto"]::-webkit-scrollbar-track,
+main > [style*="overflow-y: auto"]::-webkit-scrollbar-track {
+  background: transparent;
+}
+body > main::-webkit-scrollbar-thumb,
+.page::-webkit-scrollbar-thumb,
+.team-scroll::-webkit-scrollbar-thumb,
+.drawer-body::-webkit-scrollbar-thumb,
+.modal-body::-webkit-scrollbar-thumb,
+main > [style*="overflow-y:auto"]::-webkit-scrollbar-thumb,
+main > [style*="overflow-y: auto"]::-webkit-scrollbar-thumb {
+  background: rgba(128, 122, 108, .26);
+  border-radius: 999px;
+}
+body > main:hover::-webkit-scrollbar-thumb,
+.page:hover::-webkit-scrollbar-thumb,
+.team-scroll:hover::-webkit-scrollbar-thumb,
+.drawer-body:hover::-webkit-scrollbar-thumb,
+.modal-body:hover::-webkit-scrollbar-thumb,
+main > [style*="overflow-y:auto"]:hover::-webkit-scrollbar-thumb,
+main > [style*="overflow-y: auto"]:hover::-webkit-scrollbar-thumb {
+  background: rgba(128, 122, 108, .44);
 }
 h1,h2,h3,h4 { color: var(--ink-9); font-weight: 400; letter-spacing: -0.025em; margin: 0; }
 p { margin: 0; color: var(--ink-7); }
@@ -797,7 +849,42 @@ svg { display: block; }
 .tab-pane { padding: 32px 40px 64px; }
 .eyebrow-xs { font-size: 10.5px; }
 
+.overview-subtabs {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin: -10px 0 14px;
+}
+.overview-subtab {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    height: 30px;
+    padding: 0 13px;
+    border-radius: 999px;
+    background: var(--card);
+    color: var(--ink-6);
+    box-shadow: inset 0 0 0 1px var(--ink-3);
+    font: 13px var(--font-sans);
+    cursor: pointer;
+    transition: background .12s, color .12s, box-shadow .12s;
+}
+.overview-subtab:hover {
+    color: var(--ink-9);
+    box-shadow: inset 0 0 0 1px var(--ink-5);
+}
+.overview-subtab.is-active {
+    background: var(--ink-9);
+    color: var(--paper);
+    box-shadow: none;
+}
+
 /* Overview tab — visitor overview columns */
+.overview-panel.is-hidden {
+    display: none !important;
+}
+
 .ov-card { overflow: hidden; }
 .ov-card__head {
     padding: 14px 18px 10px; border-bottom: 1px solid var(--ink-3);
@@ -878,6 +965,16 @@ svg { display: block; }
     justify-content: flex-start;
     border-bottom: 1px solid var(--ink-3);
 }
+.ov-entry--wide {
+    min-height: 86px;
+    height: auto;
+    cursor: pointer;
+}
+.ov-entry--wide:hover .ov-val {
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 3px;
+}
 .ov-entry--placeholder {
     color: transparent;
     pointer-events: none;
@@ -896,6 +993,21 @@ svg { display: block; }
 }
 .ov-empty { font: 13px var(--font-mono); color: var(--ink-3); }
 .ov-msg-tag { font: 600 11px var(--font-mono); }
+.ov-price-line {
+    display: flex;
+    align-items: baseline;
+    gap: 5px;
+}
+.ov-old-price {
+    color: var(--ink-4);
+    font: 11px var(--font-mono);
+    text-decoration: line-through;
+}
+.ov-geo-rule {
+    margin-top: 5px;
+    color: var(--ink-4);
+    font: 10.5px var(--font-mono);
+}
 
 /* Overview: geo matrix table */
 .ov-matrix-card { overflow: hidden; margin-top: 12px; }

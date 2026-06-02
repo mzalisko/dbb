@@ -51,7 +51,6 @@
     {{-- ГЕО (hidden for backup — inherits parent's geo) --}}
     <div x-show="$wire.entryRole !== 'backup'" x-cloak>
         <label class="label">Правило видимості</label>
-        <p class="field-hint">Окремо від належності: показувати всім, тільки вибраним країнам або всім крім вибраних.</p>
         <div class="country-pills">
             <button type="button"
                     class="country-pill {{ $entryGeoMode === 'all' ? 'is-active' : '' }}"

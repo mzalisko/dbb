@@ -439,4 +439,57 @@ class SiteGeoTabsTest extends TestCase
         $this->assertSame($clonePrimary->id, $cloneBackup->parent_id);
         $this->assertNotSame($primary->id, $cloneBackup->parent_id);
     }
+
+    public function test_overview_renders_extra_data_tabs_by_geo(): void
+    {
+        $user = User::factory()->create(['role' => 'owner']);
+        $client = Client::factory()->for($user)->create();
+        $site = Site::factory()->for($client)->create([
+            'geo_tabs' => ['UA', 'PL'],
+            'data_categories' => ['phones', 'messengers', 'prices', 'addresses', 'socials', 'custom'],
+        ]);
+
+        ContactEntry::factory()->for($site)->address()->create([
+            'value' => 'Kyiv, Khreshchatyk 1',
+            'label' => 'UA офіс',
+            'geo_mode' => 'only',
+            'countries' => ['UA'],
+        ]);
+        ContactEntry::factory()->for($site)->price()->create([
+            'sku' => 'WAVE-01',
+            'label' => 'Підписка Standard',
+            'price' => 149,
+            'old_price' => 199,
+            'currency' => 'PLN',
+            'price_unit' => '/міс',
+            'geo_mode' => 'only',
+            'countries' => ['PL'],
+        ]);
+        ContactEntry::factory()->for($site)->social('facebook')->create([
+            'value' => 'https://facebook.test/databridge',
+            'label' => 'FB page',
+        ]);
+        ContactEntry::create([
+            'site_id' => $site->id,
+            'type' => 'custom',
+            'value' => 'VAT ID 123',
+            'label' => 'Реквізити',
+            'role' => 'primary',
+            'geo_mode' => 'all',
+            'visible' => true,
+            'order' => 1,
+        ]);
+
+        Livewire::actingAs($user)
+            ->test(Show::class, ['site' => $site])
+            ->assertSee('Адреси')
+            ->assertSee('Ціни')
+            ->assertSee('Соц. мережі')
+            ->assertSee('Custom')
+            ->assertSee('Kyiv, Khreshchatyk 1')
+            ->assertSee('WAVE-01')
+            ->assertSee('149')
+            ->assertSee('https://facebook.test/databridge')
+            ->assertSee('VAT ID 123');
+    }
 }

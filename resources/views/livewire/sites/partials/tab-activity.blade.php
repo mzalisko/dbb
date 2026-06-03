@@ -50,7 +50,7 @@
             $sev = $e->severity;
             $typeColor = $sev === 2 ? 'var(--bad)' : ($sev === 1 ? 'var(--warn)' : ($type === 'create' ? 'var(--ok)' : 'var(--info)'));
             $typeBg = $sev === 2 ? 'var(--bad-soft)' : ($sev === 1 ? 'var(--warn-soft)' : ($type === 'create' ? 'var(--ok-soft)' : 'var(--info-soft)'));
-            $changes = $e->changes();
+            $changes = $e->humanChanges();
             $isBulk = str_contains($e->actionCode, '.bulk.');
             $isSystem = is_null($e->userId);
             $avatarText = strtoupper(substr($e->userName ?? 'S', 0, 2));
@@ -83,17 +83,34 @@
                     @elseif (count($changes))
                         <div class="tl-diffs">
                             @foreach ($changes as $c)
-                                <div class="tl-diff">
-                                    <span class="eyebrow eyebrow-xs">{{ \App\Support\AuditEntry::humanField($c['field']) }}</span>
-                                    @if (\App\Support\AuditEntry::isListField($c['field']))
-                                        <span class="diff-val diff-val--new">{{ \App\Support\AuditEntry::arrayDelta($c['field'], $c['old'], $c['new']) }}</span>
-                                        <span></span><span></span>
-                                    @else
-                                        <span class="diff-val {{ ($c['old'] === null || $c['old'] === '' || $c['old'] === []) ? 'diff-val--empty' : 'diff-val--old' }}">{{ \App\Support\AuditEntry::humanValue($c['field'], $c['old']) }}</span>
+                                @if ($c['kind'] === 'group')
+                                    {{-- Permissions: one row per changed toggle --}}
+                                    <div class="tl-diff" style="align-items:start;">
+                                        <span class="eyebrow eyebrow-xs">{{ $c['field'] }}</span>
+                                        <div style="grid-column:2 / -1; display:flex; flex-direction:column; gap:6px;">
+                                            @foreach ($c['lines'] as $l)
+                                                <div style="display:grid; grid-template-columns:1fr 1fr 20px 1fr; gap:12px; align-items:center;">
+                                                    <span style="font:12px var(--font-sans); color:var(--ink-6);">{{ $l['label'] }}</span>
+                                                    <span class="diff-val diff-val--old">{{ $l['old'] }}</span>
+                                                    <span class="tl-arrow">→</span>
+                                                    <span class="diff-val diff-val--new">{{ $l['new'] }}</span>
+                                                </div>
+                                            @endforeach
+                                        </div>
+                                    </div>
+                                @elseif ($c['kind'] === 'delta')
+                                    <div class="tl-diff">
+                                        <span class="eyebrow eyebrow-xs">{{ $c['field'] }}</span>
+                                        <span class="diff-val" style="grid-column:2 / -1; background:var(--paper-2); color:var(--ink-8);">{{ \App\Support\AuditEntry::deltaText($c['added'], $c['removed']) }}</span>
+                                    </div>
+                                @else
+                                    <div class="tl-diff">
+                                        <span class="eyebrow eyebrow-xs">{{ $c['field'] }}</span>
+                                        <span class="diff-val {{ $c['oldEmpty'] ? 'diff-val--empty' : 'diff-val--old' }}">{{ $c['old'] }}</span>
                                         <span class="tl-arrow">→</span>
-                                        <span class="diff-val {{ ($c['new'] === null || $c['new'] === '' || $c['new'] === []) ? 'diff-val--empty' : 'diff-val--new' }}">{{ \App\Support\AuditEntry::humanValue($c['field'], $c['new']) }}</span>
-                                    @endif
-                                </div>
+                                        <span class="diff-val {{ $c['newEmpty'] ? 'diff-val--empty' : 'diff-val--new' }}">{{ $c['new'] }}</span>
+                                    </div>
+                                @endif
                             @endforeach
                         </div>
                     @else

@@ -78,7 +78,7 @@ class ActivityLog extends Component
             'batchId'       => $event->batchId,
             'siteId'        => $event->siteId,
             'isBulk'        => str_contains($event->actionCode, '.bulk.'),
-            'changes'       => $event->changes(),
+            'changes'       => $event->humanChanges(),
             'summary'       => $event->new,
         ];
     }
@@ -101,12 +101,13 @@ class ActivityLog extends Component
             fputcsv($out, ['Час', 'Подія', 'Сайт', 'Користувач', 'Важливість', 'IP', 'Зміни']);
 
             foreach ($events as $e) {
-                $changes = collect($e->changes())->map(function ($c) {
-                    $field = \App\Support\AuditEntry::humanField($c['field']);
-
-                    return \App\Support\AuditEntry::isListField($c['field'])
-                        ? $field.': '.\App\Support\AuditEntry::arrayDelta($c['field'], $c['old'], $c['new'])
-                        : $field.': '.\App\Support\AuditEntry::humanValue($c['field'], $c['old']).' → '.\App\Support\AuditEntry::humanValue($c['field'], $c['new']);
+                $changes = collect($e->humanChanges())->map(function ($row) {
+                    return match ($row['kind']) {
+                        'group'  => $row['field'].': '.collect($row['lines'])
+                            ->map(fn ($l) => $l['label'].' '.$l['old'].' → '.$l['new'])->implode(', '),
+                        'delta'  => $row['field'].': '.\App\Support\AuditEntry::deltaText($row['added'], $row['removed']),
+                        default  => $row['field'].': '.$row['old'].' → '.$row['new'],
+                    };
                 })->implode('; ');
 
                 fputcsv($out, [

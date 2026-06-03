@@ -111,17 +111,32 @@
                     @elseif (count($detail['changes']))
                         <div>
                             @foreach ($detail['changes'] as $c)
-                                @if (\App\Support\AuditEntry::isListField($c['field']))
+                                @if ($c['kind'] === 'group')
+                                    {{-- Permission matrix: one line per changed toggle --}}
+                                    <div style="padding:9px 2px; border-top:1px solid var(--ink-2);">
+                                        <span style="font:12px var(--font-sans); color:var(--ink-7);">{{ $c['field'] }}</span>
+                                        <div style="margin-top:6px; display:flex; flex-direction:column; gap:5px;">
+                                            @foreach ($c['lines'] as $l)
+                                                <div style="display:grid; grid-template-columns:1.4fr 1fr 16px 1fr; gap:8px; align-items:center; padding-left:10px;">
+                                                    <span style="font:12px var(--font-sans); color:var(--ink-6);">{{ $l['label'] }}</span>
+                                                    <span style="font:12px var(--font-sans); color:var(--bad);">{{ $l['old'] }}</span>
+                                                    <x-icon.arrow width="12" height="12" style="color:var(--ink-4);" />
+                                                    <span style="font:12px var(--font-sans); color:var(--ok);">{{ $l['new'] }}</span>
+                                                </div>
+                                            @endforeach
+                                        </div>
+                                    </div>
+                                @elseif ($c['kind'] === 'delta')
                                     <div style="display:grid; grid-template-columns:1fr 2.6fr; gap:8px; align-items:center; padding:9px 2px; border-top:1px solid var(--ink-2);">
-                                        <span style="font:12px var(--font-sans); color:var(--ink-7);">{{ \App\Support\AuditEntry::humanField($c['field']) }}</span>
-                                        <span style="font:12px var(--font-sans); color:var(--ink-9); word-break:break-word;">{{ \App\Support\AuditEntry::arrayDelta($c['field'], $c['old'], $c['new']) }}</span>
+                                        <span style="font:12px var(--font-sans); color:var(--ink-7);">{{ $c['field'] }}</span>
+                                        <span style="font:12px var(--font-sans); color:var(--ink-9); word-break:break-word;">{{ \App\Support\AuditEntry::deltaText($c['added'], $c['removed']) }}</span>
                                     </div>
                                 @else
                                     <div style="display:grid; grid-template-columns:1fr 1fr 16px 1fr; gap:8px; align-items:center; padding:9px 2px; border-top:1px solid var(--ink-2);">
-                                        <span style="font:12px var(--font-sans); color:var(--ink-7);">{{ \App\Support\AuditEntry::humanField($c['field']) }}</span>
-                                        <span style="font:12px var(--font-sans); color:var(--bad); word-break:break-word;">{{ \App\Support\AuditEntry::humanValue($c['field'], $c['old']) }}</span>
+                                        <span style="font:12px var(--font-sans); color:var(--ink-7);">{{ $c['field'] }}</span>
+                                        <span style="font:12px var(--font-sans); color:{{ $c['oldEmpty'] ? 'var(--ink-4)' : 'var(--bad)' }}; word-break:break-word;">{{ $c['old'] }}</span>
                                         <x-icon.arrow width="12" height="12" style="color:var(--ink-4);" />
-                                        <span style="font:12px var(--font-sans); color:var(--ok); word-break:break-word;">{{ \App\Support\AuditEntry::humanValue($c['field'], $c['new']) }}</span>
+                                        <span style="font:12px var(--font-sans); color:{{ $c['newEmpty'] ? 'var(--ink-4)' : 'var(--ok)' }}; word-break:break-word;">{{ $c['new'] }}</span>
                                     </div>
                                 @endif
                             @endforeach

@@ -179,5 +179,259 @@ final class AuditEntry
 
         return $v; // countries / geo_tabs are ISO codes — keep as-is
     }
+
+    // ─── Unified human diff (the only renderer the UI/CSV should use) ─────────
+
+    /** Memoized site id → name (handles soft-deleted granted sites too). */
+    private static array $siteNameCache = [];
+
+    private const PERM_ACTIONS = [
+        'read' => 'перегляд', 'create' => 'створення',
+        'edit' => 'редагування', 'delete' => 'видалення',
+    ];
+
+    private const USER_FIELD_LABELS = [
+        'role' => 'Роль', 'access_scope' => 'Рівень доступу', 'name' => 'Імʼя',
+        'email' => 'Email', 'phone' => 'Телефон', 'organization_name' => 'Організація',
+        'avatar_path' => 'Аватар', 'suspended_at' => 'Доступ', 'permissions' => 'Дозволи',
+        'site_access' => 'Доступ до сайтів', 'group_access' => 'Доступ до груп',
+    ];
+
+    private const USER_ROLES = [
+        'owner' => 'Власник', 'admin' => 'Адміністратор',
+        'manager' => 'Менеджер', 'viewer' => 'Глядач', 'member' => 'Учасник',
+    ];
+
+    /**
+     * Fully-rendered, human-readable change rows — the single source of truth for
+     * the Логи drawer, the site Активність timeline and the CSV export. Never emits
+     * JSON, raw arrays, technical keys or unchanged fields. Each row is one of:
+     *   ['kind'=>'scalar','field'=>string,'old'=>string,'new'=>string,'oldEmpty'=>bool,'newEmpty'=>bool]
+     *   ['kind'=>'delta', 'field'=>string,'added'=>string[],'removed'=>string[]]
+     *   ['kind'=>'group', 'field'=>string,'lines'=>[['label'=>string,'old'=>string,'new'=>string], …]]
+     *
+     * @return array<int, array<string,mixed>>
+     */
+    public function humanChanges(): array
+    {
+        $isUser = $this->subjectType === \App\Models\User::class;
+        $rows = [];
+
+        foreach ($this->changes() as $c) {
+            $field = $c['field'];
+            $old = $c['old'];
+            $new = $c['new'];
+
+            // Permission matrix → leaf-level lines ("Сайти: створення — вимкнено → увімкнено").
+            if ($isUser && $field === 'permissions') {
+                $lines = $this->permissionLines($old, $new);
+                if ($lines) {
+                    $rows[] = ['kind' => 'group', 'field' => 'Дозволи', 'lines' => $lines];
+                }
+                continue;
+            }
+
+            // Site/group access → added/removed by name (never raw ids).
+            if ($isUser && ($field === 'site_access' || $field === 'group_access')) {
+                [$label, $added, $removed] = self::accessDelta($field, $old, $new);
+                if ($added || $removed) {
+                    $rows[] = ['kind' => 'delta', 'field' => $label, 'added' => $added, 'removed' => $removed];
+                }
+                continue;
+            }
+
+            // List columns (geo / categories / messengers / countries) → added/removed.
+            if (self::isListField($field)) {
+                $oldArr = self::asArray($old);
+                $newArr = self::asArray($new);
+                $added = array_values(array_diff($newArr, $oldArr));
+                $removed = array_values(array_diff($oldArr, $newArr));
+                if ($added || $removed) {
+                    $rows[] = [
+                        'kind' => 'delta',
+                        'field' => self::humanField($field),
+                        'added' => array_map(fn ($v) => self::humanItem($field, $v), $added),
+                        'removed' => array_map(fn ($v) => self::humanItem($field, $v), $removed),
+                    ];
+                }
+                continue;
+            }
+
+            // Scalar field → old → new (subject-aware label + value).
+            $rows[] = [
+                'kind' => 'scalar',
+                'field' => $this->fieldLabel($field),
+                'old' => $this->scalarValue($field, $old),
+                'new' => $this->scalarValue($field, $new),
+                'oldEmpty' => self::isEmpty($old),
+                'newEmpty' => self::isEmpty($new),
+            ];
+        }
+
+        return $rows;
+    }
+
+    public function hasHumanChanges(): bool
+    {
+        return $this->humanChanges() !== [];
+    }
+
+    private function fieldLabel(string $field): string
+    {
+        if ($this->subjectType === \App\Models\User::class && isset(self::USER_FIELD_LABELS[$field])) {
+            return self::USER_FIELD_LABELS[$field];
+        }
+
+        return self::humanField($field);
+    }
+
+    /** Subject-aware human value (User enums differ from ContactEntry/Site). */
+    private function scalarValue(string $field, mixed $value): string
+    {
+        if ($this->subjectType === \App\Models\User::class) {
+            if ($field === 'access_scope') {
+                return ((string) $value) === 'limited' ? 'Обмежений доступ' : 'Повний доступ';
+            }
+            if ($field === 'role') {
+                return self::USER_ROLES[(string) $value] ?? (string) $value;
+            }
+            if ($field === 'suspended_at') {
+                return self::isEmpty($value) ? 'Активний' : 'Призупинено';
+            }
+        }
+
+        return self::humanValue($field, $value);
+    }
+
+    /**
+     * Leaf-level permission diff. A null side means "follow role defaults", so we
+     * resolve that side's role (this audit's old/new role, else the user's current
+     * role) and compare against ROLE_PERMISSIONS — only genuinely changed toggles show.
+     *
+     * @return array<int, array{label:string, old:string, new:string}>
+     */
+    private function permissionLines(mixed $old, mixed $new): array
+    {
+        $oldMap = self::asArray($old) ?: (\App\Models\User::ROLE_PERMISSIONS[$this->roleForSide('old')] ?? []);
+        $newMap = self::asArray($new) ?: (\App\Models\User::ROLE_PERMISSIONS[$this->roleForSide('new')] ?? []);
+
+        $lines = [];
+        foreach (\App\Models\User::RESOURCES as $res => $resLabel) {
+            foreach (self::PERM_ACTIONS as $act => $actLabel) {
+                $o = (bool) ($oldMap[$res][$act] ?? false);
+                $n = (bool) ($newMap[$res][$act] ?? false);
+                if ($o === $n) {
+                    continue;
+                }
+                $lines[] = [
+                    'label' => $resLabel.': '.$actLabel,
+                    'old' => $o ? 'увімкнено' : 'вимкнено',
+                    'new' => $n ? 'увімкнено' : 'вимкнено',
+                ];
+            }
+        }
+
+        return $lines;
+    }
+
+    /** Role baseline for one side of a permissions diff. */
+    private function roleForSide(string $side): ?string
+    {
+        $role = $this->{$side}['role'] ?? null;
+        if (is_string($role) && $role !== '') {
+            return $role;
+        }
+
+        return \App\Models\User::query()->find($this->subjectId)?->role;
+    }
+
+    /**
+     * Added/removed names for a User access list.
+     *
+     * @return array{0:string, 1:array<int,string>, 2:array<int,string>}
+     */
+    private static function accessDelta(string $field, mixed $old, mixed $new): array
+    {
+        $old = self::asArray($old);
+        $new = self::asArray($new);
+
+        if ($field === 'site_access') {
+            $addedIds = array_values(array_diff($new, $old));
+            $removedIds = array_values(array_diff($old, $new));
+            $names = self::siteNames(array_merge($addedIds, $removedIds));
+            $name = fn ($id) => $names[(int) $id] ?? ('сайт #'.$id);
+
+            return ['Доступ до сайтів', array_map($name, $addedIds), array_map($name, $removedIds)];
+        }
+
+        // group_access stores group-name strings already.
+        return [
+            'Доступ до груп',
+            array_values(array_diff($new, $old)),
+            array_values(array_diff($old, $new)),
+        ];
+    }
+
+    /** @param array<int,mixed> $ids @return array<int,string> id → name */
+    private static function siteNames(array $ids): array
+    {
+        $ids = array_values(array_unique(array_map('intval', array_filter($ids, fn ($i) => $i !== null && $i !== ''))));
+        $missing = array_diff($ids, array_keys(self::$siteNameCache));
+
+        if ($missing) {
+            $found = \App\Models\Site::query()->withTrashed()->whereIn('id', $missing)->pluck('name', 'id');
+            foreach ($missing as $id) {
+                self::$siteNameCache[$id] = $found[$id] ?? null;
+            }
+        }
+
+        $out = [];
+        foreach ($ids as $id) {
+            if (self::$siteNameCache[$id] !== null) {
+                $out[$id] = self::$siteNameCache[$id];
+            }
+        }
+
+        return $out;
+    }
+
+    private static function isEmpty(mixed $v): bool
+    {
+        return is_null($v) || $v === '' || $v === [];
+    }
+
+    /**
+     * Coerce an audit value to an array. owen-it persists array-cast columns
+     * (permissions, site_access, group_access, geo_tabs, …) as JSON *strings* in
+     * old/new, so a plain is_array() check misses them — decode those here.
+     */
+    private static function asArray(mixed $v): array
+    {
+        if (is_array($v)) {
+            return $v;
+        }
+        if (is_string($v) && $v !== '') {
+            $decoded = json_decode($v, true);
+            if (is_array($decoded)) {
+                return $decoded;
+            }
+        }
+
+        return [];
+    }
+
+    /** Plain-language join of a pre-rendered added/removed delta (drawer, timeline, CSV). */
+    public static function deltaText(array $added, array $removed): string
+    {
+        $parts = [];
+        if ($added) {
+            $parts[] = 'Додано: '.implode(', ', $added);
+        }
+        if ($removed) {
+            $parts[] = 'Прибрано: '.implode(', ', $removed);
+        }
+
+        return $parts ? implode(' · ', $parts) : 'без змін';
+    }
 }
 

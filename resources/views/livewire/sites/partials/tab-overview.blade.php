@@ -49,10 +49,20 @@
                                 @php $phones = $col['phones'] ?? collect(); @endphp
                                 @if($phones->count())
                                     @foreach($phones as $phone)
+                                        @php $serving = $phone->failoverServing(); @endphp
                                         <div class="ov-entry">
-                                            <div class="ov-val mono">{{ $phone->value }}</div>
-                                            @if($phone->label)
-                                                <div class="ov-sub">{{ $phone->label }}</div>
+                                            @if($phone->failover_down && $serving && $serving->id !== $phone->id)
+                                                {{-- Основний у збої → відвідувач бачить резерв --}}
+                                                <div class="ov-val mono">{{ $serving->value }}</div>
+                                                <div class="ov-sub" style="color:var(--warn);">резерв · основний у збої</div>
+                                            @elseif($phone->failover_down)
+                                                <div class="ov-val mono" style="text-decoration:line-through; color:var(--ink-5);">{{ $phone->value }}</div>
+                                                <div class="ov-sub" style="color:var(--bad);">збій · немає робочого номера</div>
+                                            @else
+                                                <div class="ov-val mono">{{ $phone->value }}</div>
+                                                @if($phone->label)
+                                                    <div class="ov-sub">{{ $phone->label }}</div>
+                                                @endif
                                             @endif
                                             @if($phone->backups->count() > 0)
                                                 <div class="ov-reserve-label">Резерви · {{ $phone->backups->count() }}</div>
@@ -80,19 +90,32 @@
                                 @if($messengers->count())
                                     @foreach($messengers as $msg)
                                         @php
-                                            $mk = \App\Models\ContactEntry::MSG_KINDS[$msg->kind] ?? [
-                                                'short' => strtoupper(substr(preg_replace('/[^a-z0-9]/i', '', (string) $msg->kind), 0, 2) ?: '?'),
+                                            $servingMsg = $msg->failoverServing();
+                                            $shown = ($msg->failover_down && $servingMsg && $servingMsg->id !== $msg->id) ? $servingMsg : $msg;
+                                            $mk = \App\Models\ContactEntry::MSG_KINDS[$shown->kind] ?? [
+                                                'short' => strtoupper(substr(preg_replace('/[^a-z0-9]/i', '', (string) $shown->kind), 0, 2) ?: '?'),
                                                 'color' => '#888',
                                             ];
                                         @endphp
                                         <div class="ov-entry">
-                                            <div class="ov-val">{{ $msg->value }}</div>
-                                            <div class="ov-sub">
-                                                <span class="ov-msg-tag" style="color:{{ $mk['color'] }};">{{ $mk['short'] }}</span>
-                                                @if($msg->label)
-                                                    <span>{{ $msg->label }}</span>
-                                                @endif
-                                            </div>
+                                            @if($msg->failover_down && $servingMsg && $servingMsg->id !== $msg->id)
+                                                <div class="ov-val">{{ $servingMsg->value }}</div>
+                                                <div class="ov-sub">
+                                                    <span class="ov-msg-tag" style="color:{{ $mk['color'] }};">{{ $mk['short'] }}</span>
+                                                    <span style="color:var(--warn);">резерв · основний у збої</span>
+                                                </div>
+                                            @elseif($msg->failover_down)
+                                                <div class="ov-val" style="text-decoration:line-through; color:var(--ink-5);">{{ $msg->value }}</div>
+                                                <div class="ov-sub" style="color:var(--bad);">збій · немає робочого</div>
+                                            @else
+                                                <div class="ov-val">{{ $msg->value }}</div>
+                                                <div class="ov-sub">
+                                                    <span class="ov-msg-tag" style="color:{{ $mk['color'] }};">{{ $mk['short'] }}</span>
+                                                    @if($msg->label)
+                                                        <span>{{ $msg->label }}</span>
+                                                    @endif
+                                                </div>
+                                            @endif
                                             @if($msg->backups->count() > 0)
                                                 <div class="ov-reserve-label">Резерви · {{ $msg->backups->count() }}</div>
                                             @endif

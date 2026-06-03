@@ -153,6 +153,12 @@
                                 wire:confirm="Відновити попередні значення цього запису?">
                             <x-icon.refresh width="10" height="10" /> Відновити
                         </button>
+                    @elseif ($type === 'failover' && ($e->new['mode'] ?? null) === 'manual' && !empty($e->new['from_id']) && ($e->new['ok'] ?? true))
+                        {{-- Rollback this failover: bring the failed number back up --}}
+                        <button class="btn btn-ghost btn-sm btn-xs" wire:click="restoreFailover({{ $e->new['from_id'] }})"
+                                wire:confirm="Відновити номер «{{ $e->new['from'] ?? '' }}»?">
+                            <x-icon.refresh width="10" height="10" /> Відновити
+                        </button>
                     @endif
                 </footer>
             </article>

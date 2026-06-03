@@ -96,13 +96,14 @@
                  x-show="msgKind === 'all' || msgKind === @js($msg->kind)">
 
                 {{-- Primary row --}}
+                @php $serving = $msg->failoverServing(); $servingId = $serving?->id; @endphp
                 <div wire:click="editEntry({{ $msg->id }})" class="crow crow--msg crow--main">
                     <span class="cc-drag" @click.stop>&#x2807;</span>
                     <span class="cc-num">#{{ $i+1 }}</span>
                     <div class="msg-contact">
                         <span class="msg-badge" style="background:{{ $k['color'] }};">{{ $k['short'] }}</span>
                         <div>
-                            <div class="mono cc-val">{{ $msg->value }}</div>
+                            <div class="mono cc-val" style="{{ $msg->failover_down ? 'text-decoration:line-through; color:var(--ink-5);' : '' }}">{{ $msg->value }}</div>
                             <div class="msg-kind">{{ $k['label'] }}</div>
                         </div>
                     </div>
@@ -110,9 +111,17 @@
                     <span class="cc-label">{{ $msg->label }}</span>
                     <span class="cc-geo">{{ $msg->geo_label }}</span>
                     <span class="cc-role">
-                        <span class="role-dot" style="background:var(--ok);"></span> Активний
+                        @if($msg->failover_down)
+                            <span class="role-dot" style="background:var(--bad);"></span> Збій
+                        @else
+                            <span class="role-dot" style="background:var(--ok);"></span> Головний
+                        @endif
                     </span>
                     <span class="cc-actions">
+                        @if($msg->failover_down)
+                            <button class="cc-promote" wire:click.stop="restoreFailover({{ $msg->id }})"
+                                    title="Відновити — зняти збій" style="color:var(--ok);">&#x21A9;</button>
+                        @endif
                         <button class="cc-edit" wire:click.stop="editEntry({{ $msg->id }})" title="Редагувати">
                             <x-icon.edit width="13" height="13" />
                         </button>
@@ -146,7 +155,7 @@
                                     <span class="cc-num cc-num--backup">#{{ $i+1 }}.{{ $j+1 }}</span>
                                     <div class="msg-contact">
                                         <span class="msg-badge msg-badge--sm" style="background:{{ $bk['color'] }};">{{ $bk['short'] }}</span>
-                                        <span class="mono cc-val--sub">{{ $backup->value }}</span>
+                                        <span class="mono cc-val--sub" style="{{ $backup->failover_down ? 'text-decoration:line-through;' : '' }}">{{ $backup->value }}</span>
                                     </div>
                                     <span class="cc-iso">@include('livewire.sites.partials.preview-tag-badge', ['entry' => $msg])</span>
                                     <span class="cc-label--muted">{{ $backup->label }}</span>
@@ -154,12 +163,20 @@
                                     <span class="cc-role cc-role--muted">
                                         @if($backup->role === 'hidden')
                                             <x-icon.eye-off width="13" height="13" class="state-icon state-icon--hidden" /> Приховано
+                                        @elseif($backup->failover_down)
+                                            <span class="role-dot" style="background:var(--bad);"></span> Збій
+                                        @elseif($servingId === $backup->id)
+                                            <span class="role-dot" style="background:var(--ok);"></span> Працює зараз
                                         @else
                                             <span class="role-dot" style="background:var(--info);"></span> Резерв
                                         @endif
                                     </span>
                                     <span class="cc-actions">
-                                        <button class="cc-promote" wire:click.stop="promoteEntry({{ $backup->id }})" title="Зробити активним">↑</button>
+                                        @if($backup->failover_down)
+                                            <button class="cc-promote" wire:click.stop="restoreFailover({{ $backup->id }})"
+                                                    title="Відновити — зняти збій" style="color:var(--ok);">&#x21A9;</button>
+                                        @endif
+                                        <button class="cc-promote" wire:click.stop="promoteEntry({{ $backup->id }})" title="Зробити головним">↑</button>
                                         <button class="cc-delete"
                                                 wire:click.stop="requestDeleteEntry({{ $backup->id }})"
                                                 title="Видалити">

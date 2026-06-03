@@ -134,6 +134,23 @@ class FailoverTest extends TestCase
         $this->assertStringContainsString('ГОЛОВНИЙ', $html);
     }
 
+    public function test_failover_works_for_messengers_too(): void
+    {
+        $owner = User::factory()->create(['role' => 'owner']);
+        $this->actingAs($owner);
+        $site = Site::factory()->for(Client::factory()->for($owner))->create();
+
+        $base = ContactEntry::factory()->for($site)->messenger()
+            ->create(['value' => '@base', 'role' => 'primary', 'parent_id' => null, 'order' => 0]);
+        $reserve = ContactEntry::factory()->for($site)->messenger()
+            ->create(['value' => '@reserve', 'role' => 'backup', 'parent_id' => $base->id, 'order' => 1]);
+
+        Livewire::test(Show::class, ['site' => $site])->call('triggerFailover', $base->id);
+
+        $this->assertTrue($base->fresh()->failover_down);
+        $this->assertSame('@reserve', $this->lastTo('site.failover.triggered'));
+    }
+
     public function test_stale_id_reports_an_error_without_throwing(): void
     {
         [$site] = $this->siteWithReserves();

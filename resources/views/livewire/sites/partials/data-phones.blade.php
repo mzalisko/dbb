@@ -39,6 +39,10 @@
                     </span>
                     {{-- Остання колонка: assign-кнопка для orphan/без-резервів; edit-кнопка для активних з резервами --}}
                     <span class="cc-actions">
+                    @if($phone->failover_down)
+                        <button class="cc-promote" wire:click.stop="restoreFailover({{ $phone->id }})"
+                                title="Відновити — зняти збій" style="color:var(--ok);">&#x21A9;</button>
+                    @endif
                     @if($phone->role === 'backup' || ($phone->role === 'primary' && $phone->backups->count() === 0))
                         <button class="cc-assign"
                                 wire:click.stop="openAssignModal({{ $phone->id }})"
@@ -93,7 +97,11 @@
                                         @endif
                                     </span>
                                     <span class="cc-actions">
-                                        <button class="cc-promote" wire:click.stop="promoteEntry({{ $backup->id }})" title="Зробити активним">↑</button>
+                                        @if($backup->failover_down)
+                                            <button class="cc-promote" wire:click.stop="restoreFailover({{ $backup->id }})"
+                                                    title="Відновити — зняти збій" style="color:var(--ok);">&#x21A9;</button>
+                                        @endif
+                                        <button class="cc-promote" wire:click.stop="promoteEntry({{ $backup->id }})" title="Зробити головним">↑</button>
                                         <button class="cc-delete"
                                                 wire:click.stop="requestDeleteEntry({{ $backup->id }})"
                                                 title="Видалити">

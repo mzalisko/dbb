@@ -17,33 +17,39 @@
     {{-- Failover: fixed priority list (головний → резерви). The number that is up
          and highest-priority is the one currently serving. --}}
     @php
-        $queueGroups = [];
-        foreach ($phonePrimaries as $primary) {
-            $reserves = $primary->backups->where('visible', true)->sortBy('order')->values();
-            // A number with no reserves isn't part of the failover queue — skip it.
-            if ($reserves->isEmpty()) {
-                continue;
-            }
-            // Priority order: base first, then reserves. The server is the first one up.
-            $line = collect([$primary])->concat($reserves);
-            $serving = $line->first(fn ($e) => ! $e->failover_down);
+        // Build failover queue groups (same model for phones and messengers).
+        $buildQueue = function ($primaries) {
+            $groups = [];
+            foreach ($primaries as $primary) {
+                $reserves = $primary->backups->where('visible', true)->sortBy('order')->values();
+                // A number with no reserves isn't part of the failover queue — skip it.
+                if ($reserves->isEmpty()) {
+                    continue;
+                }
+                // Priority order: base first, then reserves. The server is the first one up.
+                $line = collect([$primary])->concat($reserves);
+                $serving = $line->first(fn ($e) => ! $e->failover_down);
 
-            $items = [];
-            foreach ($line as $idx => $node) {
-                $isHead = ($idx === 0);
-                $down = (bool) $node->failover_down;
-                $status = $down ? 'waiting' : (($serving && $node->id === $serving->id) ? 'active' : 'reserve');
-                $items[] = [
-                    'entryId' => $node->id,
-                    'num'     => $node->value ?? '—',
-                    'geo'     => $node->preview_geo_label ?? (($node->geo_mode === 'all') ? 'ALL' : ''),
-                    'status'  => $status,
-                    'isHead'  => $isHead,
-                    'label'   => $isHead ? 'ГОЛОВНИЙ' : ('РЕЗЕРВ ' . $idx),
-                ];
+                $items = [];
+                foreach ($line as $idx => $node) {
+                    $isHead = ($idx === 0);
+                    $down = (bool) $node->failover_down;
+                    $status = $down ? 'waiting' : (($serving && $node->id === $serving->id) ? 'active' : 'reserve');
+                    $items[] = [
+                        'entryId' => $node->id,
+                        'num'     => $node->value ?? '—',
+                        'geo'     => $node->preview_geo_label ?? (($node->geo_mode === 'all') ? 'ALL' : ''),
+                        'status'  => $status,
+                        'isHead'  => $isHead,
+                        'label'   => $isHead ? 'ГОЛОВНИЙ' : ('РЕЗЕРВ ' . $idx),
+                    ];
+                }
+                $groups[] = ['items' => $items];
             }
-            $queueGroups[] = ['items' => $items];
-        }
+            return $groups;
+        };
+        $queueGroups = $buildQueue($phonePrimaries);
+        $msgQueueGroups = $buildQueue($msgPrimaries);
     @endphp
     <div x-show="settingsSub==='failover'" x-cloak class="set-section">
         <div class="eyebrow eyebrow-xs" style="margin-bottom:10px;">01 &middot; Failover</div>
@@ -120,47 +126,56 @@
                 </div>
             </div>
 
-            {{-- ЧЕРГА НОМЕРІВ — server-rendered, єдине джерело правди = БД --}}
-            <div class="card set-journal">
-                <div class="set-journal__head">
-                    <span class="eyebrow eyebrow-xs">Черга номерів</span>
-                    <span class="set-journal__meta">поточний стан · журнал на вкладці «Активність»</span>
+            {{-- ЧЕРГА — server-rendered, єдине джерело правди = БД; вкладки телефони/месенджери --}}
+            <div class="card set-journal" x-data="{ qkind: 'phones' }">
+                <div class="set-jtabs">
+                    <button class="set-jtab" :class="qkind==='phones' ? 'is-active' : ''" @click="qkind='phones'">Телефони</button>
+                    <button class="set-jtab" :class="qkind==='messengers' ? 'is-active' : ''" @click="qkind='messengers'">Месенджери</button>
                 </div>
 
-                @forelse($queueGroups as $group)
-                    <div class="set-qgroup">
-                        @foreach($group['items'] as $i => $item)
-                            @if($i > 0)
-                                <div class="set-qflow">
-                                    <span class="set-qflow__arrow">↓</span>
-                                    <span class="set-qflow__text">
-                                        @if($item['status']==='active') приймає виклики
-                                        @elseif($item['status']==='waiting') не відповідає
-                                        @else резерв у черзі @endif
-                                    </span>
-                                </div>
-                            @endif
-                            <div class="set-qrow {{ $item['status']==='active' ? 'set-qrow--active' : ($item['status']==='waiting' ? 'set-qrow--waiting' : '') }} {{ $i > 0 ? 'set-qrow--child' : '' }}">
-                                <span class="role-dot" style="flex-shrink:0; background:{{ $item['status']==='active' ? 'var(--ok)' : 'transparent' }};"
-                                      title="{{ $item['status']==='active' ? 'Зараз працює (активний)' : '' }}"></span>
-                                <span class="set-qbadge {{ $item['status']==='active' ? 'set-qbadge--active' : ($item['status']==='waiting' ? 'set-qbadge--waiting' : 'set-qbadge--reserve') }}">{{ $item['label'] }}</span>
-                                <span class="set-qnum" style="{{ $item['status']==='waiting' ? 'text-decoration:line-through; color:var(--ink-5);' : '' }}">{{ $item['num'] }}</span>
-                                <span class="set-qgeo">{{ $item['geo'] }}</span>
-                                @if($item['status']==='active')
-                                    <button wire:click="triggerFailover({{ $item['entryId'] }})"
-                                            wire:confirm="Імітувати збій цього номера? Працюватиме наступний у черзі."
-                                            class="set-qtrigger">&#x26A1; Тригер</button>
-                                @elseif($item['status']==='waiting')
-                                    <button wire:click="restoreFailover({{ $item['entryId'] }})"
-                                            wire:confirm="Відновити цей номер?"
-                                            class="set-qrollback">&#x21A9; Відновити</button>
-                                @endif
+                @foreach([['phones', $queueGroups, 'номерів'], ['messengers', $msgQueueGroups, 'месенджерів']] as [$qk, $groups, $noun])
+                    <div x-show="qkind==='{{ $qk }}'" x-cloak>
+                        <div class="set-journal__head">
+                            <span class="eyebrow eyebrow-xs">Черга {{ $noun }}</span>
+                            <span class="set-journal__meta">поточний стан · журнал на вкладці «Активність»</span>
+                        </div>
+
+                        @forelse($groups as $group)
+                            <div class="set-qgroup">
+                                @foreach($group['items'] as $i => $item)
+                                    @if($i > 0)
+                                        <div class="set-qflow">
+                                            <span class="set-qflow__arrow">↓</span>
+                                            <span class="set-qflow__text">
+                                                @if($item['status']==='active') приймає виклики
+                                                @elseif($item['status']==='waiting') не відповідає
+                                                @else резерв у черзі @endif
+                                            </span>
+                                        </div>
+                                    @endif
+                                    <div class="set-qrow {{ $item['status']==='active' ? 'set-qrow--active' : ($item['status']==='waiting' ? 'set-qrow--waiting' : '') }} {{ $i > 0 ? 'set-qrow--child' : '' }}">
+                                        <span class="role-dot" style="flex-shrink:0; background:{{ $item['status']==='active' ? 'var(--ok)' : 'transparent' }};"
+                                              title="{{ $item['status']==='active' ? 'Зараз працює (активний)' : '' }}"></span>
+                                        <span class="set-qbadge {{ $item['status']==='active' ? 'set-qbadge--active' : ($item['status']==='waiting' ? 'set-qbadge--waiting' : 'set-qbadge--reserve') }}">{{ $item['label'] }}</span>
+                                        <span class="set-qnum" style="{{ $item['status']==='waiting' ? 'text-decoration:line-through; color:var(--ink-5);' : '' }}">{{ $item['num'] }}</span>
+                                        <span class="set-qgeo">{{ $item['geo'] }}</span>
+                                        @if($item['status']==='active')
+                                            <button wire:click="triggerFailover({{ $item['entryId'] }})"
+                                                    wire:confirm="Імітувати збій цього запису? Працюватиме наступний у черзі."
+                                                    class="set-qtrigger">&#x26A1; Тригер</button>
+                                        @elseif($item['status']==='waiting')
+                                            <button wire:click="restoreFailover({{ $item['entryId'] }})"
+                                                    wire:confirm="Відновити цей запис?"
+                                                    class="set-qrollback">&#x21A9; Відновити</button>
+                                        @endif
+                                    </div>
+                                @endforeach
                             </div>
-                        @endforeach
+                        @empty
+                            <div class="ctable__empty">Черга порожня: немає {{ $noun }} із резервами.</div>
+                        @endforelse
                     </div>
-                @empty
-                    <div class="ctable__empty">Черга порожня: немає номерів із резервами.</div>
-                @endforelse
+                @endforeach
             </div>
 
         </div>

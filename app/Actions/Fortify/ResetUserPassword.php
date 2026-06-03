@@ -22,8 +22,11 @@ class ResetUserPassword implements ResetsUserPasswords
             'password' => $this->passwordRules(),
         ])->validate();
 
+        // A reset replaces the real password and voids any temporary access password.
         $user->forceFill([
             'password' => Hash::make($input['password']),
+            'temp_password' => null,
+            'temp_password_expires_at' => null,
         ])->save();
     }
 }

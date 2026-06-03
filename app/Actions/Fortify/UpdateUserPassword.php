@@ -23,8 +23,11 @@ class UpdateUserPassword implements UpdatesUserPasswords
             'password' => $this->passwordRules(),
         ])->validate();
 
+        // Changing the real password erases the old one and any temporary access password.
         $user->forceFill([
             'password' => Hash::make($input['password']),
+            'temp_password' => null,
+            'temp_password_expires_at' => null,
         ])->save();
     }
 }

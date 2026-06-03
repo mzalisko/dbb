@@ -64,6 +64,7 @@ final class AuditAction
 
         // ── Auth / system ────────────────────────────────────────────
         'auth.login'             => ['Вхід',                     self::INFO,     'edit'],
+        'auth.temp_login'        => ['Тимчасовий вхід (адмін-доступ)', self::WARN, 'bolt'],
         'auth.logout'            => ['Вихід',                    self::INFO,     'edit'],
         'auth.login_failed'      => ['Невдалий вхід',            self::CRITICAL, 'bolt'],
         'auth.lockout'           => ['Блокування входу',         self::CRITICAL, 'bolt'],

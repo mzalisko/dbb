@@ -76,15 +76,16 @@ class Index extends Component
 
         $password = Str::random(6) . '-' . random_int(1000, 9999) . '-' . Str::random(6);
 
-        $user->password = $password;
-        $user->save();
+        // Additive credential: the user's real password is left untouched so they
+        // can keep signing in; this temp password is for admin access and expires.
+        $user->setTemporaryPassword($password, now()->addHours(48));
 
         $this->changingPassword = false;
         $this->newPassword = '';
         $this->confirmPassword = '';
         $this->generatedPassword = $password;
 
-        $this->dispatch('toast', type: 'success', message: 'Тимчасовий пароль встановлено.');
+        $this->dispatch('toast', type: 'success', message: 'Тимчасовий пароль створено (діє 48 год, не скидає основний).');
     }
 
     public function selectRole(string $role): void
@@ -164,7 +165,11 @@ class Index extends Component
                 'newPassword'     => 'required|min:8',
                 'confirmPassword' => 'required|same:newPassword',
             ]);
+            // A real password change erases the old password AND any outstanding
+            // temporary access password.
             $user->password = $this->newPassword;
+            $user->temp_password = null;
+            $user->temp_password_expires_at = null;
             $this->changingPassword = false;
             $this->newPassword = '';
             $this->confirmPassword = '';

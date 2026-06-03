@@ -97,6 +97,10 @@ class UsersPermissionsTest extends TestCase
 
         $this->assertNotSame('', $password);
 
-        $this->assertTrue(Hash::check($password, $target->fresh()->password));
+        // The generated value is an additive *temporary* credential — the user's
+        // real password must stay intact, the temp one must match and be live.
+        $fresh = $target->fresh();
+        $this->assertTrue(Hash::check('password', $fresh->password), 'real password untouched');
+        $this->assertTrue($fresh->checkTempPassword($password), 'temp password is live');
     }
 }

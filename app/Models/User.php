@@ -13,14 +13,14 @@ use OwenIt\Auditing\Auditable;
 use OwenIt\Auditing\Contracts\Auditable as AuditableContract;
 
 #[Fillable(['name', 'email', 'password', 'role', 'permissions', 'access_scope', 'group_access', 'site_access', 'organization_name', 'phone', 'avatar_path'])]
-#[Hidden(['password', 'remember_token'])]
+#[Hidden(['password', 'temp_password', 'remember_token'])]
 class User extends Authenticatable implements AuditableContract
 {
     /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable, Auditable;
 
     /** Never audit secrets or login-timestamp noise. */
-    protected $auditExclude = ['password', 'remember_token', 'updated_at', 'last_login_at'];
+    protected $auditExclude = ['password', 'temp_password', 'temp_password_expires_at', 'remember_token', 'updated_at', 'last_login_at'];
 
     public const RESOURCES = [
         'sites'           => 'Сайти',
@@ -103,6 +103,7 @@ class User extends Authenticatable implements AuditableContract
             'email_verified_at' => 'datetime',
             'last_login_at'     => 'datetime',
             'suspended_at'      => 'datetime',
+            'temp_password_expires_at' => 'datetime',
             'password'          => 'hashed',
             'permissions'       => 'array',
             'group_access'      => 'array',
@@ -183,6 +184,44 @@ class User extends Authenticatable implements AuditableContract
             ->all();
 
         $this->forceFill(['site_access' => $sites])->save();
+    }
+
+    /**
+     * Set a temporary access password WITHOUT touching the real one. Lets an
+     * admin/manager sign in as this user while the user keeps their own password.
+     */
+    public function setTemporaryPassword(string $plain, ?\Carbon\Carbon $expiresAt = null): void
+    {
+        $this->forceFill([
+            'temp_password'            => \Illuminate\Support\Facades\Hash::make($plain),
+            'temp_password_expires_at' => $expiresAt ?? now()->addHours(48),
+        ])->save();
+    }
+
+    public function hasActiveTempPassword(): bool
+    {
+        return $this->temp_password !== null
+            && ($this->temp_password_expires_at === null || $this->temp_password_expires_at->isFuture());
+    }
+
+    /** True only for a live (non-expired) temporary password. */
+    public function checkTempPassword(string $plain): bool
+    {
+        return $this->hasActiveTempPassword()
+            && \Illuminate\Support\Facades\Hash::check($plain, $this->temp_password);
+    }
+
+    /** Invalidate any outstanding temporary password (e.g. on a real password change). */
+    public function clearTemporaryPassword(): void
+    {
+        if ($this->temp_password === null && $this->temp_password_expires_at === null) {
+            return;
+        }
+
+        $this->forceFill([
+            'temp_password'            => null,
+            'temp_password_expires_at' => null,
+        ])->save();
     }
 
     public function isSuspended(): bool

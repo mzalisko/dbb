@@ -15,13 +15,14 @@
     {{-- Sortable primary entries --}}
     <div x-data="sortable()">
         @forelse($phonePrimaries as $i => $phone)
+            @php $serving = $phone->failoverServing(); $servingId = $serving?->id; @endphp
             <div class="ctable-group" data-entry-id="{{ $phone->id }}">
 
                 {{-- Primary row --}}
                 <div wire:click="editEntry({{ $phone->id }})" class="crow crow--main">
                     <span class="cc-drag" @click.stop>&#x2807;</span>
                     <span class="cc-num">#{{ $i+1 }}</span>
-                    <span class="mono cc-val">{{ $phone->value }}</span>
+                    <span class="mono cc-val" style="{{ $phone->failover_down ? 'text-decoration:line-through; color:var(--ink-5);' : '' }}">{{ $phone->value }}</span>
                     <span class="cc-iso">@include('livewire.sites.partials.preview-tag-badge', ['entry' => $phone])</span>
                     <span class="cc-label">{{ $phone->label }}</span>
                     <span class="cc-geo">{{ $phone->geo_label }}</span>
@@ -30,8 +31,10 @@
                             <span class="role-dot" style="background:var(--warn);"></span> Резерв
                         @elseif($phone->role === 'hidden')
                             <x-icon.eye-off width="13" height="13" class="state-icon state-icon--hidden" /> Приховано
+                        @elseif($phone->failover_down)
+                            <span class="role-dot" style="background:var(--bad);"></span> Збій
                         @else
-                            <span class="role-dot" style="background:var(--ok);"></span> Активний
+                            <span class="role-dot" style="background:var(--ok);"></span> Головний
                         @endif
                     </span>
                     {{-- Остання колонка: assign-кнопка для orphan/без-резервів; edit-кнопка для активних з резервами --}}
@@ -74,13 +77,17 @@
                                      style="cursor:pointer;">
                                     <span class="cc-drag" @click.stop style="color:var(--ink-4);">&#x2807;</span>
                                     <span class="cc-num cc-num--backup">#{{ $i+1 }}.{{ $j+1 }}</span>
-                                    <span class="mono cc-val--sub">{{ $backup->value }}</span>
+                                    <span class="mono cc-val--sub" style="{{ $backup->failover_down ? 'text-decoration:line-through;' : '' }}">{{ $backup->value }}</span>
                                     <span class="cc-iso">@include('livewire.sites.partials.preview-tag-badge', ['entry' => $phone])</span>
                                     <span class="cc-label--muted">{{ $backup->label }}</span>
                                     <span class="cc-geo">{{ $phone->geo_label }}</span>
                                     <span class="cc-role cc-role--muted">
                                         @if($backup->role === 'hidden')
                                             <x-icon.eye-off width="13" height="13" class="state-icon state-icon--hidden" /> Приховано
+                                        @elseif($backup->failover_down)
+                                            <span class="role-dot" style="background:var(--bad);"></span> Збій
+                                        @elseif($servingId === $backup->id)
+                                            <span class="role-dot" style="background:var(--ok);"></span> Працює зараз
                                         @else
                                             <span class="role-dot" style="background:var(--info);"></span> Резерв
                                         @endif

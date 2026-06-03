@@ -14,7 +14,8 @@
         @endforeach
     </div>
 
-    {{-- Failover --}}
+    {{-- Failover: fixed priority list (головний → резерви). The number that is up
+         and highest-priority is the one currently serving. --}}
     @php
         $queueGroups = [];
         foreach ($phonePrimaries as $primary) {
@@ -23,20 +24,25 @@
             if ($reserves->isEmpty()) {
                 continue;
             }
-            // The canonical (original) primary keeps the dot even after a failover.
-            $anchorId = $primary->failover_anchor_id ?? $primary->id;
-            $geo = $primary->preview_geo_label ?? (($primary->geo_mode === 'all') ? 'ALL' : '');
-            $group = ['anchorEntryId' => $anchorId, 'items' => [
-                ['id' => 'p' . $primary->id, 'entryId' => $primary->id, 'num' => $primary->value ?? '—', 'geo' => $geo, 'status' => 'active', 'label' => 'АКТИВНИЙ', 'anchor' => ($primary->id === $anchorId)],
-            ]];
-            $rn = 1;
-            foreach ($reserves as $backup) {
-                $bgeo = $backup->preview_geo_label ?? $geo;
-                $group['items'][] = ['id' => 'b' . $backup->id, 'entryId' => $backup->id, 'num' => $backup->value ?? '—', 'geo' => $bgeo, 'status' => 'reserve', 'label' => 'РЕЗЕРВ ' . $rn++, 'anchor' => ($backup->id === $anchorId)];
+            // Priority order: base first, then reserves. The server is the first one up.
+            $line = collect([$primary])->concat($reserves);
+            $serving = $line->first(fn ($e) => ! $e->failover_down);
+
+            $items = [];
+            foreach ($line as $idx => $node) {
+                $isHead = ($idx === 0);
+                $down = (bool) $node->failover_down;
+                $status = $down ? 'waiting' : (($serving && $node->id === $serving->id) ? 'active' : 'reserve');
+                $items[] = [
+                    'entryId' => $node->id,
+                    'num'     => $node->value ?? '—',
+                    'geo'     => $node->preview_geo_label ?? (($node->geo_mode === 'all') ? 'ALL' : ''),
+                    'status'  => $status,
+                    'isHead'  => $isHead,
+                    'label'   => $isHead ? 'ГОЛОВНИЙ' : ('РЕЗЕРВ ' . $idx),
+                ];
             }
-            // Rollback target only exists while the original primary is still around.
-            $group['anchorPresent'] = collect($group['items'])->contains('anchor', true);
-            $queueGroups[] = $group;
+            $queueGroups[] = ['items' => $items];
         }
     @endphp
     <div x-show="settingsSub==='failover'" x-cloak class="set-section">
@@ -122,43 +128,38 @@
                 </div>
 
                 @forelse($queueGroups as $group)
-                    @php $items = $group['items']; $active = $items[0]; $reserves = array_slice($items, 1); @endphp
                     <div class="set-qgroup">
-                        <div class="set-qrow set-qrow--active">
-                            <span class="role-dot" style="flex-shrink:0; background:{{ $active['anchor'] ? 'var(--ink-9)' : 'transparent' }};"
-                                  title="{{ $active['anchor'] ? 'Першочерговий (основний) номер' : '' }}"></span>
-                            <span class="set-qbadge set-qbadge--active">{{ $active['label'] }}</span>
-                            <span class="set-qnum">{{ $active['num'] }}</span>
-                            <span class="set-qgeo">{{ $active['geo'] }}</span>
-                            {{-- Failover в дію: перемкнути на перший резерв --}}
-                            @if(count($reserves))
-                                <button wire:click="triggerFailover({{ $active['entryId'] }}, {{ $reserves[0]['entryId'] }})"
-                                        wire:confirm="Перемкнути активний номер на «{{ $reserves[0]['num'] }}»?"
-                                        class="set-qtrigger">&#x26A1; Тригер</button>
+                        @foreach($group['items'] as $i => $item)
+                            @if($i > 0)
+                                <div class="set-qflow">
+                                    <span class="set-qflow__arrow">↓</span>
+                                    <span class="set-qflow__text">
+                                        @if($item['status']==='active') приймає виклики
+                                        @elseif($item['status']==='waiting') не відповідає
+                                        @else резерв у черзі @endif
+                                    </span>
+                                </div>
                             @endif
-                            {{-- Ролбек: повернути першочерговий (основний) номер, якщо зараз активний резерв --}}
-                            @if(! $active['anchor'] && $group['anchorPresent'])
-                                <button wire:click="restoreFailover({{ $active['entryId'] }}, {{ $group['anchorEntryId'] }})"
-                                        wire:confirm="Повернути першочерговий номер активним?"
-                                        class="set-qrollback">&#x21A9; Відновити</button>
-                            @endif
-                        </div>
-                        @foreach($reserves as $i => $r)
-                            <div class="set-qflow">
-                                <span class="set-qflow__arrow">↓</span>
-                                <span class="set-qflow__text">{{ $i === 0 ? 'не відповідає — стане активним:' : 'наступний у черзі' }}</span>
-                            </div>
-                            <div class="set-qrow set-qrow--child">
-                                <span class="role-dot" style="flex-shrink:0; background:{{ $r['anchor'] ? 'var(--ink-9)' : 'transparent' }};"
-                                      title="{{ $r['anchor'] ? 'Першочерговий (основний) номер' : '' }}"></span>
-                                <span class="set-qbadge set-qbadge--reserve">{{ $r['label'] }}</span>
-                                <span class="set-qnum">{{ $r['num'] }}</span>
-                                <span class="set-qgeo">{{ $r['geo'] }}</span>
+                            <div class="set-qrow {{ $item['status']==='active' ? 'set-qrow--active' : ($item['status']==='waiting' ? 'set-qrow--waiting' : '') }} {{ $i > 0 ? 'set-qrow--child' : '' }}">
+                                <span class="role-dot" style="flex-shrink:0; background:{{ $item['status']==='active' ? 'var(--ok)' : 'transparent' }};"
+                                      title="{{ $item['status']==='active' ? 'Зараз працює (активний)' : '' }}"></span>
+                                <span class="set-qbadge {{ $item['status']==='active' ? 'set-qbadge--active' : ($item['status']==='waiting' ? 'set-qbadge--waiting' : 'set-qbadge--reserve') }}">{{ $item['label'] }}</span>
+                                <span class="set-qnum" style="{{ $item['status']==='waiting' ? 'text-decoration:line-through; color:var(--ink-5);' : '' }}">{{ $item['num'] }}</span>
+                                <span class="set-qgeo">{{ $item['geo'] }}</span>
+                                @if($item['status']==='active')
+                                    <button wire:click="triggerFailover({{ $item['entryId'] }})"
+                                            wire:confirm="Імітувати збій цього номера? Працюватиме наступний у черзі."
+                                            class="set-qtrigger">&#x26A1; Тригер</button>
+                                @elseif($item['status']==='waiting')
+                                    <button wire:click="restoreFailover({{ $item['entryId'] }})"
+                                            wire:confirm="Відновити цей номер?"
+                                            class="set-qrollback">&#x21A9; Відновити</button>
+                                @endif
                             </div>
                         @endforeach
                     </div>
                 @empty
-                    <div class="ctable__empty">Черга порожня: немає активних телефонів.</div>
+                    <div class="ctable__empty">Черга порожня: немає номерів із резервами.</div>
                 @endforelse
             </div>
 

@@ -14,107 +14,107 @@ use Livewire\Livewire;
 use Tests\TestCase;
 
 /**
- * A manual failover must actually swap the active/reserve roles (so it survives a
- * reload), record both numbers, and be re-runnable without 404-ing on a now-stale
- * role lookup.
+ * Failover is a FIXED priority list: the head (головний/базовий) number, then
+ * reserves by order. The served number is the highest-priority one that is up.
+ * A trigger marks a number down (the next live one serves); a restore brings it
+ * back — and the base reclaims its spot the moment it recovers (not circular).
  */
 class FailoverTest extends TestCase
 {
     use RefreshDatabase;
 
-    /** @return array{0:Site,1:ContactEntry,2:ContactEntry} */
-    private function siteWithReserve(): array
+    /** @return array{0:Site,1:ContactEntry,2:array<int,ContactEntry>} */
+    private function siteWithReserves(int $count = 2): array
     {
         $owner = User::factory()->create(['role' => 'owner']);
         $this->actingAs($owner);
         $site = Site::factory()->for(Client::factory()->for($owner))->create();
 
-        $primary = ContactEntry::factory()->for($site)->phone()
-            ->create(['value' => '+48 PRIMARY', 'role' => 'primary', 'parent_id' => null]);
-        $reserve = ContactEntry::factory()->for($site)->phone()
-            ->create(['value' => '+48 RESERVE', 'role' => 'backup', 'parent_id' => $primary->id]);
+        $base = ContactEntry::factory()->for($site)->phone()
+            ->create(['value' => '+BASE', 'role' => 'primary', 'parent_id' => null, 'order' => 0]);
 
-        return [$site, $primary, $reserve];
+        $reserves = [];
+        for ($i = 1; $i <= $count; $i++) {
+            $reserves[] = ContactEntry::factory()->for($site)->phone()
+                ->create(['value' => "+R{$i}", 'role' => 'backup', 'parent_id' => $base->id, 'order' => $i]);
+        }
+
+        return [$site, $base, $reserves];
     }
 
-    public function test_manual_trigger_persists_the_role_swap(): void
+    private function lastTo(string $action): ?string
     {
-        [$site, $primary, $reserve] = $this->siteWithReserve();
-
-        Livewire::test(Show::class, ['site' => $site])
-            ->call('triggerFailover', $primary->id, $reserve->id);
-
-        // Reserve is now the active number; the failed primary parks under it.
-        $this->assertSame('primary', $reserve->fresh()->role);
-        $this->assertNull($reserve->fresh()->parent_id);
-        $this->assertSame('backup', $primary->fresh()->role);
-        $this->assertSame($reserve->id, $primary->fresh()->parent_id);
+        // Order by id, not created_at — two events in one test share a timestamp.
+        return ActivityLog::where('action', $action)->orderByDesc('id')->first()?->properties['to'] ?? null;
     }
 
-    public function test_failover_records_both_numbers(): void
+    public function test_base_serves_until_it_fails(): void
     {
-        [$site, $primary, $reserve] = $this->siteWithReserve();
+        [$site, $base, [$r1]] = $this->siteWithReserves();
 
-        Livewire::test(Show::class, ['site' => $site])
-            ->call('triggerFailover', $primary->id, $reserve->id);
+        Livewire::test(Show::class, ['site' => $site])->call('triggerFailover', $base->id);
 
-        $log = ActivityLog::where('action', 'site.failover.triggered')->latest()->first();
-        $this->assertNotNull($log);
-        $this->assertSame('+48 PRIMARY', $log->properties['from']);
-        $this->assertSame('+48 RESERVE', $log->properties['to']);
-        $this->assertSame($site->id, $log->subject_id);
+        $this->assertTrue($base->fresh()->failover_down, 'base is now down');
+        $this->assertSame('+R1', $this->lastTo('site.failover.triggered'), 'next live number serves');
+        // The structure never changes — base stays the primary, just down.
+        $this->assertSame('primary', $base->fresh()->role);
+        $this->assertNull($base->fresh()->parent_id);
     }
 
-    public function test_failover_event_reads_as_a_number_transition(): void
+    public function test_base_reclaims_its_spot_when_restored(): void
     {
-        [$site, $primary, $reserve] = $this->siteWithReserve();
+        [$site, $base, [$r1]] = $this->siteWithReserves();
+        $c = Livewire::test(Show::class, ['site' => $site]);
 
-        Livewire::test(Show::class, ['site' => $site])
-            ->call('triggerFailover', $primary->id, $reserve->id);
+        $c->call('triggerFailover', $base->id);
+        $this->assertSame('+R1', $this->lastTo('site.failover.triggered'));
+
+        // Base recovers → it outranks R1 and serves again immediately.
+        $c->call('restoreFailover', $base->id);
+        $this->assertFalse($base->fresh()->failover_down);
+        $this->assertSame('+BASE', $this->lastTo('site.failover.restored'));
+    }
+
+    public function test_failover_follows_priority_not_a_circle(): void
+    {
+        [$site, $base, [$r1, $r2]] = $this->siteWithReserves(2);
+        $c = Livewire::test(Show::class, ['site' => $site]);
+
+        $c->call('triggerFailover', $base->id); // base down → R1 serves
+        $c->call('triggerFailover', $r1->id);   // R1 down  → R2 serves
+        $this->assertSame('+R2', $this->lastTo('site.failover.triggered'));
+
+        // Restore the BASE while R1 is still down — base jumps straight back to serving.
+        $c->call('restoreFailover', $base->id);
+        $this->assertSame('+BASE', $this->lastTo('site.failover.restored'));
+        $this->assertTrue($r1->fresh()->failover_down, 'R1 stays down');
+    }
+
+    public function test_both_trigger_and_restore_are_logged(): void
+    {
+        [$site, $base] = $this->siteWithReserves();
+        $c = Livewire::test(Show::class, ['site' => $site]);
+
+        $c->call('triggerFailover', $base->id);
+        $c->call('restoreFailover', $base->id);
+
+        $this->assertDatabaseHas('activity_log', ['action' => 'site.failover.triggered', 'subject_id' => $site->id]);
+        $this->assertDatabaseHas('activity_log', ['action' => 'site.failover.restored', 'subject_id' => $site->id]);
+    }
+
+    public function test_failover_event_reads_as_a_working_number_transition(): void
+    {
+        [$site, $base, [$r1]] = $this->siteWithReserves();
+
+        Livewire::test(Show::class, ['site' => $site])->call('triggerFailover', $base->id);
 
         $event = AuditFeed::collect(['site_id' => $site->id])
             ->firstWhere('actionCode', 'site.failover.triggered');
+        $row = collect($event->humanChanges())->firstWhere('field', 'Робочий номер');
 
-        $this->assertNotNull($event);
-        $rows = $event->humanChanges();
-        $row = collect($rows)->firstWhere('field', 'Активний номер');
-
-        $this->assertNotNull($row, 'failover must show the active-number transition');
-        $this->assertSame('+48 PRIMARY', $row['old']);
-        $this->assertSame('+48 RESERVE', $row['new']);
-    }
-
-    public function test_repeated_trigger_does_not_404(): void
-    {
-        [$site, $primary, $reserve] = $this->siteWithReserve();
-
-        $component = Livewire::test(Show::class, ['site' => $site])
-            ->call('triggerFailover', $primary->id, $reserve->id);
-
-        // Second run swaps back. The old code 404'd here because $primary is no
-        // longer role=primary; the resilient lookup must just succeed.
-        $component->call('triggerFailover', $reserve->id, $primary->id);
-
-        $this->assertSame('primary', $primary->fresh()->role);
-        $this->assertSame('backup', $reserve->fresh()->role);
-        $this->assertSame(2, ActivityLog::where('action', 'site.failover.triggered')->count());
-    }
-
-    public function test_queue_is_server_rendered_with_a_single_trigger(): void
-    {
-        [$site, $primary, $reserve] = $this->siteWithReserve();
-
-        $c = Livewire::test(Show::class, ['site' => $site]);
-
-        // Exactly one Тригер control (on the single active), driven by the server —
-        // the old Alpine queue could mark a reserve active and show a 2nd trigger.
-        $this->assertSame(1, substr_count($c->html(), 'set-qtrigger'));
-        $this->assertStringContainsString('triggerFailover', $c->html());
-
-        $c->call('triggerFailover', $primary->id, $reserve->id);
-
-        // Still exactly one active → one trigger after the swap.
-        $this->assertSame(1, substr_count($c->html(), 'set-qtrigger'));
+        $this->assertNotNull($row);
+        $this->assertSame('+BASE', $row['old']);
+        $this->assertSame('+R1', $row['new']);
     }
 
     public function test_queue_hides_numbers_without_reserves(): void
@@ -123,103 +123,25 @@ class FailoverTest extends TestCase
         $this->actingAs($owner);
         $site = Site::factory()->for(Client::factory()->for($owner))->create();
 
-        // Has a reserve → belongs in the queue.
-        $p1 = ContactEntry::factory()->for($site)->phone()
-            ->create(['value' => '+WITH', 'role' => 'primary', 'parent_id' => null]);
-        ContactEntry::factory()->for($site)->phone()
-            ->create(['value' => '+RES', 'role' => 'backup', 'parent_id' => $p1->id]);
-        // No reserve → must NOT appear in the queue.
-        ContactEntry::factory()->for($site)->phone()
-            ->create(['value' => '+SOLO', 'role' => 'primary', 'parent_id' => null]);
+        $base = ContactEntry::factory()->for($site)->phone()->create(['value' => '+WITH', 'role' => 'primary', 'parent_id' => null]);
+        ContactEntry::factory()->for($site)->phone()->create(['value' => '+RES', 'role' => 'backup', 'parent_id' => $base->id]);
+        ContactEntry::factory()->for($site)->phone()->create(['value' => '+SOLO', 'role' => 'primary', 'parent_id' => null]);
 
         $html = Livewire::test(Show::class, ['site' => $site])->html();
 
-        $this->assertSame(1, substr_count($html, 'class="set-qgroup"'), 'only reserve-backed numbers form a queue group');
-        $this->assertStringContainsString('set-qnum">+WITH', $html);
-        $this->assertStringNotContainsString('set-qnum">+SOLO', $html);
+        // Exactly one queue group (the +WITH base); the reserve-less +SOLO forms none.
+        $this->assertSame(1, substr_count($html, 'class="set-qgroup"'));
+        $this->assertStringContainsString('ГОЛОВНИЙ', $html);
     }
 
-    public function test_anchor_survives_failover_and_marks_the_original_primary(): void
+    public function test_stale_id_reports_an_error_without_throwing(): void
     {
-        [$site, $primary, $reserve] = $this->siteWithReserve();
+        [$site] = $this->siteWithReserves();
 
         Livewire::test(Show::class, ['site' => $site])
-            ->call('triggerFailover', $primary->id, $reserve->id);
+            ->call('triggerFailover', 999991)
+            ->assertDispatched('toast', fn ($e, $p) => ($p['type'] ?? null) === 'error');
 
-        // The original primary is now a reserve but remains the anchor (its own id);
-        // the promoted reserve is active yet is NOT the anchor — so the dot stays put.
-        $this->assertSame($primary->id, $primary->fresh()->failover_anchor_id);
-        $this->assertSame($primary->id, $reserve->fresh()->failover_anchor_id);
-        $this->assertNotSame($reserve->id, $reserve->fresh()->failover_anchor_id);
-    }
-
-    public function test_trigger_cascades_down_the_reserves(): void
-    {
-        $owner = User::factory()->create(['role' => 'owner']);
-        $this->actingAs($owner);
-        $site = Site::factory()->for(Client::factory()->for($owner))->create();
-
-        $p  = ContactEntry::factory()->for($site)->phone()->create(['value' => '+P',  'role' => 'primary', 'parent_id' => null, 'order' => 0]);
-        $r1 = ContactEntry::factory()->for($site)->phone()->create(['value' => '+R1', 'role' => 'backup',  'parent_id' => $p->id, 'order' => 1]);
-        $r2 = ContactEntry::factory()->for($site)->phone()->create(['value' => '+R2', 'role' => 'backup',  'parent_id' => $p->id, 'order' => 2]);
-
-        $c = Livewire::test(Show::class, ['site' => $site]);
-
-        // First failover P -> R1; the displaced P must drop to the BACK so the next
-        // in line is R2, not P (the old "bounce between two numbers" bug).
-        $c->call('triggerFailover', $p->id, $r1->id);
-        $this->assertSame('primary', $r1->fresh()->role);
-        $next = ContactEntry::where('parent_id', $r1->id)->orderBy('order')->first();
-        $this->assertSame($r2->id, $next->id, 'next trigger should target R2, not bounce back to P');
-
-        // Second failover continues DOWN to R2.
-        $c->call('triggerFailover', $r1->id, $r2->id);
-        $this->assertSame('primary', $r2->fresh()->role);
-        $this->assertSame('backup', $p->fresh()->role);
-        $this->assertSame('backup', $r1->fresh()->role);
-    }
-
-    public function test_rollback_control_appears_only_after_a_failover(): void
-    {
-        [$site, $primary, $reserve] = $this->siteWithReserve();
-
-        $c = Livewire::test(Show::class, ['site' => $site]);
-        // No failover yet → the active IS the anchor → no rollback control.
-        $this->assertStringNotContainsString('restoreFailover', $c->html());
-
-        $c->call('triggerFailover', $primary->id, $reserve->id);
-        // A reserve is now active → the rollback control is offered.
-        $this->assertStringContainsString('restoreFailover', $c->html());
-    }
-
-    public function test_rollback_restores_the_original_primary(): void
-    {
-        [$site, $primary, $reserve] = $this->siteWithReserve();
-        $c = Livewire::test(Show::class, ['site' => $site]);
-
-        $c->call('triggerFailover', $primary->id, $reserve->id);
-        $this->assertSame('backup', $primary->fresh()->role, 'original was displaced');
-
-        // Roll back to the original anchor.
-        $c->call('restoreFailover', $reserve->id, $primary->id);
-
-        $this->assertSame('primary', $primary->fresh()->role);
-        $this->assertNull($primary->fresh()->parent_id);
-        $this->assertSame('backup', $reserve->fresh()->role);
-        // The restored original stays its own anchor → keeps the dot.
-        $this->assertSame($primary->id, $primary->fresh()->failover_anchor_id);
-    }
-
-    public function test_stale_ids_report_an_error_without_throwing(): void
-    {
-        [$site] = $this->siteWithReserve();
-
-        Livewire::test(Show::class, ['site' => $site])
-            ->call('triggerFailover', 999991, 999992)
-            ->assertDispatched('toast', fn ($event, $params) => ($params['type'] ?? null) === 'error');
-
-        $log = ActivityLog::where('action', 'site.failover.triggered')->latest()->first();
-        $this->assertNotNull($log);
-        $this->assertFalse($log->properties['ok']);
+        $this->assertFalse(ActivityLog::where('action', 'site.failover.triggered')->latest()->first()->properties['ok']);
     }
 }

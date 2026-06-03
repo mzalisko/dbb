@@ -18,7 +18,7 @@ class ContactEntry extends Model implements AuditableContract
 {
     use HasFactory, SoftDeletes, Auditable;
 
-    protected $auditExclude = ['updated_at', 'failover_anchor_id'];
+    protected $auditExclude = ['updated_at', 'failover_down'];
 
     protected $fillable = [
         'site_id', 'type', 'kind', 'value', 'label',
@@ -29,10 +29,11 @@ class ContactEntry extends Model implements AuditableContract
     protected function casts(): array
     {
         return [
-            'countries' => 'array',
-            'visible'   => 'boolean',
-            'price'     => 'float',
-            'old_price' => 'float',
+            'countries'     => 'array',
+            'visible'       => 'boolean',
+            'failover_down' => 'boolean',
+            'price'         => 'float',
+            'old_price'     => 'float',
         ];
     }
 
@@ -49,6 +50,18 @@ class ContactEntry extends Model implements AuditableContract
     public function backups(): HasMany
     {
         return $this->hasMany(self::class, 'parent_id')->orderBy('order');
+    }
+
+    /**
+     * The number currently handling traffic for this failover group: the highest
+     * priority one that is up (base first, then reserves by order). Call on the
+     * group head (role=primary). Returns null only if every number is down.
+     */
+    public function failoverServing(): ?self
+    {
+        return collect([$this])
+            ->concat($this->backups->where('visible', true)->sortBy('order'))
+            ->first(fn (self $e) => ! $e->failover_down);
     }
 
     /**
@@ -78,15 +91,23 @@ class ContactEntry extends Model implements AuditableContract
             return $this->geo_mode === 'except';
         }
         $geo = strtoupper($geo);
-        if ($this->geo_tag && strtoupper($this->geo_tag) === $geo) {
-            return $this->geo_mode !== 'except';
-        }
+        $tag = $this->geo_tag ? strtoupper($this->geo_tag) : null;
         $countries = $this->visibilityCountries();
-        if ($this->geo_tag && !in_array(strtoupper($this->geo_tag), $countries, true)) {
-            $countries[] = strtoupper($this->geo_tag);
+
+        if ($this->geo_mode === 'only') {
+            // Visible in its home country plus the explicitly chosen ones.
+            if ($tag && ! in_array($tag, $countries, true)) {
+                $countries[] = $tag;
+            }
+            return in_array($geo, $countries, true);
         }
-        if ($this->geo_mode === 'only')   return in_array($geo, $countries, true);
-        if ($this->geo_mode === 'except') return !in_array($geo, $countries, true);
+
+        if ($this->geo_mode === 'except') {
+            // Visible everywhere EXCEPT the chosen countries — the home country
+            // (geo_tag) is never excluded, only the ones explicitly listed.
+            return $geo === $tag || ! in_array($geo, $countries, true);
+        }
+
         return false;
     }
 

@@ -302,7 +302,7 @@ final class AuditEntry
         }
 
         return [[
-            'kind' => 'scalar', 'field' => 'Активний номер',
+            'kind' => 'scalar', 'field' => 'Робочий номер',
             'old' => $from ?: '—', 'new' => $to ?: '—',
             'oldEmpty' => self::isEmpty($from), 'newEmpty' => self::isEmpty($to),
         ]];

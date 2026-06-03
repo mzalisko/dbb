@@ -410,85 +410,68 @@ class Show extends Component
         $this->site->update(['failover_enabled' => $this->failoverEnabled]);
     }
 
-    public function triggerFailover(int $fromId, int $toId): void
+    /** Simulate the given number failing — the next live number down the line serves. */
+    public function triggerFailover(int $id): void
     {
-        $this->performFailover($fromId, $toId, 'site.failover.triggered', 'manual', 'manual trigger', 'Перемкнено на резерв');
+        $this->switchFailover($id, true, 'site.failover.triggered', 'manual', 'збій номера');
     }
 
-    public function restoreFailover(int $fromId, int $toId): void
+    /** Bring a number back up — if it outranks the current server, it reclaims its spot. */
+    public function restoreFailover(int $id): void
     {
-        $this->performFailover($fromId, $toId, 'site.failover.restored', 'restore', 'manual restore', 'Відновлено активний номер');
+        $this->switchFailover($id, false, 'site.failover.restored', 'restore', 'відновлення номера');
     }
 
     /**
-     * Promote a reserve to active and persist it (the failed primary becomes a
-     * reserve of the new active; its other reserves are re-pointed). Persisting the
-     * swap is what makes a manual trigger survive a reload — and what stops the 2nd
-     * run from 404-ing on a now-stale role lookup. owen-it is muted for the swap;
-     * the single failover activity row (with both numbers) is the human record.
+     * Failover is a FIXED priority list: the base (головний) number, then reserves
+     * by order. The served number is the highest-priority one that is up. Flipping a
+     * number's `failover_down` re-derives who serves — so the base reclaims its spot
+     * the instant it recovers, and a trigger hands off to the next live number. The
+     * structure (roles/order) never changes, so priority is stable.
      */
-    private function performFailover(int $fromId, int $toId, string $action, string $mode, string $cause, string $okMsg): void
+    private function switchFailover(int $id, bool $down, string $action, string $mode, string $cause): void
     {
         $this->authorize('update', $this->site);
 
-        $scope = ContactEntry::query()->where('site_id', $this->site->id)->where('type', 'phone');
-        $from = (clone $scope)->find($fromId);
-        $to   = (clone $scope)->find($toId);
+        // Same failover model for phones and messengers.
+        $entry = ContactEntry::query()
+            ->where('site_id', $this->site->id)
+            ->whereIn('type', ['phone', 'messenger'])
+            ->find($id);
 
-        // A stale or double-clicked trigger must report cleanly, never 404.
-        if (! $from || ! $to || $from->id === $to->id) {
+        if (! $entry) {
             ActivityLogService::log($action, $this->site, [
-                'from_id' => $fromId, 'to_id' => $toId, 'mode' => $mode,
-                'cause' => $cause, 'ok' => false, 'error' => 'number_not_found',
+                'mode' => $mode, 'cause' => $cause, 'ok' => false, 'error' => 'number_not_found',
             ]);
-            $this->dispatch('toast', type: 'error', message: 'Не вдалося перемкнути: номер не знайдено.');
+            $this->dispatch('toast', type: 'error', message: 'Не вдалося: запис не знайдено.');
             return;
         }
 
-        $fromValue = $from->value;
-        $toValue   = $to->value;
-        $geo = $to->preview_geo_label ?? $from->preview_geo_label;
-
-        // The canonical primary of the group never changes across failovers.
-        $anchorId = $from->failover_anchor_id ?? $from->id;
+        $primaryId = $entry->parent_id ?: $entry->id;
+        $before = ContactEntry::with('backups')->find($primaryId)?->failoverServing();
 
         ContactEntry::disableAuditing();
         try {
-            DB::transaction(function () use ($from, $to, $anchorId) {
-                // Reserve takes over, inheriting the failed primary's targeting.
-                $to->forceFill([
-                    'role' => 'primary', 'parent_id' => null, 'visible' => true,
-                    'geo_tag' => $from->geo_tag, 'geo_mode' => $from->geo_mode, 'countries' => $from->countries,
-                    'failover_anchor_id' => $anchorId,
-                ])->save();
-
-                // The old primary's remaining reserves follow the new active number.
-                ContactEntry::query()
-                    ->where('parent_id', $from->id)
-                    ->where('id', '!=', $to->id)
-                    ->update(['parent_id' => $to->id, 'failover_anchor_id' => $anchorId]);
-
-                // Failed primary parks at the BACK of the reserve queue, so the next
-                // trigger keeps cascading down the line instead of bouncing between
-                // these two numbers.
-                $backOrder = (int) (ContactEntry::query()->where('parent_id', $to->id)->max('order') ?? 0) + 1;
-                $from->forceFill([
-                    'role' => 'backup', 'parent_id' => $to->id,
-                    'failover_anchor_id' => $anchorId, 'order' => $backOrder,
-                ])->save();
-            });
+            $entry->forceFill(['failover_down' => $down])->save();
         } finally {
             ContactEntry::enableAuditing();
         }
 
+        $head  = ContactEntry::with('backups')->find($primaryId);
+        $after = $head?->failoverServing();
+
         ActivityLogService::log($action, $this->site, [
-            'from_id' => $from->id, 'from' => $fromValue,
-            'to_id' => $to->id, 'to' => $toValue,
-            'geo' => $geo, 'mode' => $mode, 'cause' => $cause, 'ok' => true,
+            'from_id' => $before?->id, 'from' => $before?->value,
+            'to_id' => $after?->id, 'to' => $after?->value,
+            'geo' => $after?->preview_geo_label ?? $head?->preview_geo_label,
+            'kind' => $entry->type, 'mode' => $mode, 'cause' => $cause, 'ok' => true,
         ]);
 
         $this->dispatch('phones-updated');
-        $this->dispatch('toast', type: 'success', message: $okMsg.': '.($toValue ?? '—'));
+        $this->dispatch('messengers-updated');
+        $this->dispatch('toast', type: 'success', message: $down
+            ? 'Збій імітовано — зараз працює: '.($after?->value ?? '—')
+            : 'Запис відновлено — зараз працює: '.($after?->value ?? '—'));
     }
 
     public function editEntry(int $id): void
@@ -688,9 +671,9 @@ class Show extends Component
             'geo_mode'  => $parent?->geo_mode ?? 'all',
             'countries' => $parent?->countries,
         ]);
-        // A hand-promoted number becomes its own canonical anchor.
-        $entry->forceFill(['failover_anchor_id' => null])->save();
-        $this->dispatch('toast', type: 'success', message: 'Переведено в активні');
+        // A hand-promoted number starts life up (serving), not failed-over.
+        $entry->forceFill(['failover_down' => false])->save();
+        $this->dispatch('toast', type: 'success', message: 'Переведено в головні');
         if ($entry->type === 'phone') {
             $this->dispatch('phones-updated');
         }

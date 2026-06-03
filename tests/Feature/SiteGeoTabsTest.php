@@ -44,8 +44,23 @@ class SiteGeoTabsTest extends TestCase
         $this->actingAs($user)
             ->get("/sites/{$site->id}")
             ->assertStatus(200)
-            ->assertSee('Черга порожня: немає активних телефонів.')
+            ->assertSee('Черга порожня: немає номерів із резервами.')
             ->assertDontSee('Р§РµСЂРіР°', false);
+    }
+
+    public function test_except_mode_keeps_the_home_country_visible(): void
+    {
+        $owner = User::factory()->create(['role' => 'owner']);
+        $site = Site::factory()->for(Client::factory()->for($owner))->create();
+        $entry = ContactEntry::factory()->for($site)->phone()->create([
+            'geo_tag' => 'UA', 'geo_mode' => 'except', 'countries' => ['RU', 'BY'], 'visible' => true,
+        ]);
+
+        // "everywhere except RU·BY" must still show in the home country (UA).
+        $this->assertTrue($entry->visibleForGeo('UA'), 'home country stays visible in except mode');
+        $this->assertTrue($entry->visibleForGeo('PL'));
+        $this->assertFalse($entry->visibleForGeo('RU'));
+        $this->assertFalse($entry->visibleForGeo('BY'));
     }
 
     public function test_site_status_change_requires_confirmation(): void

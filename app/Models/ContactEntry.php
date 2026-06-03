@@ -18,7 +18,7 @@ class ContactEntry extends Model implements AuditableContract
 {
     use HasFactory, SoftDeletes, Auditable;
 
-    protected $auditExclude = ['updated_at'];
+    protected $auditExclude = ['updated_at', 'failover_anchor_id'];
 
     protected $fillable = [
         'site_id', 'type', 'kind', 'value', 'label',

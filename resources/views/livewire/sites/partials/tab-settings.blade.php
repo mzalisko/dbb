@@ -18,55 +18,26 @@
     @php
         $queueGroups = [];
         foreach ($phonePrimaries as $primary) {
+            $reserves = $primary->backups->where('visible', true)->sortBy('order')->values();
+            // A number with no reserves isn't part of the failover queue — skip it.
+            if ($reserves->isEmpty()) {
+                continue;
+            }
+            // The canonical (original) primary keeps the dot even after a failover.
+            $anchorId = $primary->failover_anchor_id ?? $primary->id;
             $geo = $primary->preview_geo_label ?? (($primary->geo_mode === 'all') ? 'ALL' : '');
             $group = ['items' => [
-                ['id' => 'p' . $primary->id, 'entryId' => $primary->id, 'num' => $primary->value ?? '—', 'geo' => $geo, 'status' => 'active', 'label' => 'АКТИВНИЙ'],
+                ['id' => 'p' . $primary->id, 'entryId' => $primary->id, 'num' => $primary->value ?? '—', 'geo' => $geo, 'status' => 'active', 'label' => 'АКТИВНИЙ', 'anchor' => ($primary->id === $anchorId)],
             ]];
             $rn = 1;
-            foreach ($primary->backups->where('visible', true)->sortBy('order') as $backup) {
+            foreach ($reserves as $backup) {
                 $bgeo = $backup->preview_geo_label ?? $geo;
-                $group['items'][] = ['id' => 'b' . $backup->id, 'entryId' => $backup->id, 'num' => $backup->value ?? '—', 'geo' => $bgeo, 'status' => 'reserve', 'label' => 'РЕЗЕРВ ' . $rn++];
+                $group['items'][] = ['id' => 'b' . $backup->id, 'entryId' => $backup->id, 'num' => $backup->value ?? '—', 'geo' => $bgeo, 'status' => 'reserve', 'label' => 'РЕЗЕРВ ' . $rn++, 'anchor' => ($backup->id === $anchorId)];
             }
             $queueGroups[] = $group;
         }
     @endphp
-    <div x-show="settingsSub==='failover'" x-cloak class="set-section"
-         @phones-updated.window="groups = @js($queueGroups)"
-         x-data="{
-           jTab: 'queue',
-           groups: @js($queueGroups),
-           sortGroup(gi) {
-             const ord = { active: 0, reserve: 1, waiting: 2 };
-             this.groups[gi].items.sort((a, b) => ord[a.status] - ord[b.status]);
-           },
-           renumber(gi) {
-             let rn = 1;
-             this.groups[gi].items.forEach(n => { if (n.status === 'reserve') n.label = 'РЕЗЕРВ ' + rn++; });
-           },
-           doTrigger(gi) {
-             const items = this.groups[gi].items;
-             const active  = items.find(n => n.status === 'active');
-             const reserve = items.find(n => n.status === 'reserve');
-             if (!active || !reserve) return;
-             this.$wire.triggerFailover(active.entryId, reserve.entryId);
-             active.status  = 'waiting'; active.label  = 'ОЧІКУВАННЯ';
-             reserve.status = 'active';  reserve.label = 'АКТИВНИЙ';
-             this.renumber(gi);
-             this.sortGroup(gi);
-             this.jTab = 'queue';
-           },
-           doRollback(gi, itemId) {
-             const items   = this.groups[gi].items;
-             const current = items.find(n => n.status === 'active');
-             const target  = items.find(n => n.id === itemId);
-             if (!target) return;
-             if (current) this.$wire.restoreFailover(current.entryId, target.entryId);
-             if (current) { current.status = 'reserve'; }
-             target.status = 'active'; target.label = 'АКТИВНИЙ';
-             this.renumber(gi);
-             this.sortGroup(gi);
-           }
-         }">
+    <div x-show="settingsSub==='failover'" x-cloak class="set-section">
         <div class="eyebrow eyebrow-xs" style="margin-bottom:10px;">01 &middot; Failover</div>
         <h3 class="set-title set-title--lead">SIM-керування та автоматичне перемикання</h3>
         <p class="set-lead">
@@ -141,118 +112,45 @@
                 </div>
             </div>
 
-            {{-- ЖУРНАЛ: дві вкладки --}}
+            {{-- ЧЕРГА НОМЕРІВ — server-rendered, єдине джерело правди = БД --}}
             <div class="card set-journal">
-
-                {{-- Tabs --}}
-                <div class="set-jtabs">
-                    <button class="set-jtab" :class="jTab==='log'   ? 'is-active' : ''" @click="jTab='log'">Журнал</button>
-                    <button class="set-jtab" :class="jTab==='queue' ? 'is-active' : ''" @click="jTab='queue'">Черга номерів</button>
+                <div class="set-journal__head">
+                    <span class="eyebrow eyebrow-xs">Черга номерів</span>
+                    <span class="set-journal__meta">поточний стан · журнал на вкладці «Активність»</span>
                 </div>
 
-                {{-- Tab: Журнал перемикань --}}
-                <div x-show="jTab==='log'">
-                    <div class="set-journal__head">
-                        <div>
-                            <span class="eyebrow eyebrow-xs">Журнал перемикань</span>
-                            <span class="set-journal__meta">{{ $failoverLogs->count() }} подій</span>
+                @forelse($queueGroups as $group)
+                    @php $items = $group['items']; $active = $items[0]; $reserves = array_slice($items, 1); @endphp
+                    <div class="set-qgroup">
+                        <div class="set-qrow set-qrow--active">
+                            <span class="role-dot" style="flex-shrink:0; background:{{ $active['anchor'] ? 'var(--ink-9)' : 'transparent' }};"
+                                  title="{{ $active['anchor'] ? 'Першочерговий (основний) номер' : '' }}"></span>
+                            <span class="set-qbadge set-qbadge--active">{{ $active['label'] }}</span>
+                            <span class="set-qnum">{{ $active['num'] }}</span>
+                            <span class="set-qgeo">{{ $active['geo'] }}</span>
+                            @if(count($reserves))
+                                <button wire:click="triggerFailover({{ $active['entryId'] }}, {{ $reserves[0]['entryId'] }})"
+                                        wire:confirm="Перемкнути активний номер на «{{ $reserves[0]['num'] }}»?"
+                                        class="set-qtrigger">&#x26A1; Тригер</button>
+                            @endif
                         </div>
-                    </div>
-                    <div class="set-jrow set-jrow--head">
-                        <span>З / НА</span>
-                        <span>Причина / Коли</span>
-                    </div>
-                    @forelse($failoverLogs as $log)
-                        @php
-                            $props = $log->properties ?? [];
-                            $type = $props['mode'] ?? (str_contains($log->action, 'auto') ? 'auto' : 'manual');
-                            $from = $props['from'] ?? '—';
-                            $to = $props['to'] ?? '—';
-                            $geo = $props['geo'] ?? null;
-                            $cause = $props['cause'] ?? $log->action;
-                            $ok = $props['ok'] ?? true;
-                        @endphp
-                        <div class="set-jrow">
-                            <div>
-                                <div class="set-jfrom">
-                                    @if($geo)<span style="font-size:13px;">{{ $geo }}</span>@endif
-                                    {{ $from }}
-                                    <span class="set-jarrow">→</span>
-                                </div>
-                                <div class="set-jto">{{ $to }}</div>
+                        @foreach($reserves as $i => $r)
+                            <div class="set-qflow">
+                                <span class="set-qflow__arrow">↓</span>
+                                <span class="set-qflow__text">{{ $i === 0 ? 'не відповідає — стане активним:' : 'наступний у черзі' }}</span>
                             </div>
-                            <div>
-                                <div style="margin-bottom:2px;">
-                                    @if(!$ok)
-                                        <span class="set-jbadge" style="background:var(--bad-soft); color:var(--bad);">ПОМИЛКА</span>
-                                    @else
-                                        <span class="set-jbadge set-jbadge--{{ $type }}">{{ strtoupper($type) }}</span>
-                                    @endif
-                                    <span class="set-jcause">{{ $cause }}</span>
-                                </div>
-                                <div class="set-jwhen">{{ $log->created_at?->format('d M H:i') }}
-                                    @if($ok)
-                                        <span class="set-jrollback">&#10003; rollback</span>
-                                    @else
-                                        <span style="color:var(--ink-4);">Rollback</span>
-                                    @endif
-                                </div>
+                            <div class="set-qrow set-qrow--child">
+                                <span class="role-dot" style="flex-shrink:0; background:{{ $r['anchor'] ? 'var(--ink-9)' : 'transparent' }};"
+                                      title="{{ $r['anchor'] ? 'Першочерговий (основний) номер' : '' }}"></span>
+                                <span class="set-qbadge set-qbadge--reserve">{{ $r['label'] }}</span>
+                                <span class="set-qnum">{{ $r['num'] }}</span>
+                                <span class="set-qgeo">{{ $r['geo'] }}</span>
                             </div>
-                        </div>
-                    @empty
-                        <div class="ctable__empty">Журнал порожній: перемикань ще не було.</div>
-                    @endforelse
-                </div>
-
-                {{-- Tab: Черга номерів --}}
-                <div x-show="jTab==='queue'">
-                    <div class="set-journal__head">
-                        <span class="eyebrow eyebrow-xs">Черга номерів</span>
-                        <span class="set-journal__meta">поточний стан</span>
+                        @endforeach
                     </div>
-                    {{-- Групи: кожен активний + його резерви --}}
-                    <div x-show="groups.length === 0" class="ctable__empty">Черга порожня: немає активних телефонів.</div>
-                    <template x-for="(group, gi) in groups" :key="gi">
-                        <div class="set-qgroup">
-                            <template x-for="(item, ii) in group.items" :key="item.id">
-                                <div style="display:contents">
-                                    {{-- Flow-connector між рядками --}}
-                                    <div x-show="ii > 0" class="set-qflow">
-                                        <span class="set-qflow__arrow">↓</span>
-                                        <span class="set-qflow__text"
-                                              x-text="item.status === 'waiting' ? 'в очікуванні (ручний тригер)' : 'не відповідає — стане активним:'"></span>
-                                    </div>
-                                    {{-- Рядок номера --}}
-                                    <div class="set-qrow"
-                                         :class="{
-                                           'set-qrow--active':  item.status==='active',
-                                           'set-qrow--waiting': item.status==='waiting',
-                                           'set-qrow--child':   ii > 0
-                                         }">
-                                        <span class="set-qbadge"
-                                              :class="{
-                                                'set-qbadge--active':  item.status==='active',
-                                                'set-qbadge--reserve': item.status==='reserve',
-                                                'set-qbadge--waiting': item.status==='waiting'
-                                              }"
-                                              x-text="item.label"></span>
-                                        <span class="set-qnum"
-                                              :style="item.status==='waiting' ? 'text-decoration:line-through;color:var(--ink-5)' : ''"
-                                              x-text="item.num"></span>
-                                        <span class="set-qgeo" x-text="item.geo"></span>
-                                        <button x-show="item.status==='active' && group.items.some(n => n.status==='reserve')"
-                                                @click="doTrigger(gi)"
-                                                class="set-qtrigger">&#x26A1; Тригер</button>
-                                        <button x-show="item.status==='waiting'"
-                                                @click="doRollback(gi, item.id)"
-                                                class="set-qrollback">&#x21A9; Відновити</button>
-                                    </div>
-                                </div>
-                            </template>
-                        </div>
-                    </template>
-                </div>
-
+                @empty
+                    <div class="ctable__empty">Черга порожня: немає активних телефонів.</div>
+                @endforelse
             </div>
 
         </div>

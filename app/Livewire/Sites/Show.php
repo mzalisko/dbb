@@ -449,23 +449,27 @@ class Show extends Component
         $toValue   = $to->value;
         $geo = $to->preview_geo_label ?? $from->preview_geo_label;
 
+        // The canonical primary of the group never changes across failovers.
+        $anchorId = $from->failover_anchor_id ?? $from->id;
+
         ContactEntry::disableAuditing();
         try {
-            DB::transaction(function () use ($from, $to) {
+            DB::transaction(function () use ($from, $to, $anchorId) {
                 // Reserve takes over, inheriting the failed primary's targeting.
                 $to->forceFill([
                     'role' => 'primary', 'parent_id' => null, 'visible' => true,
                     'geo_tag' => $from->geo_tag, 'geo_mode' => $from->geo_mode, 'countries' => $from->countries,
+                    'failover_anchor_id' => $anchorId,
                 ])->save();
 
                 // The old primary's remaining reserves follow the new active number.
                 ContactEntry::query()
                     ->where('parent_id', $from->id)
                     ->where('id', '!=', $to->id)
-                    ->update(['parent_id' => $to->id]);
+                    ->update(['parent_id' => $to->id, 'failover_anchor_id' => $anchorId]);
 
                 // Failed primary parks as a reserve under the new active.
-                $from->forceFill(['role' => 'backup', 'parent_id' => $to->id])->save();
+                $from->forceFill(['role' => 'backup', 'parent_id' => $to->id, 'failover_anchor_id' => $anchorId])->save();
             });
         } finally {
             ContactEntry::enableAuditing();
@@ -678,6 +682,8 @@ class Show extends Component
             'geo_mode'  => $parent?->geo_mode ?? 'all',
             'countries' => $parent?->countries,
         ]);
+        // A hand-promoted number becomes its own canonical anchor.
+        $entry->forceFill(['failover_anchor_id' => null])->save();
         $this->dispatch('toast', type: 'success', message: 'Переведено в активні');
         if ($entry->type === 'phone') {
             $this->dispatch('phones-updated');

@@ -100,6 +100,59 @@ class FailoverTest extends TestCase
         $this->assertSame(2, ActivityLog::where('action', 'site.failover.triggered')->count());
     }
 
+    public function test_queue_is_server_rendered_with_a_single_trigger(): void
+    {
+        [$site, $primary, $reserve] = $this->siteWithReserve();
+
+        $c = Livewire::test(Show::class, ['site' => $site]);
+
+        // Exactly one Тригер control (on the single active), driven by the server —
+        // the old Alpine queue could mark a reserve active and show a 2nd trigger.
+        $this->assertSame(1, substr_count($c->html(), 'set-qtrigger'));
+        $this->assertStringContainsString('triggerFailover', $c->html());
+
+        $c->call('triggerFailover', $primary->id, $reserve->id);
+
+        // Still exactly one active → one trigger after the swap.
+        $this->assertSame(1, substr_count($c->html(), 'set-qtrigger'));
+    }
+
+    public function test_queue_hides_numbers_without_reserves(): void
+    {
+        $owner = User::factory()->create(['role' => 'owner']);
+        $this->actingAs($owner);
+        $site = Site::factory()->for(Client::factory()->for($owner))->create();
+
+        // Has a reserve → belongs in the queue.
+        $p1 = ContactEntry::factory()->for($site)->phone()
+            ->create(['value' => '+WITH', 'role' => 'primary', 'parent_id' => null]);
+        ContactEntry::factory()->for($site)->phone()
+            ->create(['value' => '+RES', 'role' => 'backup', 'parent_id' => $p1->id]);
+        // No reserve → must NOT appear in the queue.
+        ContactEntry::factory()->for($site)->phone()
+            ->create(['value' => '+SOLO', 'role' => 'primary', 'parent_id' => null]);
+
+        $html = Livewire::test(Show::class, ['site' => $site])->html();
+
+        $this->assertSame(1, substr_count($html, 'class="set-qgroup"'), 'only reserve-backed numbers form a queue group');
+        $this->assertStringContainsString('set-qnum">+WITH', $html);
+        $this->assertStringNotContainsString('set-qnum">+SOLO', $html);
+    }
+
+    public function test_anchor_survives_failover_and_marks_the_original_primary(): void
+    {
+        [$site, $primary, $reserve] = $this->siteWithReserve();
+
+        Livewire::test(Show::class, ['site' => $site])
+            ->call('triggerFailover', $primary->id, $reserve->id);
+
+        // The original primary is now a reserve but remains the anchor (its own id);
+        // the promoted reserve is active yet is NOT the anchor — so the dot stays put.
+        $this->assertSame($primary->id, $primary->fresh()->failover_anchor_id);
+        $this->assertSame($primary->id, $reserve->fresh()->failover_anchor_id);
+        $this->assertNotSame($reserve->id, $reserve->fresh()->failover_anchor_id);
+    }
+
     public function test_stale_ids_report_an_error_without_throwing(): void
     {
         [$site] = $this->siteWithReserve();

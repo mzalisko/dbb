@@ -76,7 +76,28 @@
                 </header>
 
                 <div class="tl-body">
-                    @if ($isBulk)
+                    @if ($type === 'failover')
+                        {{-- Журнал перемикань, у такому ж вигляді як у налаштуваннях --}}
+                        @php $p = $e->new; $fok = ($p['ok'] ?? true) !== false; @endphp
+                        <div class="set-jrow" style="padding:0;">
+                            <div>
+                                <div class="set-jfrom">
+                                    @if (!empty($p['geo']))<span style="font-size:13px;">{{ $p['geo'] }}</span>@endif
+                                    {{ $p['from'] ?? '—' }}
+                                    <span class="set-jarrow">→</span>
+                                </div>
+                                <div class="set-jto">{{ $p['to'] ?? '—' }}</div>
+                            </div>
+                            <div>
+                                @if (!$fok)
+                                    <span class="set-jbadge" style="background:var(--bad-soft); color:var(--bad);">ПОМИЛКА</span>
+                                @else
+                                    <span class="set-jbadge set-jbadge--{{ $p['mode'] ?? 'manual' }}">{{ strtoupper($p['mode'] ?? 'manual') }}</span>
+                                @endif
+                                <span class="set-jcause">{{ $p['cause'] ?? '' }}</span>
+                            </div>
+                        </div>
+                    @elseif ($isBulk)
                         <p class="tl-plain">
                             {{ $e->new['done'] ?? 0 }} записів@if (!empty($e->new['skipped'])) · {{ $e->new['skipped'] }} пропущено @endif
                         </p>

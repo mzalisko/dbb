@@ -26,7 +26,7 @@
             // The canonical (original) primary keeps the dot even after a failover.
             $anchorId = $primary->failover_anchor_id ?? $primary->id;
             $geo = $primary->preview_geo_label ?? (($primary->geo_mode === 'all') ? 'ALL' : '');
-            $group = ['items' => [
+            $group = ['anchorEntryId' => $anchorId, 'items' => [
                 ['id' => 'p' . $primary->id, 'entryId' => $primary->id, 'num' => $primary->value ?? '—', 'geo' => $geo, 'status' => 'active', 'label' => 'АКТИВНИЙ', 'anchor' => ($primary->id === $anchorId)],
             ]];
             $rn = 1;
@@ -34,6 +34,8 @@
                 $bgeo = $backup->preview_geo_label ?? $geo;
                 $group['items'][] = ['id' => 'b' . $backup->id, 'entryId' => $backup->id, 'num' => $backup->value ?? '—', 'geo' => $bgeo, 'status' => 'reserve', 'label' => 'РЕЗЕРВ ' . $rn++, 'anchor' => ($backup->id === $anchorId)];
             }
+            // Rollback target only exists while the original primary is still around.
+            $group['anchorPresent'] = collect($group['items'])->contains('anchor', true);
             $queueGroups[] = $group;
         }
     @endphp
@@ -128,10 +130,17 @@
                             <span class="set-qbadge set-qbadge--active">{{ $active['label'] }}</span>
                             <span class="set-qnum">{{ $active['num'] }}</span>
                             <span class="set-qgeo">{{ $active['geo'] }}</span>
+                            {{-- Failover в дію: перемкнути на перший резерв --}}
                             @if(count($reserves))
                                 <button wire:click="triggerFailover({{ $active['entryId'] }}, {{ $reserves[0]['entryId'] }})"
                                         wire:confirm="Перемкнути активний номер на «{{ $reserves[0]['num'] }}»?"
                                         class="set-qtrigger">&#x26A1; Тригер</button>
+                            @endif
+                            {{-- Ролбек: повернути першочерговий (основний) номер, якщо зараз активний резерв --}}
+                            @if(! $active['anchor'] && $group['anchorPresent'])
+                                <button wire:click="restoreFailover({{ $active['entryId'] }}, {{ $group['anchorEntryId'] }})"
+                                        wire:confirm="Повернути першочерговий номер активним?"
+                                        class="set-qrollback">&#x21A9; Відновити</button>
                             @endif
                         </div>
                         @foreach($reserves as $i => $r)

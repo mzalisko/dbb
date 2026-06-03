@@ -153,6 +153,63 @@ class FailoverTest extends TestCase
         $this->assertNotSame($reserve->id, $reserve->fresh()->failover_anchor_id);
     }
 
+    public function test_trigger_cascades_down_the_reserves(): void
+    {
+        $owner = User::factory()->create(['role' => 'owner']);
+        $this->actingAs($owner);
+        $site = Site::factory()->for(Client::factory()->for($owner))->create();
+
+        $p  = ContactEntry::factory()->for($site)->phone()->create(['value' => '+P',  'role' => 'primary', 'parent_id' => null, 'order' => 0]);
+        $r1 = ContactEntry::factory()->for($site)->phone()->create(['value' => '+R1', 'role' => 'backup',  'parent_id' => $p->id, 'order' => 1]);
+        $r2 = ContactEntry::factory()->for($site)->phone()->create(['value' => '+R2', 'role' => 'backup',  'parent_id' => $p->id, 'order' => 2]);
+
+        $c = Livewire::test(Show::class, ['site' => $site]);
+
+        // First failover P -> R1; the displaced P must drop to the BACK so the next
+        // in line is R2, not P (the old "bounce between two numbers" bug).
+        $c->call('triggerFailover', $p->id, $r1->id);
+        $this->assertSame('primary', $r1->fresh()->role);
+        $next = ContactEntry::where('parent_id', $r1->id)->orderBy('order')->first();
+        $this->assertSame($r2->id, $next->id, 'next trigger should target R2, not bounce back to P');
+
+        // Second failover continues DOWN to R2.
+        $c->call('triggerFailover', $r1->id, $r2->id);
+        $this->assertSame('primary', $r2->fresh()->role);
+        $this->assertSame('backup', $p->fresh()->role);
+        $this->assertSame('backup', $r1->fresh()->role);
+    }
+
+    public function test_rollback_control_appears_only_after_a_failover(): void
+    {
+        [$site, $primary, $reserve] = $this->siteWithReserve();
+
+        $c = Livewire::test(Show::class, ['site' => $site]);
+        // No failover yet → the active IS the anchor → no rollback control.
+        $this->assertStringNotContainsString('restoreFailover', $c->html());
+
+        $c->call('triggerFailover', $primary->id, $reserve->id);
+        // A reserve is now active → the rollback control is offered.
+        $this->assertStringContainsString('restoreFailover', $c->html());
+    }
+
+    public function test_rollback_restores_the_original_primary(): void
+    {
+        [$site, $primary, $reserve] = $this->siteWithReserve();
+        $c = Livewire::test(Show::class, ['site' => $site]);
+
+        $c->call('triggerFailover', $primary->id, $reserve->id);
+        $this->assertSame('backup', $primary->fresh()->role, 'original was displaced');
+
+        // Roll back to the original anchor.
+        $c->call('restoreFailover', $reserve->id, $primary->id);
+
+        $this->assertSame('primary', $primary->fresh()->role);
+        $this->assertNull($primary->fresh()->parent_id);
+        $this->assertSame('backup', $reserve->fresh()->role);
+        // The restored original stays its own anchor → keeps the dot.
+        $this->assertSame($primary->id, $primary->fresh()->failover_anchor_id);
+    }
+
     public function test_stale_ids_report_an_error_without_throwing(): void
     {
         [$site] = $this->siteWithReserve();

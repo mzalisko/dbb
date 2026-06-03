@@ -468,8 +468,14 @@ class Show extends Component
                     ->where('id', '!=', $to->id)
                     ->update(['parent_id' => $to->id, 'failover_anchor_id' => $anchorId]);
 
-                // Failed primary parks as a reserve under the new active.
-                $from->forceFill(['role' => 'backup', 'parent_id' => $to->id, 'failover_anchor_id' => $anchorId])->save();
+                // Failed primary parks at the BACK of the reserve queue, so the next
+                // trigger keeps cascading down the line instead of bouncing between
+                // these two numbers.
+                $backOrder = (int) (ContactEntry::query()->where('parent_id', $to->id)->max('order') ?? 0) + 1;
+                $from->forceFill([
+                    'role' => 'backup', 'parent_id' => $to->id,
+                    'failover_anchor_id' => $anchorId, 'order' => $backOrder,
+                ])->save();
             });
         } finally {
             ContactEntry::enableAuditing();

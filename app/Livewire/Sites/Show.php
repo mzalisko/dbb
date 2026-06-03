@@ -671,6 +671,7 @@ class Show extends Component
         // Promoting a reserve makes it stand-alone — capture the geo it had been
         // inheriting from its (now-detached) primary so its targeting is preserved.
         $parent = $entry->parent;
+        $wasReserve = ! is_null($entry->parent_id) || $entry->role === 'backup';
         $entry->update([
             'role'      => 'primary',
             'parent_id' => null,
@@ -681,6 +682,19 @@ class Show extends Component
         ]);
         // A hand-promoted number starts life up (serving), not failed-over.
         $entry->forceFill(['failover_down' => false])->save();
+
+        // Promoting a reserve is a real failover change — log it so it surfaces in
+        // the activity feed (owen-it excludes `order` and this is role/parent churn
+        // it would otherwise file as a plain edit). site_id in props attributes it.
+        if ($wasReserve) {
+            ActivityLogService::log('entry.made_primary', $entry, [
+                'site_id' => $entry->site_id,
+                'type'    => $entry->type,
+                'value'   => $entry->value,
+                'from'    => $parent?->value,
+            ]);
+        }
+
         $this->dispatch('toast', type: 'success', message: 'Переведено в головні');
         if ($entry->type === 'phone') {
             $this->dispatch('phones-updated');
@@ -1206,21 +1220,58 @@ class Show extends Component
     public function reorderBackups(int $parentId, array $orderedIds): void
     {
         $this->authorize('update', $this->site);
-        foreach ($orderedIds as $order => $id) {
-            \App\Models\ContactEntry::where('id', $id)
+
+        $ids = array_map('intval', $orderedIds);
+        // Prior order of just these reserves — to log only a real reordering.
+        $before = ContactEntry::where('parent_id', $parentId)
+            ->where('site_id', $this->site->id)
+            ->whereIn('id', $ids)
+            ->orderBy('order')
+            ->pluck('id')->map(fn ($i) => (int) $i)->all();
+
+        foreach ($ids as $order => $id) {
+            ContactEntry::where('id', $id)
                 ->where('parent_id', $parentId)
                 ->where('site_id', $this->site->id)
                 ->update(['order' => $order + 1]);
+        }
+
+        if ($ids !== [] && $before !== $ids) {
+            $parent = ContactEntry::where('site_id', $this->site->id)->find($parentId);
+            ActivityLogService::log('entry.reordered', $parent, [
+                'site_id' => $this->site->id,
+                'type'    => $parent?->type,
+                'value'   => $parent?->value,
+                'scope'   => 'reserves',
+                'count'   => count($ids),
+            ]);
         }
     }
 
     public function reorderEntries(array $orderedIds): void
     {
         $this->authorize('update', $this->site);
-        foreach ($orderedIds as $order => $id) {
-            \App\Models\ContactEntry::where('id', $id)
+
+        $ids = array_map('intval', $orderedIds);
+        $before = ContactEntry::where('site_id', $this->site->id)
+            ->whereIn('id', $ids)
+            ->orderBy('order')
+            ->pluck('id')->map(fn ($i) => (int) $i)->all();
+
+        foreach ($ids as $order => $id) {
+            ContactEntry::where('id', $id)
                 ->where('site_id', $this->site->id)
                 ->update(['order' => $order + 1]);
+        }
+
+        if ($ids !== [] && $before !== $ids) {
+            $first = ContactEntry::where('site_id', $this->site->id)->find($ids[0]);
+            ActivityLogService::log('entry.reordered', null, [
+                'site_id' => $this->site->id,
+                'type'    => $first?->type,
+                'scope'   => 'primaries',
+                'count'   => count($ids),
+            ]);
         }
     }
 

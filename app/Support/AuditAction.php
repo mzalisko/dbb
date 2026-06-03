@@ -26,6 +26,8 @@ final class AuditAction
         'entry.purged'           => ['Запис видалено остаточно', self::CRITICAL, 'trash'],
         'entry.price.changed'    => ['Ціну змінено',             self::INFO,     'edit'],
         'entry.messenger.added'  => ['Месенджер додано',         self::INFO,     'plus'],
+        'entry.reordered'        => ['Порядок змінено',          self::INFO,     'bolt'],
+        'entry.made_primary'     => ['Резерв став основним',     self::INFO,     'bolt'],
 
         // ── Bulk (one summary row per batch) ─────────────────────────
         'entry.bulk.deleted'     => ['Масове видалення',          self::WARN,     'trash'],

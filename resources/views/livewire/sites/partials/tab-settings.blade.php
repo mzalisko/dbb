@@ -183,7 +183,11 @@
                             </div>
                             <div>
                                 <div style="margin-bottom:2px;">
-                                    <span class="set-jbadge set-jbadge--{{ $type }}">{{ strtoupper($type) }}</span>
+                                    @if(!$ok)
+                                        <span class="set-jbadge" style="background:var(--bad-soft); color:var(--bad);">ПОМИЛКА</span>
+                                    @else
+                                        <span class="set-jbadge set-jbadge--{{ $type }}">{{ strtoupper($type) }}</span>
+                                    @endif
                                     <span class="set-jcause">{{ $cause }}</span>
                                 </div>
                                 <div class="set-jwhen">{{ $log->created_at?->format('d M H:i') }}

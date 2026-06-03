@@ -11,6 +11,7 @@ use Livewire\Component;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Title;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 #[Layout('components.layouts.app')]
 #[Title('Сайт')]
@@ -411,61 +412,73 @@ class Show extends Component
 
     public function triggerFailover(int $fromId, int $toId): void
     {
-        $this->authorize('update', $this->site);
-
-        $from = ContactEntry::query()
-            ->where('site_id', $this->site->id)
-            ->where('type', 'phone')
-            ->where('role', 'primary')
-            ->findOrFail($fromId);
-
-        $to = ContactEntry::query()
-            ->where('site_id', $this->site->id)
-            ->where('type', 'phone')
-            ->where('role', 'backup')
-            ->where('parent_id', $from->id)
-            ->findOrFail($toId);
-
-        ActivityLogService::log('site.failover.triggered', $this->site, [
-            'from_id' => $from->id,
-            'from' => $from->value,
-            'to_id' => $to->id,
-            'to' => $to->value,
-            'geo' => $to->preview_geo_label ?? $from->preview_geo_label,
-            'mode' => 'manual',
-            'cause' => 'manual trigger',
-            'ok' => true,
-        ]);
-
-        $this->dispatch('toast', type: 'success', message: 'Failover записано в журнал');
+        $this->performFailover($fromId, $toId, 'site.failover.triggered', 'manual', 'manual trigger', 'Перемкнено на резерв');
     }
 
     public function restoreFailover(int $fromId, int $toId): void
     {
+        $this->performFailover($fromId, $toId, 'site.failover.restored', 'restore', 'manual restore', 'Відновлено активний номер');
+    }
+
+    /**
+     * Promote a reserve to active and persist it (the failed primary becomes a
+     * reserve of the new active; its other reserves are re-pointed). Persisting the
+     * swap is what makes a manual trigger survive a reload — and what stops the 2nd
+     * run from 404-ing on a now-stale role lookup. owen-it is muted for the swap;
+     * the single failover activity row (with both numbers) is the human record.
+     */
+    private function performFailover(int $fromId, int $toId, string $action, string $mode, string $cause, string $okMsg): void
+    {
         $this->authorize('update', $this->site);
 
-        $from = ContactEntry::query()
-            ->where('site_id', $this->site->id)
-            ->where('type', 'phone')
-            ->findOrFail($fromId);
+        $scope = ContactEntry::query()->where('site_id', $this->site->id)->where('type', 'phone');
+        $from = (clone $scope)->find($fromId);
+        $to   = (clone $scope)->find($toId);
 
-        $to = ContactEntry::query()
-            ->where('site_id', $this->site->id)
-            ->where('type', 'phone')
-            ->findOrFail($toId);
+        // A stale or double-clicked trigger must report cleanly, never 404.
+        if (! $from || ! $to || $from->id === $to->id) {
+            ActivityLogService::log($action, $this->site, [
+                'from_id' => $fromId, 'to_id' => $toId, 'mode' => $mode,
+                'cause' => $cause, 'ok' => false, 'error' => 'number_not_found',
+            ]);
+            $this->dispatch('toast', type: 'error', message: 'Не вдалося перемкнути: номер не знайдено.');
+            return;
+        }
 
-        ActivityLogService::log('site.failover.restored', $this->site, [
-            'from_id' => $from->id,
-            'from' => $from->value,
-            'to_id' => $to->id,
-            'to' => $to->value,
-            'geo' => $to->preview_geo_label ?? $from->preview_geo_label,
-            'mode' => 'restore',
-            'cause' => 'manual restore',
-            'ok' => true,
+        $fromValue = $from->value;
+        $toValue   = $to->value;
+        $geo = $to->preview_geo_label ?? $from->preview_geo_label;
+
+        ContactEntry::disableAuditing();
+        try {
+            DB::transaction(function () use ($from, $to) {
+                // Reserve takes over, inheriting the failed primary's targeting.
+                $to->forceFill([
+                    'role' => 'primary', 'parent_id' => null, 'visible' => true,
+                    'geo_tag' => $from->geo_tag, 'geo_mode' => $from->geo_mode, 'countries' => $from->countries,
+                ])->save();
+
+                // The old primary's remaining reserves follow the new active number.
+                ContactEntry::query()
+                    ->where('parent_id', $from->id)
+                    ->where('id', '!=', $to->id)
+                    ->update(['parent_id' => $to->id]);
+
+                // Failed primary parks as a reserve under the new active.
+                $from->forceFill(['role' => 'backup', 'parent_id' => $to->id])->save();
+            });
+        } finally {
+            ContactEntry::enableAuditing();
+        }
+
+        ActivityLogService::log($action, $this->site, [
+            'from_id' => $from->id, 'from' => $fromValue,
+            'to_id' => $to->id, 'to' => $toValue,
+            'geo' => $geo, 'mode' => $mode, 'cause' => $cause, 'ok' => true,
         ]);
 
-        $this->dispatch('toast', type: 'success', message: 'Відновлення записано в журнал');
+        $this->dispatch('phones-updated');
+        $this->dispatch('toast', type: 'success', message: $okMsg.': '.($toValue ?? '—'));
     }
 
     public function editEntry(int $id): void

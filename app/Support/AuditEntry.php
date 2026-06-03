@@ -214,6 +214,12 @@ final class AuditEntry
      */
     public function humanChanges(): array
     {
+        // Failover events are a from→to transition, not a column diff — render the
+        // numbers plainly instead of leaking from_id/to_id/mode/ok technical keys.
+        if (str_contains($this->actionCode, 'failover')) {
+            return $this->failoverRows();
+        }
+
         $isUser = $this->subjectType === \App\Models\User::class;
         $rows = [];
 
@@ -274,6 +280,32 @@ final class AuditEntry
     public function hasHumanChanges(): bool
     {
         return $this->humanChanges() !== [];
+    }
+
+    /** Plain from→to (with the actual phone numbers) for a failover event. */
+    private function failoverRows(): array
+    {
+        $p = $this->new;
+
+        if (($p['ok'] ?? true) === false) {
+            return [[
+                'kind' => 'scalar', 'field' => 'Результат',
+                'old' => '—', 'new' => 'Помилка перемикання',
+                'oldEmpty' => true, 'newEmpty' => false,
+            ]];
+        }
+
+        $from = $p['from'] ?? null;
+        $to = $p['to'] ?? null;
+        if (self::isEmpty($from) && self::isEmpty($to)) {
+            return [];
+        }
+
+        return [[
+            'kind' => 'scalar', 'field' => 'Активний номер',
+            'old' => $from ?: '—', 'new' => $to ?: '—',
+            'oldEmpty' => self::isEmpty($from), 'newEmpty' => self::isEmpty($to),
+        ]];
     }
 
     private function fieldLabel(string $field): string

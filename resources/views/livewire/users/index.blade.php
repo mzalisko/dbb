@@ -101,11 +101,16 @@
     @if ($openUserId && $openUser)
         @php
             $u        = $openUser;
+            $actor    = auth()->user();
             $isOwner  = $u->role === 'owner';
             $isSelf   = $u->id === auth()->id();
-            $canEdit  = auth()->user()->isAdmin() && !$isSelf;
-            // Role / permissions / access are read-only for the owner and for yourself.
-            $locked   = $isOwner || !$canEdit;
+            // Owner is a super user: manages every non-owner (admins too). An admin
+            // manages only managers/viewers. Nobody manages the owner or themselves.
+            $canManage = ! $isOwner && ! $isSelf
+                && ($actor->isOwner() || ($actor->role === 'admin' && in_array($u->role, ['manager', 'viewer'], true)));
+            $canEdit  = $canManage;
+            // Role / permissions / access are read-only unless you may manage the user.
+            $locked   = ! $canManage;
             $parts    = explode(' ', trim($u->name));
             $initials = mb_strtoupper(mb_substr($parts[0], 0, 1, 'UTF-8'), 'UTF-8')
                       . mb_strtoupper(mb_substr($parts[1] ?? $parts[0], 0, 1, 'UTF-8'), 'UTF-8');
@@ -294,13 +299,15 @@
                 <div class="team-danger">
                     <span class="team-danger__label">Дії</span>
 
-                    <button wire:click="$set('changingPassword', {{ $changingPassword ? 'false' : 'true' }})"
-                            class="team-action-btn">
-                        <x-icon.lock width="14" height="14" style="color:var(--ink-5); flex-shrink:0;" />
-                        <span>{{ $changingPassword ? 'Скасувати зміну пароля' : 'Змінити пароль' }}</span>
-                    </button>
+                    @if ($canManage || $isSelf)
+                        <button wire:click="$set('changingPassword', {{ $changingPassword ? 'false' : 'true' }})"
+                                class="team-action-btn">
+                            <x-icon.lock width="14" height="14" style="color:var(--ink-5); flex-shrink:0;" />
+                            <span>{{ $changingPassword ? 'Скасувати зміну пароля' : 'Змінити пароль' }}</span>
+                        </button>
+                    @endif
 
-                    @if (!$isOwner)
+                    @if ($canManage)
                         <button wire:click="generateTemporaryPassword"
                                 class="team-action-btn team-temp-reset-action">
                             <x-icon.refresh width="14" height="14" style="color:var(--ink-5); flex-shrink:0;" />
@@ -352,7 +359,7 @@
                         </div>
                     @endif
 
-                    @if (!$isSelf && !$isOwner)
+                    @if ($canManage)
                         @if ($u->isSuspended())
                             <button wire:click="toggleSuspend({{ $u->id }})"
                                     class="team-action-btn team-action-btn--warn">
@@ -394,7 +401,7 @@
 
             <x-slot:footer>
                 <button class="btn btn-ghost" wire:click="closeUser">Скасувати</button>
-                @if (auth()->user()->isAdmin() && !$isOwner)
+                @if ($canManage || $isSelf)
                     <button class="btn btn-primary" wire:click="saveUser">Зберегти</button>
                 @endif
             </x-slot:footer>

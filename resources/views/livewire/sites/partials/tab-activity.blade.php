@@ -54,9 +54,28 @@
             $isBulk = str_contains($e->actionCode, '.bulk.');
             $isSystem = is_null($e->userId);
             $avatarText = strtoupper(substr($e->userName ?? 'S', 0, 2));
+            $brief = $isBulk ? (($e->new['done'] ?? 0).' записів')
+                : ($type === 'failover' ? (($e->new['from'] ?? '—').' → '.($e->new['to'] ?? '—'))
+                : (count($changes) ? ($changes[0]['field'].(count($changes) > 1 ? ' · +'.(count($changes) - 1) : '')) : ''));
         @endphp
 
-        <div x-show="actFilter === 'all' || actFilter === '{{ $type }}'" class="tl-item">
+        {{-- «Усі»: стислий рядок таймлайну; клік → детальна вкладка типу --}}
+        <div x-show="actFilter === 'all'" @click="actFilter='{{ $type }}'"
+             style="display:grid; grid-template-columns:64px 24px 1fr auto 14px; gap:12px; align-items:center; padding:11px 12px; border-top:1px solid var(--ink-2); cursor:pointer; transition:background .12s;"
+             onmouseover="this.style.background='var(--paper-2)'" onmouseout="this.style.background='transparent'">
+            <span class="mono" style="font:12px var(--font-mono); color:var(--ink-6);">{{ $e->occurredAt->format('H:i:s') }}</span>
+            <span style="display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px; border-radius:6px; background:{{ $typeBg }}; color:{{ $typeColor }};">
+                <x-dynamic-component :component="'icon.' . $e->icon()" width="12" height="12" />
+            </span>
+            <span style="display:inline-flex; align-items:center; gap:8px; min-width:0;">
+                <span style="font:13px var(--font-sans); color:var(--ink-9); white-space:nowrap;">{{ $e->label() }}</span>
+                @if ($brief)<span class="mono" style="font:11.5px var(--font-mono); color:var(--ink-5); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ $brief }}</span>@endif
+            </span>
+            <span style="font:11.5px var(--font-sans); color:var(--ink-4); white-space:nowrap;">{{ $e->userName ?? 'Система' }}</span>
+            <x-icon.arrow width="13" height="13" style="color:var(--ink-4);" />
+        </div>
+
+        <div x-show="actFilter === '{{ $type }}'" class="tl-item">
             @if (!$loop->last)
                 <div class="tl-line"></div>
             @endif

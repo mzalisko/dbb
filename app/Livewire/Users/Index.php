@@ -69,10 +69,8 @@ class Index extends Component
 
     public function generateTemporaryPassword(): void
     {
-        abort_unless(auth()->user()->isAdmin(), 403);
-
         $user = $this->openUserId ? User::findOrFail($this->openUserId) : null;
-        abort_if(! $user || $user->role === 'owner', 403);
+        abort_unless($this->canManage($user), 403);
 
         $password = Str::random(6) . '-' . random_int(1000, 9999) . '-' . Str::random(6);
 
@@ -131,17 +129,38 @@ class Index extends Component
         }
     }
 
+    /**
+     * Role hierarchy. The owner is a super user: it manages every non-owner
+     * (admins included) but is itself untouchable from the team page, and nobody
+     * manages themselves here (self-lockout guard). An admin manages only
+     * managers/viewers — never other admins or the owner.
+     */
+    private function canManage(?User $target): bool
+    {
+        $actor = auth()->user();
+
+        if (! $target || $target->role === 'owner' || $target->id === $actor->id) {
+            return false;
+        }
+        if ($actor->isOwner()) {
+            return true;
+        }
+
+        return $actor->role === 'admin' && in_array($target->role, ['manager', 'viewer'], true);
+    }
+
     public function saveUser(): void
     {
         abort_unless(auth()->user()->isAdmin(), 403);
 
         $user = User::findOrFail($this->openUserId);
-        abort_if($user->role === 'owner', 403, 'Owner is immutable.');
 
-        // An admin must not change their own role/permissions/access — that risks a
-        // self-lockout (e.g. demoting yourself out of admin). Only password change is
-        // allowed for self here; manage your own profile via Settings instead.
-        if ($user->id !== auth()->id()) {
+        $isSelf    = $user->id === auth()->id();
+        $canManage = $this->canManage($user);
+
+        // Role / permissions / access — only for a user you may manage. (Never for
+        // the owner or yourself: that risks a self-lockout.)
+        if ($canManage) {
             if (in_array($this->pendingRole, self::ASSIGNABLE_ROLES)) {
                 $user->role = $this->pendingRole;
             }
@@ -160,7 +179,8 @@ class Index extends Component
             }
         }
 
-        if ($this->changingPassword && $this->newPassword !== '') {
+        // A password change is allowed for your own account or one you manage.
+        if ($this->changingPassword && $this->newPassword !== '' && ($isSelf || $canManage)) {
             $this->validate([
                 'newPassword'     => 'required|min:8',
                 'confirmPassword' => 'required|same:newPassword',
@@ -193,10 +213,8 @@ class Index extends Component
 
     public function toggleSuspend(int $id): void
     {
-        abort_unless(auth()->user()->isAdmin(), 403);
         $user = User::findOrFail($id);
-        abort_if($user->id === auth()->id(), 403, 'Cannot suspend yourself.');
-        abort_if($user->role === 'owner', 403, 'Cannot suspend owner.');
+        abort_unless($this->canManage($user), 403);
 
         $user->suspended_at = $user->suspended_at ? null : now();
         $user->save();
@@ -207,10 +225,10 @@ class Index extends Component
 
     public function removeUser(int $id): void
     {
-        abort_unless(auth()->user()->isAdmin(), 403);
-        abort_if($id === auth()->id(), 403, 'Cannot remove yourself.');
+        $user = User::findOrFail($id);
+        abort_unless($this->canManage($user), 403);
 
-        User::findOrFail($id)->delete();
+        $user->delete();
         $this->closeUser();
         $this->dispatch('toast', type: 'success', message: 'Користувача видалено.');
     }

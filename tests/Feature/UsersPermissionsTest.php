@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Livewire\Users\Index;
 use App\Models\User;
+use App\Services\AuditFeed;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Livewire\Livewire;
@@ -12,6 +13,61 @@ use Tests\TestCase;
 class UsersPermissionsTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_changing_a_member_permission_is_audited(): void
+    {
+        $owner = User::factory()->create(['role' => 'owner']);
+        $target = User::factory()->create(['role' => 'viewer']);
+
+        Livewire::actingAs($owner)
+            ->test(Index::class)
+            ->call('viewUser', $target->id)
+            ->call('togglePerm', 'sites', 'create')
+            ->call('saveUser');
+
+        $event = AuditFeed::collect(['domain' => 'user'])
+            ->first(fn ($e) => $e->subjectId === $target->id && $e->old !== []);
+
+        $this->assertNotNull($event, 'a member permission change must be audited');
+        $this->assertTrue(
+            collect($event->humanChanges())->contains('field', 'Дозволи'),
+            'and shown as a readable permission diff'
+        );
+    }
+
+    public function test_owner_can_remove_an_admin(): void
+    {
+        $owner = User::factory()->create(['role' => 'owner']);
+        $admin = User::factory()->create(['role' => 'admin']);
+
+        Livewire::actingAs($owner)->test(Index::class)->call('removeUser', $admin->id);
+
+        $this->assertNull(User::find($admin->id), 'owner (super user) can delete an admin');
+    }
+
+    public function test_admin_cannot_manage_another_admin(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $other = User::factory()->create(['role' => 'admin']);
+
+        Livewire::actingAs($admin)->test(Index::class)
+            ->call('removeUser', $other->id)
+            ->assertStatus(403);
+
+        $this->assertNotNull(User::find($other->id), 'an admin must not delete another admin');
+    }
+
+    public function test_nobody_can_remove_the_owner(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $owner = User::factory()->create(['role' => 'owner']);
+
+        Livewire::actingAs($admin)->test(Index::class)
+            ->call('removeUser', $owner->id)
+            ->assertStatus(403);
+
+        $this->assertNotNull(User::find($owner->id), 'the owner is untouchable');
+    }
 
     public function test_admin_cannot_change_their_own_role(): void
     {

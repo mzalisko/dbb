@@ -5,7 +5,7 @@
         @foreach([
             ['key'=>'failover','label'=>'Failover','count'=>$phonePrimaries->count()],
             ['key'=>'categories','label'=>'Категорії даних','count'=>count($visibleDataCategories)],
-            ['key'=>'general','label'=>'Загальне','count'=>2],
+            ['key'=>'general','label'=>'Загальне','count'=>3],
         ] as $st)
             <button class="tab" :class="settingsSub==='{{ $st['key'] }}' ? 'active' : ''" @click="settingsSub='{{ $st['key'] }}'">
                 {{ $st['label'] }}
@@ -311,6 +311,21 @@
         <div class="card" style="overflow:hidden; margin-bottom:18px;">
             <div class="set-row">
                 <div class="set-row__info">
+                    <div class="set-row__title">Назва сайту</div>
+                    <div class="set-row__desc">Зміна назви не змінює ID сайту, доступи, ключі чи прив'язані дані.</div>
+                </div>
+                <div style="display:flex; align-items:flex-start; gap:8px; min-width:min(360px, 100%);">
+                    <div class="field" style="margin:0; flex:1;">
+                        <input type="text" class="input" wire:model="siteName" wire:keydown.enter="updateSiteName" />
+                        @error('siteName') <span class="field-error">{{ $message }}</span> @enderror
+                    </div>
+                    <button class="btn btn-primary btn-sm" wire:click="updateSiteName">
+                        <x-icon.save width="13" height="13" /> Зберегти
+                    </button>
+                </div>
+            </div>
+            <div class="set-row">
+                <div class="set-row__info">
                     <div class="set-row__title">Стан сайту</div>
                     <div class="set-row__desc">Поточний стан: {{ $siteStatusLabel }}. {{ $siteStatusMeta }}</div>
                 </div>
@@ -367,7 +382,7 @@
             @endcan
         </div>
         <h3 class="set-title" style="margin-top:24px;">API доступ</h3>
-        @php $siteApiKey = 'db_live_' . substr(md5($site->id . 'key'), 0, 10); @endphp
+        @php $siteApiKey = $site->api_key; @endphp
         <div class="card api-card"
              x-data="{
                  copied: false,
@@ -390,7 +405,7 @@
                 <x-icon.copy width="13" height="13" />
                 <span x-text="copied ? 'Скопійовано' : 'Копіювати'"></span>
             </button>
-            <button class="btn btn-secondary btn-sm">Перегенерувати</button>
+            <button class="btn btn-secondary btn-sm" type="button" wire:click="regenerateApiKey">Перегенерувати</button>
         </div>
     </div>
 </div>

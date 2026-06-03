@@ -58,8 +58,8 @@ class ContactEntryPolicy
 
     private function owns(User $user, ContactEntry $entry): bool
     {
-        $entry->loadMissing('site.client');
+        $entry->loadMissing('site');
 
-        return $entry->site?->client?->user_id === $user->id;
+        return $entry->site !== null && $user->canAccessSite($entry->site);
     }
 }

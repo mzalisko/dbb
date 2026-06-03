@@ -433,30 +433,37 @@ class SiteGeoTabsTest extends TestCase
         $this->assertSame(['PL'], $reserve->countries);
     }
 
-    public function test_cloning_a_site_copies_settings_and_contacts_with_reserves(): void
+    public function test_cloning_a_site_creates_selected_skeleton_without_history(): void
     {
         $user = User::factory()->create(['role' => 'owner']);
         $client = Client::factory()->for($user)->create();
         $site = Site::factory()->for($client)->create([
             'name' => 'Original',
             'status' => 'active',
+            'api_key' => 'db_live_original',
             'geo_tabs' => ['UA', 'PL'],
             'data_categories' => ['phones', 'messengers', 'prices'],
         ]);
         $primary = ContactEntry::factory()->for($site)->phone()->create(['value' => '+MAIN']);
-        $backup = ContactEntry::factory()->backup($primary)->create(['value' => '+SPARE']);
+        ContactEntry::factory()->backup($primary)->create(['value' => '+SPARE']);
+        ContactEntry::factory()->for($site)->price()->create(['sku' => 'OLD-SKU']);
 
         Livewire::actingAs($user)
             ->test(SitesIndex::class)
-            ->call('cloneSite', $site->id)
+            ->call('requestCloneSite', $site->id)
+            ->set('cloneName', 'New Skeleton')
+            ->set('cloneKeyMode', 'keep')
+            ->set('cloneCopyPhones', true)
+            ->call('confirmCloneSite')
             ->assertDispatched('toast', fn ($e, $p) => ($p['type'] ?? null) === 'success');
 
-        $clone = Site::where('name', 'Original (копія)')->first();
+        $clone = Site::where('name', 'New Skeleton')->first();
         $this->assertNotNull($clone);
         $this->assertNotSame($site->id, $clone->id);
         $this->assertSame('maintenance', $clone->status);   // starts paused, not live
         $this->assertSame(['UA', 'PL'], $clone->geo_tabs);  // settings copied
         $this->assertSame($site->client_id, $clone->client_id);
+        $this->assertSame($site->api_key, $clone->api_key);
 
         // Contacts copied; the reserve points at the cloned primary, not the original.
         $clonePrimary = $clone->contactEntries()->whereNull('parent_id')->first();
@@ -465,6 +472,8 @@ class SiteGeoTabsTest extends TestCase
         $this->assertSame('+SPARE', $cloneBackup->value);
         $this->assertSame($clonePrimary->id, $cloneBackup->parent_id);
         $this->assertNotSame($primary->id, $cloneBackup->parent_id);
+        $this->assertSame(0, $clone->contactEntries()->where('type', 'price')->count());
+        $this->assertSame(0, \App\Models\ActivityLog::where('subject_type', Site::class)->where('subject_id', $clone->id)->count());
     }
 
     public function test_overview_renders_extra_data_tabs_by_geo(): void

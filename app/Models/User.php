@@ -169,6 +169,22 @@ class User extends Authenticatable implements AuditableContract
             || in_array($site->id, $sites, true);
     }
 
+    public function grantSiteAccess(Site $site): void
+    {
+        if ($this->access_scope !== 'limited') {
+            return;
+        }
+
+        $sites = collect($this->site_access ?? [])
+            ->map(fn ($id) => (int) $id)
+            ->push((int) $site->id)
+            ->unique()
+            ->values()
+            ->all();
+
+        $this->forceFill(['site_access' => $sites])->save();
+    }
+
     public function isSuspended(): bool
     {
         return $this->suspended_at !== null;

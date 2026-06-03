@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Str;
 use OwenIt\Auditing\Auditable;
 use OwenIt\Auditing\Contracts\Auditable as AuditableContract;
 
@@ -15,15 +16,24 @@ class Site extends Model implements AuditableContract
     use HasFactory, SoftDeletes, Auditable;
 
     /** Noise/derived columns kept out of the audit trail. */
-    protected $auditExclude = ['updated_at', 'last_checked_at', 'is_favourite'];
+    protected $auditExclude = ['updated_at', 'last_checked_at', 'is_favourite', 'api_key'];
 
     protected $fillable = [
-        'client_id', 'name', 'url', 'wp_version',
+        'client_id', 'name', 'url', 'api_key', 'wp_version',
         'php_version', 'status', 'group', 'group_color',
         'last_checked_at', 'notes', 'is_favourite',
         'failover_enabled', 'failover_interval', 'failover_threshold',
         'geo_tabs', 'geo_rules', 'data_categories', 'messenger_kinds',
     ];
+
+    protected static function booted(): void
+    {
+        static::creating(function (Site $site) {
+            if (empty($site->attributes['api_key'] ?? null)) {
+                $site->api_key = static::generateApiKey();
+            }
+        });
+    }
 
     protected function casts(): array
     {
@@ -48,26 +58,37 @@ class Site extends Model implements AuditableContract
         return $this->hasMany(ContactEntry::class)->orderBy('order');
     }
 
+    public static function generateApiKey(): string
+    {
+        return 'db_live_' . Str::lower(Str::random(32));
+    }
+
+    public static function legacyApiKeyForId(int $id): string
+    {
+        return 'db_live_' . substr(md5($id . 'key'), 0, 10);
+    }
+
+    public function getApiKeyAttribute($value): string
+    {
+        return $value ?: ($this->id ? static::legacyApiKeyForId((int) $this->id) : static::generateApiKey());
+    }
+
     /**
-     * Restrict a query to sites the user may see: owner/admin see all; everyone
-     * else only sites of their client, further narrowed by access_scope=limited
-     * (group_access / site_access). Used by every site list, the dashboard and search.
+     * Restrict a query to sites the user may see. Owner/admin — and any team member
+     * whose access_scope isn't 'limited' — see every site. A limited user sees only
+     * sites in their granted groups (group_access) or explicitly granted ids
+     * (site_access). Team members access sites by scope, NOT by owning the client.
      */
     public function scopeAccessibleTo($query, ?User $user)
     {
-        if (! $user || in_array($user->role, ['owner', 'admin'], true)) {
+        if (! $user || in_array($user->role, ['owner', 'admin'], true) || $user->access_scope !== 'limited') {
             return $query;
         }
 
-        $query->whereHas('client', fn ($q) => $q->where('user_id', $user->id));
+        $groups = $user->group_access ?: ['__none__'];
+        $sites = $user->site_access ?: [0];
 
-        if ($user->access_scope === 'limited') {
-            $groups = $user->group_access ?: ['__none__'];
-            $sites = $user->site_access ?: [0];
-            $query->where(fn ($q) => $q->whereIn('group', $groups)->orWhereIn('id', $sites));
-        }
-
-        return $query;
+        return $query->where(fn ($q) => $q->whereIn('group', $groups)->orWhereIn('id', $sites));
     }
 
     /** Filter contact entries visible for a given geo (ISO-2 or 'world'). */

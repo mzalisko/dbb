@@ -397,22 +397,28 @@ class DataBrowserBulkTest extends TestCase
     }
 
     /**
-     * IDOR regression: a non-owner/admin user must only ever read entries they
-     * own (site.client.user_id). The browser list, totalCount and the CSV
-     * export all share the scoped bulkQuery().
+     * IDOR regression: a limited-scope user must only ever read entries on sites
+     * they were granted (group_access / site_access). The browser list,
+     * totalCount and the CSV export all share the scoped bulkQuery().
      */
     public function test_manager_browse_and_count_exclude_unowned_entries(): void
     {
         $owner   = User::factory()->create(['role' => 'owner']);
-        $manager = User::factory()->create(['role' => 'manager']);
 
-        // Owner's entry — forbidden to the manager.
+        // Owner's entry — forbidden to the limited manager.
         ContactEntry::factory()->for($this->siteForOwner($owner))->phone()
             ->create(['value' => '+OWNER-SECRET']);
 
-        // Manager's own entry — visible to the manager.
-        $own = ContactEntry::factory()->for($this->siteForOwner($manager))->phone()
+        // Manager's granted site + entry — visible to the manager.
+        $managerSite = $this->siteForOwner($owner);
+        $own = ContactEntry::factory()->for($managerSite)->phone()
             ->create(['value' => '+MANAGER-OWN']);
+
+        $manager = User::factory()->create([
+            'role'         => 'manager',
+            'access_scope' => 'limited',
+            'site_access'  => [(int) $managerSite->id],
+        ]);
 
         Livewire::actingAs($manager)
             ->test(DataBrowser::class)
@@ -423,14 +429,18 @@ class DataBrowserBulkTest extends TestCase
     }
 
     /**
-     * IDOR regression: crafting another user's ids into the selection must not
-     * leak them through the review/preview drawers (explicit-pick reads are
-     * scoped too).
+     * IDOR regression: crafting an id from a site outside the user's scope into
+     * the selection must not leak it through the review/preview drawers
+     * (explicit-pick reads are scoped too).
      */
     public function test_manager_cannot_read_unowned_entries_via_crafted_selection(): void
     {
         $owner   = User::factory()->create(['role' => 'owner']);
-        $manager = User::factory()->create(['role' => 'manager']);
+        $manager = User::factory()->create([
+            'role'         => 'manager',
+            'access_scope' => 'limited',
+            'site_access'  => [],
+        ]);
 
         $ownerEntry = ContactEntry::factory()->for($this->siteForOwner($owner))->phone()
             ->create(['value' => '+OWNER-SECRET']);

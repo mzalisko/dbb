@@ -18,11 +18,7 @@ class SitePolicy
      */
     public function view(User $user, Site $site): bool
     {
-        if ($user->isAdmin()) {
-            return true;
-        }
-
-        return $site->client->user_id === $user->id && $user->canAccessSite($site);
+        return $user->isAdmin() || $user->canAccessSite($site);
     }
 
     public function create(User $user): bool
@@ -32,11 +28,7 @@ class SitePolicy
 
     public function update(User $user, Site $site): bool
     {
-        if ($user->isAdmin()) {
-            return true;
-        }
-
-        return $site->client->user_id === $user->id && $user->canAccessSite($site);
+        return $user->isAdmin() || $user->canAccessSite($site);
     }
 
     public function delete(User $user, Site $site): bool

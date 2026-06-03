@@ -126,10 +126,14 @@ class ActivityLog extends Component
 
     public function render()
     {
-        // One pass over the authorised feed for the tab counts.
+        // Site names + dive are limited to sites the user may access.
+        $siteNames = Site::accessibleTo(auth()->user())->pluck('name', 'id');
+
+        // One pass over the authorised feed for the tab counts — the Sites count
+        // only includes events on sites the user can actually access.
         $all = AuditFeed::collect(['allowed_entry_types' => $this->allowedEntryTypes()]);
         $counts = [
-            'sites' => $all->filter(fn ($e) => $e->siteId !== null && ! str_contains($e->actionCode, '.bulk.'))->count(),
+            'sites' => $all->filter(fn ($e) => $e->siteId !== null && $siteNames->has($e->siteId) && ! str_contains($e->actionCode, '.bulk.'))->count(),
             'auth'  => $all->filter(fn ($e) => $e->domain() === 'auth')->count(),
             'bulk'  => $all->filter(fn ($e) => str_contains($e->actionCode, '.bulk.'))->count(),
             'perms' => $all->filter(fn ($e) => $e->domain() === 'user')->count(),
@@ -137,8 +141,6 @@ class ActivityLog extends Component
 
         $events = null;
         $sitesSummary = null;
-        // Site names + dive are limited to sites the user may access.
-        $siteNames = Site::accessibleTo(auth()->user())->pluck('name', 'id');
 
         if ($this->tab === 'sites') {
             // Group site activity by site → one card per (accessible) site.

@@ -136,6 +136,14 @@ class Phase3SmokeTest extends TestCase
 
     public function test_member_cannot_see_other_users_site(): void
     {
+        // Access is scope-based, not ownership-based: a limited user with no
+        // granted groups/sites must not reach a site outside their scope.
+        $this->member->forceFill([
+            'access_scope' => 'limited',
+            'group_access' => [],
+            'site_access'  => [],
+        ])->save();
+
         $client = Client::factory()->for($this->admin)->create();
         $site = Site::factory()->for($client)->create();
 

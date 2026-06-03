@@ -2,15 +2,17 @@
 
 namespace App\Livewire\Sites;
 
+use App\Models\Client;
+use App\Models\ContactEntry;
 use App\Models\Site;
-use Livewire\Component;
+use App\Models\SiteGroup;
+use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Layout;
-use Livewire\Attributes\Title;
-use Livewire\Attributes\Url;
 use Livewire\Attributes\On;
 use Livewire\Attributes\Renderless;
-use App\Models\Client;
-use App\Models\SiteGroup;
+use Livewire\Attributes\Title;
+use Livewire\Attributes\Url;
+use Livewire\Component;
 
 #[Layout('components.layouts.app')]
 #[Title('Сайти')]
@@ -20,8 +22,8 @@ class Index extends Component
     public string $urlGroup = '';
 
     // Create site
-    public string $createName   = '';
-    public string $createUrl    = '';
+    public string $createName = '';
+    public string $createUrl = '';
     public string $createGroupId = '';
     public string $createStatus = 'active';
 
@@ -29,16 +31,31 @@ class Index extends Component
     public string $confirmDeleteSiteName = '';
     public string $confirmDeleteSiteTypedName = '';
 
+    public ?int $cloneSourceSiteId = null;
+    public string $cloneSourceSiteName = '';
+    public string $cloneName = '';
+    public string $cloneKeyMode = 'generate';
+    public bool $cloneCopyGroup = true;
+    public bool $cloneCopySettings = true;
+    public bool $cloneCopyGeo = true;
+    public bool $cloneCopyCategories = true;
+    public bool $cloneCopyPhones = false;
+    public bool $cloneCopyMessengers = false;
+    public bool $cloneCopyPrices = false;
+    public bool $cloneCopyAddresses = false;
+    public bool $cloneCopySocials = false;
+    public bool $cloneCopyCustom = false;
+
     public function createSite(): void
     {
         $this->validate([
-            'createName'   => 'required|string|max:100',
-            'createUrl'    => 'nullable|url|max:255',
+            'createName' => 'required|string|max:100',
+            'createUrl' => 'nullable|url|max:255',
             'createStatus' => 'in:active,maintenance,offline',
         ]);
 
         $client = Client::first();
-        if (!$client) {
+        if (! $client) {
             $this->addError('createName', 'Спочатку додайте клієнта');
             return;
         }
@@ -46,12 +63,12 @@ class Index extends Component
         $group = $this->createGroupId ? SiteGroup::find($this->createGroupId) : null;
 
         Site::create([
-            'client_id'   => $client->id,
-            'name'        => $this->createName,
-            'url'         => $this->createUrl ?: null,
-            'group'       => $group?->name,
+            'client_id' => $client->id,
+            'name' => $this->createName,
+            'url' => $this->createUrl ?: null,
+            'group' => $group?->name,
             'group_color' => $group?->color,
-            'status'      => $this->createStatus,
+            'status' => $this->createStatus,
         ]);
 
         $this->reset('createName', 'createUrl', 'createGroupId', 'createStatus');
@@ -63,7 +80,7 @@ class Index extends Component
     public function toggleFavourite(int $id): void
     {
         $site = Site::findOrFail($id);
-        $site->update(['is_favourite' => !$site->is_favourite]);
+        $site->update(['is_favourite' => ! $site->is_favourite]);
     }
 
     public function deleteSite(int $id): void
@@ -86,45 +103,165 @@ class Index extends Component
         ]);
 
         $this->dispatch('site-group-updated', id: $site->id, group: strtolower($group->name));
-
         $this->dispatch('toast', type: 'success', message: 'Групу сайту оновлено');
     }
 
-    /**
-     * Clone a site as a new one: copies its settings (geo tabs/rules, categories,
-     * failover, group) and every contact entry, preserving reserve→primary links
-     * via an id map. The clone starts paused so it never goes live by accident.
-     * Per-site secrets aren't stored on the row, so nothing sensitive is copied.
-     */
-    public function cloneSite(int $id): void
+    public function requestCloneSite(int $id): void
     {
-        $site = Site::with('contactEntries')->findOrFail($id);
+        $site = Site::findOrFail($id);
         $this->authorize('update', $site);
 
-        $clone = $site->replicate();
-        $clone->name = $site->name.' (копія)';
-        $clone->status = 'maintenance';
-        $clone->is_favourite = false;
-        $clone->last_checked_at = null;
-        $clone->save();
+        $this->cloneSourceSiteId = $site->id;
+        $this->cloneSourceSiteName = $site->name;
+        $this->cloneName = $this->suggestCloneName($site->name);
+        $this->cloneKeyMode = 'generate';
+        $this->cloneCopyGroup = true;
+        $this->cloneCopySettings = true;
+        $this->cloneCopyGeo = true;
+        $this->cloneCopyCategories = true;
+        $this->cloneCopyPhones = false;
+        $this->cloneCopyMessengers = false;
+        $this->cloneCopyPrices = false;
+        $this->cloneCopyAddresses = false;
+        $this->cloneCopySocials = false;
+        $this->cloneCopyCustom = false;
+    }
 
-        $idMap = [];
-        foreach ($site->contactEntries->whereNull('parent_id') as $primary) {
-            $copy = $primary->replicate();
-            $copy->site_id = $clone->id;
-            $copy->parent_id = null;
-            $copy->save();
-            $idMap[$primary->id] = $copy->id;
-        }
-        foreach ($site->contactEntries->whereNotNull('parent_id') as $backup) {
-            $copy = $backup->replicate();
-            $copy->site_id = $clone->id;
-            $copy->parent_id = $idMap[$backup->parent_id] ?? null;
-            $copy->save();
-        }
+    public function cancelCloneSite(): void
+    {
+        $this->reset(
+            'cloneSourceSiteId',
+            'cloneSourceSiteName',
+            'cloneName',
+            'cloneKeyMode',
+            'cloneCopyGroup',
+            'cloneCopySettings',
+            'cloneCopyGeo',
+            'cloneCopyCategories',
+            'cloneCopyPhones',
+            'cloneCopyMessengers',
+            'cloneCopyPrices',
+            'cloneCopyAddresses',
+            'cloneCopySocials',
+            'cloneCopyCustom',
+        );
+        $this->resetErrorBag();
+    }
+
+    public function confirmCloneSite(): void
+    {
+        $this->validate([
+            'cloneSourceSiteId' => 'required|integer|exists:sites,id',
+            'cloneName' => 'required|string|max:100',
+            'cloneKeyMode' => 'required|in:generate,keep',
+        ]);
+
+        $source = Site::with('contactEntries')->findOrFail($this->cloneSourceSiteId);
+        $this->authorize('update', $source);
+
+        $clone = DB::transaction(function () use ($source) {
+            $attributes = [
+                'client_id' => $source->client_id,
+                'name' => trim($this->cloneName),
+                'url' => $source->url,
+                'status' => 'maintenance',
+                'api_key' => $this->cloneKeyMode === 'keep' ? $source->api_key : Site::generateApiKey(),
+                'is_favourite' => false,
+                'last_checked_at' => null,
+            ];
+
+            if ($this->cloneCopyGroup) {
+                $attributes['group'] = $source->group;
+                $attributes['group_color'] = $source->group_color;
+            } else {
+                $attributes['group'] = null;
+                $attributes['group_color'] = null;
+            }
+
+            if ($this->cloneCopySettings) {
+                $attributes['wp_version'] = $source->wp_version;
+                $attributes['php_version'] = $source->php_version;
+                $attributes['failover_enabled'] = $source->failover_enabled;
+                $attributes['failover_interval'] = $source->failover_interval;
+                $attributes['failover_threshold'] = $source->failover_threshold;
+            }
+
+            if ($this->cloneCopyGeo) {
+                $attributes['geo_tabs'] = $source->geo_tabs;
+                $attributes['geo_rules'] = $source->geo_rules;
+            }
+
+            if ($this->cloneCopyCategories) {
+                $attributes['data_categories'] = $source->data_categories;
+                $attributes['messenger_kinds'] = $source->messenger_kinds;
+            }
+
+            $clone = Site::create($attributes);
+            $types = $this->cloneDataTypes();
+
+            if ($types !== []) {
+                $this->copyContactEntries($source, $clone, $types);
+            }
+
+            auth()->user()?->grantSiteAccess($clone);
+
+            return $clone;
+        });
 
         $this->dispatch('site-created');
-        $this->dispatch('toast', type: 'success', message: 'Сайт скопійовано: '.$clone->name);
+        $this->dispatch('toast', type: 'success', message: 'Сайт створено на основі каркасу: ' . $clone->name);
+        $this->cancelCloneSite();
+    }
+
+    private function suggestCloneName(string $name): string
+    {
+        return $name . ' (копія)';
+    }
+
+    private function cloneDataTypes(): array
+    {
+        return collect([
+            'phone' => $this->cloneCopyPhones,
+            'messenger' => $this->cloneCopyMessengers,
+            'price' => $this->cloneCopyPrices,
+            'address' => $this->cloneCopyAddresses,
+            'social' => $this->cloneCopySocials,
+            'custom' => $this->cloneCopyCustom,
+        ])
+            ->filter()
+            ->keys()
+            ->values()
+            ->all();
+    }
+
+    private function copyContactEntries(Site $source, Site $clone, array $types): void
+    {
+        $entries = $source->contactEntries->whereIn('type', $types);
+        $idMap = [];
+
+        foreach ($entries->whereNull('parent_id') as $primary) {
+            $copy = $this->copyContactEntry($primary, $clone);
+            $idMap[$primary->id] = $copy->id;
+        }
+
+        foreach ($entries->whereNotNull('parent_id') as $backup) {
+            if (! isset($idMap[$backup->parent_id])) {
+                continue;
+            }
+
+            $copy = $this->copyContactEntry($backup, $clone);
+            $copy->forceFill(['parent_id' => $idMap[$backup->parent_id]])->save();
+        }
+    }
+
+    private function copyContactEntry(ContactEntry $entry, Site $clone): ContactEntry
+    {
+        $copy = $entry->replicate();
+        $copy->site_id = $clone->id;
+        $copy->parent_id = null;
+        $copy->save();
+
+        return $copy;
     }
 
     public function requestDeleteSite(int $id): void
@@ -144,7 +281,7 @@ class Index extends Component
 
     public function confirmDeleteSite(): void
     {
-        if (!$this->confirmDeleteSiteId) {
+        if (! $this->confirmDeleteSiteId) {
             return;
         }
 
@@ -176,7 +313,7 @@ class Index extends Component
         $canMessengers = $user?->canEntryType('messenger') ?? false;
         $canPrices = $user?->canEntryType('price') ?? false;
 
-        $groups = \App\Models\Site::accessibleTo($user)->whereNotNull('group')
+        $groups = Site::accessibleTo($user)->whereNotNull('group')
             ->selectRaw('`group`, group_color, count(*) as sites_count')
             ->groupBy('group', 'group_color')
             ->get();
@@ -185,29 +322,29 @@ class Index extends Component
         $counts = [];
 
         if ($canPhones) {
-            $counts['contactEntries as active_phones_count'] = fn($q) => $q
+            $counts['contactEntries as active_phones_count'] = fn ($q) => $q
                 ->where('type', 'phone')
                 ->where('role', 'primary')
                 ->where('visible', true);
-            $counts['contactEntries as backup_phones_count'] = fn($q) => $q
+            $counts['contactEntries as backup_phones_count'] = fn ($q) => $q
                 ->where('type', 'phone')
                 ->where('role', 'backup')
                 ->where('visible', true);
         }
 
         if ($canMessengers) {
-            $counts['contactEntries as active_messengers_count'] = fn($q) => $q
+            $counts['contactEntries as active_messengers_count'] = fn ($q) => $q
                 ->where('type', 'messenger')
                 ->where('role', 'primary')
                 ->where('visible', true);
-            $counts['contactEntries as backup_messengers_count'] = fn($q) => $q
+            $counts['contactEntries as backup_messengers_count'] = fn ($q) => $q
                 ->where('type', 'messenger')
                 ->where('role', 'backup')
                 ->where('visible', true);
         }
 
         if ($canPrices) {
-            $counts['contactEntries as active_prices_count'] = fn($q) => $q
+            $counts['contactEntries as active_prices_count'] = fn ($q) => $q
                 ->where('type', 'price')
                 ->where('role', 'primary')
                 ->where('visible', true);
@@ -223,9 +360,7 @@ class Index extends Component
         }
 
         $sites = $sitesQuery->orderBy('name')->get();
-
         $siteGroups = SiteGroup::orderBy('name')->get();
-
         $urlGroup = $groupFilter;
 
         return view('livewire.sites.index', compact('sites', 'groups', 'siteGroups', 'urlGroup', 'canPhones', 'canMessengers', 'canPrices'));

@@ -202,7 +202,7 @@ $initialCount = $initialGroup === 'all'
 
                         <button type="button"
                                 class="dropdown-item"
-                                wire:click="cloneSite({{ $site->id }})"
+                                wire:click="requestCloneSite({{ $site->id }})"
                                 @click="open = false">
                             <x-icon.copy width="13" height="13" />
                             Клонувати сайт
@@ -318,6 +318,109 @@ $initialCount = $initialGroup === 'all'
     @endif
 
     {{-- ══ Create Site Drawer ══ --}}
+    @if($cloneSourceSiteId)
+        <div class="drawer-backdrop" wire:click="cancelCloneSite"></div>
+        <div class="drawer-panel" wire:key="clone-site-drawer" @keydown.escape.window="$wire.cancelCloneSite()">
+            <div class="drawer-head">
+                <div class="drawer-head__row">
+                    <h2 class="drawer-title">Клонувати сайт</h2>
+                    <button class="drawer-close" wire:click="cancelCloneSite">
+                        <x-icon.close width="16" height="16" />
+                    </button>
+                </div>
+                <div class="drawer-divider"></div>
+            </div>
+
+            <div class="drawer-body">
+                <div class="field">
+                    <label class="label">Новий сайт</label>
+                    <input type="text" wire:model="cloneName" class="input" placeholder="{{ $cloneSourceSiteName }}"
+                           @keydown.enter="$wire.confirmCloneSite()" />
+                    @error('cloneName') <span class="field-error">{{ $message }}</span> @enderror
+                </div>
+
+                <div class="field">
+                    <label class="label">Ключ доступу</label>
+                    <div class="radio-list">
+                        <label class="radio-row">
+                            <input type="radio" class="radio-native" wire:model="cloneKeyMode" value="generate" />
+                            Згенерувати новий ключ
+                        </label>
+                        <label class="radio-row">
+                            <input type="radio" class="radio-native" wire:model="cloneKeyMode" value="keep" />
+                            Залишити ключ вихідного сайту
+                        </label>
+                    </div>
+                    @error('cloneKeyMode') <span class="field-error">{{ $message }}</span> @enderror
+                </div>
+
+                <div class="field">
+                    <label class="label">Каркас</label>
+                    <div class="clone-checks">
+                        @foreach([
+                            ['prop' => 'cloneCopyGroup', 'label' => 'Група сайту'],
+                            ['prop' => 'cloneCopySettings', 'label' => 'Технічні налаштування'],
+                            ['prop' => 'cloneCopyGeo', 'label' => 'Гео-вкладки та правила'],
+                            ['prop' => 'cloneCopyCategories', 'label' => 'Категорії даних'],
+                        ] as $item)
+                            @php $on = (bool) $this->{$item['prop']}; @endphp
+                            <div class="clone-check-row">
+                                <span class="perm-resource">{{ $item['label'] }}</span>
+                                <button type="button"
+                                        wire:click="$toggle('{{ $item['prop'] }}')"
+                                        class="perm-box {{ $on ? 'perm-box--on' : 'perm-box--off' }} perm-box--editable">
+                                    @if($on)
+                                        <x-icon.check width="10" height="10" />
+                                    @endif
+                                </button>
+                            </div>
+                        @endforeach
+                    </div>
+                </div>
+
+                <div class="field">
+                    <label class="label">Дані для перенесення</label>
+                    <div class="clone-checks">
+                        @foreach([
+                            ['prop' => 'cloneCopyPhones', 'label' => 'Телефони'],
+                            ['prop' => 'cloneCopyMessengers', 'label' => 'Месенджери'],
+                            ['prop' => 'cloneCopyPrices', 'label' => 'Ціни'],
+                            ['prop' => 'cloneCopyAddresses', 'label' => 'Адреси'],
+                            ['prop' => 'cloneCopySocials', 'label' => 'Соц. мережі'],
+                            ['prop' => 'cloneCopyCustom', 'label' => 'Custom'],
+                        ] as $item)
+                            @php $on = (bool) $this->{$item['prop']}; @endphp
+                            <div class="clone-check-row">
+                                <span class="perm-resource">{{ $item['label'] }}</span>
+                                <button type="button"
+                                        wire:click="$toggle('{{ $item['prop'] }}')"
+                                        class="perm-box {{ $on ? 'perm-box--on' : 'perm-box--off' }} perm-box--editable">
+                                    @if($on)
+                                        <x-icon.check width="10" height="10" />
+                                    @endif
+                                </button>
+                            </div>
+                        @endforeach
+                        <div class="clone-check-row clone-check-row--muted">
+                            <span class="perm-resource">Історія, логи та старі події не переносяться</span>
+                            <button type="button" class="perm-box perm-box--on" disabled>
+                                <x-icon.check width="10" height="10" />
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="drawer-foot">
+                <x-ui.button variant="ghost" wire:click="cancelCloneSite">Скасувати</x-ui.button>
+                <x-ui.button wire:click="confirmCloneSite" wire:loading.attr="disabled">
+                    <span wire:loading.remove wire:target="confirmCloneSite">Створити каркас</span>
+                    <span wire:loading wire:target="confirmCloneSite">Створення…</span>
+                </x-ui.button>
+            </div>
+        </div>
+    @endif
+
     <div class="drawer-backdrop" x-show="showCreate" x-cloak
          x-transition:enter="transition ease-out duration-200"
          x-transition:enter-start="opacity-0"

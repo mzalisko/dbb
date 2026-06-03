@@ -39,6 +39,7 @@ class Show extends Component
     public string $failoverInterval = '5min';
     public int $failoverThreshold = 3;
     public string $siteGroupId = '';
+    public string $siteName = '';
 
     // ContactEntry CRUD state
     public bool $editingEntry = false;
@@ -127,6 +128,7 @@ class Show extends Component
         $this->failoverEnabled   = $this->site->failover_enabled ?? true;
         $this->failoverInterval  = $this->site->failover_interval ?? '5min';
         $this->failoverThreshold = $this->site->failover_threshold ?? 3;
+        $this->siteName = $this->site->name;
         $this->siteGroupId = (string) (SiteGroup::query()
             ->where('name', $this->site->group)
             ->value('id') ?? '');
@@ -931,6 +933,34 @@ class Show extends Component
         $this->site->update(['status' => $status]);
         $this->site = $this->site->fresh('client');
         $this->dispatch('toast', type: 'success', message: 'Стан сайту оновлено');
+    }
+
+    public function updateSiteName(): void
+    {
+        $this->authorize('update', $this->site);
+
+        $this->validate([
+            'siteName' => 'required|string|max:100',
+        ]);
+
+        $name = trim($this->siteName);
+        if ($name === $this->site->name) {
+            return;
+        }
+
+        $this->site->update(['name' => $name]);
+        $this->site = $this->site->fresh('client');
+        $this->siteName = $this->site->name;
+        $this->dispatch('toast', type: 'success', message: 'Назву сайту оновлено');
+    }
+
+    public function regenerateApiKey(): void
+    {
+        $this->authorize('update', $this->site);
+
+        $this->site->forceFill(['api_key' => Site::generateApiKey()])->save();
+        $this->site = $this->site->fresh('client');
+        $this->dispatch('toast', type: 'success', message: 'API ключ оновлено');
     }
 
     public function updateSiteGroup(): void

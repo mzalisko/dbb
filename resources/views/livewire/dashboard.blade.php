@@ -154,7 +154,7 @@
 
                 @forelse ($recentLogs as $log)
                     @php $dotClass = $log->severity === 2 ? 'dot-bad' : ($log->severity === 1 ? 'dot-warn' : 'dot-ok'); @endphp
-                    <a href="{{ route('activity.index', ['filterSite' => $log->siteId]) }}" wire:navigate class="log-row" style="text-decoration:none;" title="Логи сайту">
+                    <a href="{{ $log->siteId ? route('sites.show', $log->siteId).'#activity' : route('activity.index') }}" wire:navigate class="log-row" style="text-decoration:none;" title="Перейти в сайт">
                         <div class="log-row__inner">
                             <div class="log-row__text">
                                 <span class="dot {{ $dotClass }}"></span>

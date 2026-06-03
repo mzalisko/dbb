@@ -630,10 +630,11 @@ class Show extends Component
             'price_unit' => $this->entryType === 'price' ? ($this->entryPriceUnit ?: null) : null,
             'sku'        => $this->entryType === 'price' ? ($this->entrySku ?: null) : null,
             'visible'    => $this->entryRole !== 'hidden',
-            'order'      => 1,
         ];
 
         if ($this->editEntryId) {
+            // Editing must never touch `order` — that belongs to drag-reorder only,
+            // otherwise a plain value edit looked like "Порядок змінено".
             $entry = \App\Models\ContactEntry::findOrFail($this->editEntryId);
             $this->authorize('update', $entry);
             $entry->update($data);

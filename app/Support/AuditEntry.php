@@ -93,7 +93,7 @@ final class AuditEntry
             'geo_tag' => 'Приналежність', 'geo_mode' => 'Правило видимості', 'countries' => 'Країни',
             'visible' => 'Видимість', 'price' => 'Ціна', 'old_price' => 'Стара ціна',
             'currency' => 'Валюта', 'price_unit' => 'Одиниця', 'sku' => 'SKU',
-            'parent_id' => 'Активний контакт', 'name' => 'Назва', 'url' => 'Адреса сайту',
+            'parent_id' => 'Головний контакт', 'name' => 'Назва', 'url' => 'Адреса сайту',
             'status' => 'Статус', 'notes' => 'Нотатки', 'group' => 'Група', 'group_color' => 'Колір групи',
             'geo_tabs' => 'Гео-вкладки', 'data_categories' => 'Категорії даних',
             'geo_rules' => 'Правила ізоляції', 'messenger_kinds' => 'Платформи',
@@ -221,12 +221,29 @@ final class AuditEntry
         }
 
         $isUser = $this->subjectType === \App\Models\User::class;
+
+        $isEntry = $this->subjectType === \App\Models\ContactEntry::class;
+        // A reserve inherits geo from its primary (read-through), so its own geo
+        // columns are noise — never show "Правило видимості: Усім" for a reserve.
+        $isReserve = $isEntry
+            && (! empty($this->new['parent_id']) || ! empty($this->old['parent_id']));
+        $inheritedGeo = ['geo_tag', 'geo_mode', 'countries'];
+        // Implied/technical entry columns the admin doesn't need in the feed.
+        $entryNoise = ['type', 'site_id'];
+
         $rows = [];
 
         foreach ($this->changes() as $c) {
             $field = $c['field'];
             $old = $c['old'];
             $new = $c['new'];
+
+            if ($isEntry && in_array($field, $entryNoise, true)) {
+                continue;
+            }
+            if ($isReserve && in_array($field, $inheritedGeo, true)) {
+                continue;
+            }
 
             // Permission matrix → leaf-level lines ("Сайти: створення — вимкнено → увімкнено").
             if ($isUser && $field === 'permissions') {

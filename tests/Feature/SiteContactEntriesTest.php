@@ -24,6 +24,22 @@ class SiteContactEntriesTest extends TestCase
         return [$user, $site];
     }
 
+    public function test_editing_an_entry_value_keeps_its_order(): void
+    {
+        [$user, $site] = $this->ownerSite();
+        $entry = ContactEntry::factory()->for($site)->phone()
+            ->create(['value' => '+OLD', 'role' => 'primary', 'parent_id' => null, 'order' => 5]);
+
+        Livewire::actingAs($user)->test(Show::class, ['site' => $site])
+            ->call('editEntry', $entry->id)
+            ->set('entryValue', '+NEW')
+            ->call('saveEntry');
+
+        $entry->refresh();
+        $this->assertSame('+NEW', $entry->value);
+        $this->assertSame(5, $entry->order, 'a value edit must not reorder the entry');
+    }
+
     /** Task 1: global numbers (all/except) are never an isolation conflict. */
     public function test_global_numbers_are_not_flagged_as_isolation_conflicts(): void
     {

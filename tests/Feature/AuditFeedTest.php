@@ -81,6 +81,19 @@ class AuditFeedTest extends TestCase
         $this->assertSame('site.geo.updated', $code);
     }
 
+    public function test_deleted_site_event_keeps_site_name_for_ui(): void
+    {
+        [, $site] = $this->ownerSite();
+        $name = 'medhurst Site';
+        $site->update(['name' => $name]);
+        $site->delete();
+
+        $deleted = AuditFeed::collect([])->firstWhere('actionCode', 'site.deleted');
+
+        $this->assertNotNull($deleted);
+        $this->assertSame($name, $deleted->targetName());
+    }
+
     public function test_activity_log_events_merge_into_the_feed(): void
     {
         [$owner] = $this->ownerSite();

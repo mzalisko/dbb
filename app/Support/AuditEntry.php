@@ -34,6 +34,39 @@ final class AuditEntry
         return AuditAction::label($this->actionCode);
     }
 
+    public function targetName(mixed $siteNames = []): string
+    {
+        if ($this->siteId !== null) {
+            if ($siteNames instanceof \Illuminate\Support\Collection && filled($siteNames->get($this->siteId))) {
+                return (string) $siteNames->get($this->siteId);
+            }
+
+            if (is_array($siteNames) && filled($siteNames[$this->siteId] ?? null)) {
+                return (string) $siteNames[$this->siteId];
+            }
+        }
+
+        foreach (['site_name', 'siteName'] as $key) {
+            if (filled($this->new[$key] ?? null)) {
+                return (string) $this->new[$key];
+            }
+            if (filled($this->old[$key] ?? null)) {
+                return (string) $this->old[$key];
+            }
+        }
+
+        if ($this->subjectType === \App\Models\Site::class) {
+            if (filled($this->new['name'] ?? null)) {
+                return (string) $this->new['name'];
+            }
+            if (filled($this->old['name'] ?? null)) {
+                return (string) $this->old['name'];
+            }
+        }
+
+        return '—';
+    }
+
     public function icon(): string
     {
         return AuditAction::icon($this->actionCode);
@@ -483,4 +516,3 @@ final class AuditEntry
         return $parts ? implode(' · ', $parts) : 'без змін';
     }
 }
-

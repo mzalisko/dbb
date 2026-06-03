@@ -87,7 +87,9 @@ class Index extends Component
     {
         $site = Site::with('client')->findOrFail($id);
         $this->authorize('delete', $site);
+        $siteName = $site->name;
         $site->delete();
+        $this->dispatch('toast', type: 'success', message: "Сайт «{$siteName}» видалено");
     }
 
     public function assignSiteGroup(int $siteId, int $groupId): void

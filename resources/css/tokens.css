@@ -833,6 +833,18 @@ svg { display: block; }
   padding: 12px 0;
   border-bottom: 1px solid var(--ink-3);
 }
+.log-row--button {
+  appearance: none;
+  -webkit-appearance: none;
+  border-top: 0;
+  border-right: 0;
+  border-left: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
 .log-row:hover { background: var(--paper-2); }
 .log-row__inner {
   min-height: 28px;
@@ -866,6 +878,7 @@ svg { display: block; }
   color: var(--ink-5);
 }
 .log-row__time { font: 12px var(--font-mono); color: var(--ink-4); white-space: nowrap; }
+.dash-log-pager { margin-top: 14px; }
 
 @media (max-width: 1180px) {
   .dash-grid { grid-template-columns: 1fr; gap: 36px; }
@@ -1897,6 +1910,13 @@ svg { display: block; }
   border: 2px solid var(--paper); z-index: 1;
 }
 .tl-card { position: relative; padding: 0; margin-left: 48px; overflow: hidden; }
+.tl-item--focus .tl-card {
+  background: color-mix(in srgb, var(--warn) 7%, var(--card));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--warn) 38%, var(--ink-3));
+}
+.tl-item--focus .tl-marker {
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--warn) 15%, transparent);
+}
 .tl-card__head { padding: 14px 18px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid var(--ink-3); }
 .tl-scope { font: 12px var(--font-mono); color: var(--ink-5); }
 .tl-target { font: 14px var(--font-mono); color: var(--ink-9); }

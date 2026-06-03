@@ -153,22 +153,50 @@
                 </header>
 
                 @forelse ($recentLogs as $log)
-                    @php $dotClass = $log->severity === 2 ? 'dot-bad' : ($log->severity === 1 ? 'dot-warn' : 'dot-ok'); @endphp
-                    <a href="{{ $log->siteId ? route('sites.show', $log->siteId).'#activity' : route('activity.index') }}" wire:navigate class="log-row" style="text-decoration:none;" title="Перейти в сайт">
+                    @php
+                        $dotClass = $log->severity === 2 ? 'dot-bad' : ($log->severity === 1 ? 'dot-warn' : 'dot-ok');
+                        $logType = str_contains($log->actionCode, 'creat') ? 'create'
+                            : (str_contains($log->actionCode, 'delet') || str_contains($log->actionCode, 'purg') ? 'delete'
+                            : (str_contains($log->actionCode, 'failover') ? 'failover' : 'update'));
+                        $logAnchor = '#activity/' . $logType . '/' . $log->source . '-' . $log->id;
+                        $isDeletedSiteLog = $log->siteId && in_array((int) $log->siteId, $deletedSiteIds, true);
+                    @endphp
+                    @if($isDeletedSiteLog)
+                        <button type="button" wire:click="requestRestoreSite({{ $log->siteId }})" class="log-row log-row--button" title="Відновити сайт">
+                            <div class="log-row__inner">
+                                <div class="log-row__text">
+                                    <span class="dot {{ $dotClass }}"></span>
+                                    <span class="mono log-row__subj">{{ $log->targetName($logSiteNames) }}</span>
+                                    <span class="log-row__action">{{ $log->label() }}</span>
+                                </div>
+                                <span class="mono log-row__time">{{ $log->occurredAt->format('H:i:s') }}</span>
+                            </div>
+                        </button>
+                    @else
+                    <a href="{{ $log->siteId ? route('sites.show', $log->siteId).$logAnchor : route('activity.index') }}" wire:navigate class="log-row" style="text-decoration:none;" title="Перейти в сайт">
                         <div class="log-row__inner">
                             <div class="log-row__text">
                                 <span class="dot {{ $dotClass }}"></span>
-                                <span class="mono log-row__subj">{{ $logSiteNames[$log->siteId] ?? '—' }}</span>
+                                <span class="mono log-row__subj">{{ $log->targetName($logSiteNames) }}</span>
                                 <span class="log-row__action">{{ $log->label() }}</span>
                             </div>
                             <span class="mono log-row__time">{{ $log->occurredAt->format('H:i:s') }}</span>
                         </div>
                     </a>
+                    @endif
                 @empty
                     <div class="dash-empty">Немає подій.</div>
                 @endforelse
+
+                @if($recentLogs->hasPages())
+                    <div class="dash-log-pager">
+                        {{ $recentLogs->links('livewire.quiet-pagination') }}
+                    </div>
+                @endif
             </div>
 
         </div>
     </div>
+
+    @include('livewire.partials.restore-site-modal')
 </div>

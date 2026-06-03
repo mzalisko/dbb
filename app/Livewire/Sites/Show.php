@@ -10,13 +10,18 @@ use App\Services\ActivityLogService;
 use Livewire\Component;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Title;
+use Livewire\WithPagination;
 use Illuminate\Support\Collection;
+use Illuminate\Pagination\LengthAwarePaginator;
+use OwenIt\Auditing\Models\Audit;
 use Illuminate\Support\Facades\DB;
 
 #[Layout('components.layouts.app')]
 #[Title('Сайт')]
 class Show extends Component
 {
+    use WithPagination;
+
     private const DEFAULT_GEO_TABS = ['UA', 'RU', 'BY'];
 
     /** Phones + messengers are always present; the rest can be toggled per-site. */
@@ -29,6 +34,7 @@ class Show extends Component
         'phones' => 'phone', 'messengers' => 'messenger', 'prices' => 'price',
         'addresses' => 'address', 'socials' => 'social', 'custom' => 'custom',
     ];
+    private const ACTIVITY_PER_PAGE = 20;
 
     public Site $site;
     public ?int $openPhoneId = null;
@@ -86,6 +92,7 @@ class Show extends Component
     public ?string $confirmMessengerKind = null;
     public ?string $confirmCategory = null;
     public ?string $confirmSiteStatus = null;
+    public ?string $confirmActivityScope = null;
     public string $confirmDeleteSiteName = '';
     public string $confirmTitle = '';
     public string $confirmSubject = '';
@@ -859,6 +866,33 @@ class Show extends Component
         $this->confirmIsDanger = true;
     }
 
+    public function requestClearSiteHistory(string $scope = 'all'): void
+    {
+        if (! auth()->user()?->isAdmin()) {
+            abort(403);
+        }
+
+        $scope = $this->normalizeActivityScope($scope);
+        $scopeLabel = $this->activityScopeLabel($scope);
+
+        $this->confirmingAction = true;
+        $this->confirmAction = 'clear-site-history';
+        $this->confirmEntryId = null;
+        $this->confirmGeoCode = null;
+        $this->confirmMessengerKind = null;
+        $this->confirmCategory = null;
+        $this->confirmSiteStatus = null;
+        $this->confirmActivityScope = $scope;
+        $this->confirmDeleteSiteName = '';
+        $this->confirmTitle = $scope === 'all' ? 'Очистити всю історію сайту?' : "Очистити історію {$scopeLabel}?";
+        $this->confirmSubject = $this->site->name;
+        $this->confirmMessage = $scope === 'all'
+            ? 'Буде видалено всю історію цього сайту: події сайту та події прив’язаних записів. Дані сайту не зміняться.'
+            : "Буде видалено лише історію {$scopeLabel} для цього сайту. Інші вкладки історії та дані сайту не зміняться.";
+        $this->confirmButtonLabel = $scope === 'all' ? 'Очистити всю історію' : "Очистити {$scopeLabel}";
+        $this->confirmIsDanger = true;
+    }
+
     public function cancelConfirm(): void
     {
         $this->confirmingAction = false;
@@ -868,6 +902,7 @@ class Show extends Component
         $this->confirmMessengerKind = null;
         $this->confirmCategory = null;
         $this->confirmSiteStatus = null;
+        $this->confirmActivityScope = null;
         $this->confirmDeleteSiteName = '';
         $this->confirmTitle = '';
         $this->confirmSubject = '';
@@ -898,6 +933,13 @@ class Show extends Component
             $id = $this->confirmEntryId;
             $this->cancelConfirm();
             $this->deleteEntry($id);
+            return;
+        }
+
+        if ($this->confirmAction === 'clear-site-history') {
+            $scope = $this->confirmActivityScope ?: 'all';
+            $this->cancelConfirm();
+            $this->clearSiteHistory($scope);
             return;
         }
 
@@ -972,6 +1014,131 @@ class Show extends Component
         $this->dispatch('toast', type: 'success', message: 'API ключ оновлено');
     }
 
+    public function clearSiteHistory(string $scope = 'all'): void
+    {
+        if (! auth()->user()?->isAdmin()) {
+            abort(403);
+        }
+
+        $scope = $this->normalizeActivityScope($scope);
+        $entryIds = ContactEntry::withTrashed()
+            ->where('site_id', $this->site->id)
+            ->pluck('id');
+
+        $auditQuery = Audit::query()
+            ->where(function ($query) use ($entryIds) {
+                $query->where(function ($q) {
+                    $q->where('auditable_type', Site::class)
+                        ->where('auditable_id', $this->site->id);
+                });
+
+                if ($entryIds->isNotEmpty()) {
+                    $query->orWhere(function ($q) use ($entryIds) {
+                        $q->where('auditable_type', ContactEntry::class)
+                            ->whereIn('auditable_id', $entryIds);
+                    });
+                }
+            });
+
+        if ($scope === 'all') {
+            $auditQuery->delete();
+        } else {
+            $auditIds = $auditQuery->get()
+                ->filter(fn (Audit $audit) => $this->activityScopeForAudit($audit) === $scope)
+                ->pluck('id');
+
+            if ($auditIds->isNotEmpty()) {
+                Audit::query()->whereIn('id', $auditIds)->delete();
+            }
+        }
+
+        $activityQuery = ActivityLog::query()
+            ->where(function ($query) use ($entryIds) {
+                $query->where(function ($q) {
+                    $q->where('subject_type', Site::class)
+                        ->where('subject_id', $this->site->id);
+                })
+                ->orWhere('properties->site_id', $this->site->id);
+
+                if ($entryIds->isNotEmpty()) {
+                    $query->orWhere(function ($q) use ($entryIds) {
+                        $q->where('subject_type', ContactEntry::class)
+                            ->whereIn('subject_id', $entryIds);
+                    });
+                }
+            });
+
+        if ($scope === 'update') {
+            $activityQuery
+                ->where('action', 'not like', '%creat%')
+                ->where('action', 'not like', '%delet%')
+                ->where('action', 'not like', '%purg%')
+                ->where('action', 'not like', '%failover%');
+        } elseif ($scope !== 'all') {
+            $activityQuery->where(function ($query) use ($scope) {
+                foreach ($this->activityActionPatterns($scope) as $pattern) {
+                    $query->orWhere('action', 'like', $pattern);
+                }
+            });
+        }
+
+        $activityQuery->delete();
+
+        $this->resetPage('activityPage');
+        $message = $scope === 'all'
+            ? 'Історію сайту очищено'
+            : 'Історію вкладки очищено';
+        $this->dispatch('toast', type: 'success', message: $message);
+    }
+
+    private function normalizeActivityScope(string $scope): string
+    {
+        return in_array($scope, ['all', 'update', 'create', 'delete', 'failover'], true)
+            ? $scope
+            : 'all';
+    }
+
+    private function activityScopeLabel(string $scope): string
+    {
+        return match ($scope) {
+            'update' => 'змін',
+            'create' => 'створень',
+            'delete' => 'видалень',
+            'failover' => 'failover',
+            default => 'усієї історії',
+        };
+    }
+
+    private function activityScopeForAudit(Audit $audit): string
+    {
+        if ($audit->event === 'created') {
+            return 'create';
+        }
+
+        if (in_array($audit->event, ['deleted', 'forceDeleted'], true)) {
+            return 'delete';
+        }
+
+        $keys = array_keys(((array) $audit->new_values) + ((array) $audit->old_values));
+        $keys = array_filter($keys, fn ($key) => ! in_array($key, ['updated_at', 'last_checked_at'], true));
+
+        if ($audit->auditable_type === Site::class && $keys !== [] && collect($keys)->every(fn ($key) => str_starts_with((string) $key, 'failover'))) {
+            return 'failover';
+        }
+
+        return 'update';
+    }
+
+    private function activityActionPatterns(string $scope): array
+    {
+        return match ($scope) {
+            'create' => ['%creat%'],
+            'delete' => ['%delet%', '%purg%'],
+            'failover' => ['%failover%'],
+            default => [],
+        };
+    }
+
     public function updateSiteGroup(): void
     {
         $this->authorize('update', $this->site);
@@ -1001,8 +1168,9 @@ class Show extends Component
     public function deleteSite()
     {
         $this->authorize('delete', $this->site);
+        $siteName = $this->site->name;
         $this->site->delete();
-        $this->dispatch('toast', type: 'success', message: 'Сайт видалено');
+        $this->dispatch('toast', type: 'success', message: "Сайт «{$siteName}» видалено");
 
         return $this->redirectRoute('sites.index');
     }
@@ -1400,10 +1568,21 @@ class Show extends Component
         // Activity
         // Per-site feed from the unified read-model: owen-it diffs + activity_log,
         // semantic codes + real old/new (PM-T07).
-        $activityLogs = \App\Services\AuditFeed::collect([
+        $activityAll = \App\Services\AuditFeed::collect([
             'site_id' => $this->site->id,
             'allowed_entry_types' => auth()->user()?->readableEntryTypes() ?? [],
-        ])->take(40);
+        ]);
+        $activityPage = $this->getPage('activityPage');
+        $activityLogs = new LengthAwarePaginator(
+            $activityAll->forPage($activityPage, self::ACTIVITY_PER_PAGE)->values(),
+            $activityAll->count(),
+            self::ACTIVITY_PER_PAGE,
+            $activityPage,
+            [
+                'path' => request()->url(),
+                'pageName' => 'activityPage',
+            ],
+        );
 
         $failoverLogs = ActivityLog::where('subject_type', Site::class)
             ->where('subject_id', $this->site->id)
@@ -1457,7 +1636,7 @@ class Show extends Component
             'phonePrimariesByGeo', 'hiddenPhonesByGeo', 'msgPrimariesByGeo', 'hiddenMsgsByGeo',
             'msgKindCountsByGeo', 'messengerKinds', 'availableMessengerKinds',
             'priceBySku', 'priceBySkuAll',
-            'activityLogs',
+            'activityLogs', 'activityAll',
             'failoverLogs',
             'siteGroups',
             'phoneCount', 'msgCount', 'priceCount', 'dataCount', 'initialDataCat',

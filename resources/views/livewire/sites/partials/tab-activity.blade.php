@@ -9,6 +9,11 @@
         <button class="btn btn-secondary btn-sm" disabled title="Скоро">
             <x-icon.export width="12" height="12" /> Експорт
         </button>
+        @if(auth()->user()?->isAdmin())
+            <button class="btn btn-danger btn-sm" @click="$wire.requestClearSiteHistory(actFilter)">
+                <x-icon.trash width="12" height="12" /> Очистити
+            </button>
+        @endif
     </header>
 
     @php
@@ -24,9 +29,10 @@
             if (is_array($v)) return empty($v) ? 'пусто' : implode(' · ', array_map(fn ($x) => is_scalar($x) ? $x : json_encode($x, JSON_UNESCAPED_UNICODE), $v));
             return (string) $v;
         };
-        $tabCounts = ['all' => $activityLogs->count()];
+        $activityForCounts = $activityAll ?? collect($activityLogs->items());
+        $tabCounts = ['all' => $activityForCounts->count()];
         foreach (['update', 'create', 'delete', 'failover'] as $t) {
-            $tabCounts[$t] = $activityLogs->filter(fn ($e) => $typeOf($e->actionCode) === $t)->count();
+            $tabCounts[$t] = $activityForCounts->filter(fn ($e) => $typeOf($e->actionCode) === $t)->count();
         }
     @endphp
 
@@ -57,10 +63,11 @@
             $brief = $isBulk ? (($e->new['done'] ?? 0).' записів')
                 : ($type === 'failover' ? (($e->new['from'] ?? '—').' → '.($e->new['to'] ?? '—'))
                 : (count($changes) ? ($changes[0]['field'].(count($changes) > 1 ? ' · +'.(count($changes) - 1) : '')) : ''));
+            $eventKey = $e->source . '-' . $e->id;
         @endphp
 
         {{-- «Усі»: стислий рядок таймлайну; клік → детальна вкладка типу --}}
-        <div x-show="actFilter === 'all'" @click="actFilter='{{ $type }}'"
+        <div x-show="actFilter === 'all'" @click="focusActivity('{{ $type }}', '{{ $eventKey }}')"
              style="display:grid; grid-template-columns:64px 24px 1fr auto 14px; gap:12px; align-items:center; padding:11px 12px; border-top:1px solid var(--ink-2); cursor:pointer; transition:background .12s;"
              onmouseover="this.style.background='var(--paper-2)'" onmouseout="this.style.background='transparent'">
             <span class="mono" style="font:12px var(--font-mono); color:var(--ink-6);">{{ $e->occurredAt->format('H:i:s') }}</span>
@@ -75,7 +82,7 @@
             <x-icon.arrow width="13" height="13" style="color:var(--ink-4);" />
         </div>
 
-        <div x-show="actFilter === '{{ $type }}'" class="tl-item">
+        <div x-show="actFilter === '{{ $type }}'" id="activity-detail-{{ $eventKey }}" class="tl-item" :class="activeActivity === '{{ $eventKey }}' ? 'tl-item--focus' : ''">
             @if (!$loop->last)
                 <div class="tl-line"></div>
             @endif
@@ -185,5 +192,9 @@
     @empty
         <div class="tl-empty">Немає подій для цього сайту.</div>
     @endforelse
+
+    @if($activityLogs->hasPages())
+        <div style="margin-top:18px;">{{ $activityLogs->links('livewire.quiet-pagination') }}</div>
+    @endif
 
 </div>

@@ -1,12 +1,41 @@
 <div class="page"
      x-data="{
+         hashParts() { return (location.hash.slice(1) || '').split('/'); },
+         validActivityType(t) { return ['all','update','create','delete','failover'].includes(t); },
          tab:         (['overview','data','activity','settings'].includes((location.hash.slice(1)||'').split('/')[0]) ? location.hash.slice(1).split('/')[0] : 'overview'),
          settingsSub: ((location.hash.slice(1).split('/')[1] || 'failover') === 'api' ? 'general' : (location.hash.slice(1).split('/')[1] || 'failover')),
-         cat: @js($initialDataCat), geo: 'all', msgKind: 'all', actFilter: 'all'
+         cat: @js($initialDataCat), geo: 'all', msgKind: 'all',
+         actFilter: ((location.hash.slice(1).split('/')[0] === 'activity' && ['update','create','delete','failover'].includes(location.hash.slice(1).split('/')[1])) ? location.hash.slice(1).split('/')[1] : 'all'),
+         activeActivity: (location.hash.slice(1).split('/')[0] === 'activity' ? (location.hash.slice(1).split('/')[2] || '') : ''),
+         scrollActivity(key) {
+             this.$nextTick(() => {
+                 setTimeout(() => {
+                     const el = document.getElementById('activity-detail-' + key);
+                     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                 }, 40);
+             });
+         },
+         focusActivity(type, key) {
+             this.tab = 'activity';
+             this.actFilter = type;
+             this.activeActivity = key;
+             history.replaceState(null, '', location.pathname + '#activity/' + type + '/' + key);
+             this.scrollActivity(key);
+         },
+         focusActivityFromHash() {
+             const p = this.hashParts();
+             if (p[0] === 'activity' && this.validActivityType(p[1] || '') && p[2]) {
+                 this.tab = 'activity';
+                 this.actFilter = p[1];
+                 this.activeActivity = p[2];
+                 this.scrollActivity(p[2]);
+             }
+         }
      }"
      x-init="
          $watch('tab',         t => history.replaceState(null,'',location.pathname+'#'+t+(t==='settings'?'/'+settingsSub:'')));
          $watch('settingsSub', s => { if(tab==='settings') history.replaceState(null,'',location.pathname+'#settings/'+s); });
+         focusActivityFromHash();
      ">
 
     <x-ui.topbar :crumbs="['Сайти', $site->name]" :back="true" :back-href="route('sites.index')">

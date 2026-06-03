@@ -32,20 +32,45 @@
             {{-- Sites: one card per site, dive into its Activity tab --}}
             <div style="display:flex; flex-direction:column; gap:8px;">
                 @forelse ($sitesSummary as $s)
-                    @php $sev = $s->last->severity; $dot = $sev === 2 ? 'dot-bad' : ($sev === 1 ? 'dot-warn' : 'dot-ok'); @endphp
-                    <a href="{{ route('sites.show', $s->siteId) }}#activity" wire:navigate
-                       class="card" style="display:grid; grid-template-columns:28px 1.4fr 1.6fr 110px 24px; gap:14px; align-items:center; padding:16px 18px; text-decoration:none; transition:background .12s;"
-                       onmouseover="this.style.background='var(--paper-2)'" onmouseout="this.style.background='var(--card)'">
-                        <span class="avatar avatar-sq" style="width:28px; height:28px; font-size:11px;">{{ strtoupper(substr($siteNames[$s->siteId] ?? '?', 0, 1)) }}</span>
-                        <span class="mono" style="font:13.5px var(--font-mono); color:var(--ink-9); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ $siteNames[$s->siteId] ?? '—' }}</span>
-                        <span style="display:inline-flex; align-items:center; gap:8px; min-width:0;">
-                            <span class="dot {{ $dot }}"></span>
-                            <span style="font:12.5px var(--font-sans); color:var(--ink-7); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ $s->last->label() }}</span>
-                            <span class="mono" style="font:11px var(--font-mono); color:var(--ink-5);">{{ $s->last->occurredAt->diffForHumans(null, true) }}</span>
-                        </span>
-                        <span class="mono" style="font:11.5px var(--font-mono); color:var(--ink-5); text-align:right;">{{ $s->count }} змін</span>
-                        <x-icon.arrow width="14" height="14" style="color:var(--ink-4);" />
-                    </a>
+                    @php
+                        $sev = $s->last->severity;
+                        $dot = $sev === 2 ? 'dot-bad' : ($sev === 1 ? 'dot-warn' : 'dot-ok');
+                        $lastType = str_contains($s->last->actionCode, 'creat') ? 'create'
+                            : (str_contains($s->last->actionCode, 'delet') || str_contains($s->last->actionCode, 'purg') ? 'delete'
+                            : (str_contains($s->last->actionCode, 'failover') ? 'failover' : 'update'));
+                        $lastAnchor = '#activity/' . $lastType . '/' . $s->last->source . '-' . $s->last->id;
+                        $isDeletedSite = in_array((int) $s->siteId, $deletedSiteIds, true);
+                    @endphp
+                    @if($isDeletedSite)
+                        <button type="button" wire:click="requestRestoreSite({{ $s->siteId }})"
+                                class="card" style="width:100%; border:1px solid var(--ink-3); background:var(--card); display:grid; grid-template-columns:28px 1.4fr 1.6fr 110px 24px; gap:14px; align-items:center; padding:16px 18px; text-decoration:none; text-align:left; transition:background .12s; cursor:pointer;"
+                                onmouseover="this.style.background='var(--paper-2)'" onmouseout="this.style.background='var(--card)'"
+                                title="Відновити сайт">
+                            <span class="avatar avatar-sq" style="width:28px; height:28px; font-size:11px;">{{ strtoupper(substr($s->last->targetName($siteNames), 0, 1)) }}</span>
+                            <span class="mono" style="font:13.5px var(--font-mono); color:var(--ink-9); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ $s->last->targetName($siteNames) }}</span>
+                            <span style="display:inline-flex; align-items:center; gap:8px; min-width:0;">
+                                <span class="dot {{ $dot }}"></span>
+                                <span style="font:12.5px var(--font-sans); color:var(--ink-7); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ $s->last->label() }}</span>
+                                <span class="mono" style="font:11px var(--font-mono); color:var(--ink-5);">{{ $s->last->occurredAt->diffForHumans(null, true) }}</span>
+                            </span>
+                            <span class="mono" style="font:11.5px var(--font-mono); color:var(--ink-5); text-align:right;">{{ $s->count }} змін</span>
+                            <x-icon.refresh width="14" height="14" style="color:var(--ink-4);" />
+                        </button>
+                    @else
+                        <a href="{{ route('sites.show', $s->siteId) }}{{ $lastAnchor }}" wire:navigate
+                           class="card" style="display:grid; grid-template-columns:28px 1.4fr 1.6fr 110px 24px; gap:14px; align-items:center; padding:16px 18px; text-decoration:none; transition:background .12s;"
+                           onmouseover="this.style.background='var(--paper-2)'" onmouseout="this.style.background='var(--card)'">
+                            <span class="avatar avatar-sq" style="width:28px; height:28px; font-size:11px;">{{ strtoupper(substr($s->last->targetName($siteNames), 0, 1)) }}</span>
+                            <span class="mono" style="font:13.5px var(--font-mono); color:var(--ink-9); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ $s->last->targetName($siteNames) }}</span>
+                            <span style="display:inline-flex; align-items:center; gap:8px; min-width:0;">
+                                <span class="dot {{ $dot }}"></span>
+                                <span style="font:12.5px var(--font-sans); color:var(--ink-7); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ $s->last->label() }}</span>
+                                <span class="mono" style="font:11px var(--font-mono); color:var(--ink-5);">{{ $s->last->occurredAt->diffForHumans(null, true) }}</span>
+                            </span>
+                            <span class="mono" style="font:11.5px var(--font-mono); color:var(--ink-5); text-align:right;">{{ $s->count }} змін</span>
+                            <x-icon.arrow width="14" height="14" style="color:var(--ink-4);" />
+                        </a>
+                    @endif
                 @empty
                     <div style="padding:64px; text-align:center; color:var(--ink-5); font:13.5px var(--font-sans);">Немає змін на сайтах.</div>
                 @endforelse
@@ -95,7 +120,7 @@
                          @drawer-close.window="$wire.closeDetail()">
                 <div style="display:flex; flex-direction:column; gap:18px;">
                     <div style="font:12.5px var(--font-mono); color:var(--ink-5);">
-                        {{ $siteNames[$detail['siteId']] ?? '—' }} · {{ $detail['actionCode'] }}
+                        {{ $detail['targetName'] ?? ($siteNames[$detail['siteId']] ?? '—') }} · {{ $detail['actionCode'] }}
                     </div>
 
                     @if ($detail['isBulk'])
@@ -155,10 +180,24 @@
                             </div>
                         @endif
                         @if ($detail['siteId'])
-                            <a href="{{ route('sites.show', $detail['siteId']) }}#activity" wire:navigate
-                               style="display:inline-flex; align-items:center; gap:6px; font:12.5px var(--font-sans); color:var(--ink-9); text-decoration:none;">
-                                <x-icon.arrow width="13" height="13" /> Перейти в сайт
-                            </a>
+                            @php
+                                $detailType = str_contains($detail['actionCode'], 'creat') ? 'create'
+                                    : (str_contains($detail['actionCode'], 'delet') || str_contains($detail['actionCode'], 'purg') ? 'delete'
+                                    : (str_contains($detail['actionCode'], 'failover') ? 'failover' : 'update'));
+                                $detailAnchor = '#activity/' . $detailType . '/' . $detail['source'] . '-' . $detail['id'];
+                                $detailSiteDeleted = in_array((int) $detail['siteId'], $deletedSiteIds, true);
+                            @endphp
+                            @if($detailSiteDeleted)
+                                <button type="button" wire:click="requestRestoreSite({{ $detail['siteId'] }})"
+                                        style="display:inline-flex; align-items:center; gap:6px; border:0; background:transparent; padding:0; font:12.5px var(--font-sans); color:var(--ink-9); cursor:pointer;">
+                                    <x-icon.refresh width="13" height="13" /> Відновити сайт
+                                </button>
+                            @else
+                                <a href="{{ route('sites.show', $detail['siteId']) }}{{ $detailAnchor }}" wire:navigate
+                                   style="display:inline-flex; align-items:center; gap:6px; font:12.5px var(--font-sans); color:var(--ink-9); text-decoration:none;">
+                                    <x-icon.arrow width="13" height="13" /> Перейти в сайт
+                                </a>
+                            @endif
                         @endif
                     </div>
                 </div>
@@ -169,4 +208,6 @@
             </x-ui.drawer>
         </div>
     @endif
+
+    @include('livewire.partials.restore-site-modal')
 </div>

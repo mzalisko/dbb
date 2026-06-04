@@ -2807,4 +2807,5 @@ svg { display: block; }
 .phone-input { font-size:20px; font-family:var(--font-mono); }
 
 .field-hint { margin-top:-4px; margin-bottom:12px; font-size:12.5px; line-height:1.5; color:var(--ink-5); }
+.field-hint--price-block { margin-top:6px; }
 .field-hint--after-pills { margin-top:8px; }

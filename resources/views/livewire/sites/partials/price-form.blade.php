@@ -4,7 +4,7 @@
     <div>
         <label class="label">Ціновий блок</label>
         <input class="input mono" wire:model="entrySku" placeholder="напр. ПОЛЬША, КАНАДА, США">
-        <p class="field-hint">Блок групує варіанти цін. У майбутній логіці гео блоку буде джерелом для дочірніх цін.</p>
+        <p class="field-hint field-hint--price-block">Блок групує варіанти цін. У майбутній логіці гео блоку буде джерелом для дочірніх цін.</p>
         @error('entrySku') <div class="field-error">{{ $message }}</div> @enderror
     </div>
 

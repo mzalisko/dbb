@@ -580,9 +580,10 @@ class DataBrowserBulkTest extends TestCase
             ->test(DataBrowser::class)
             ->set('typeFilter', 'phone')
             ->set('roleFilter', 'backup')
+            ->call('pickValue', '+RESERVE', '')
             ->assertViewHas('entries', fn ($e) => $e->total() === 1 && (int) $e->first()->id === (int) $reserve->id)
             ->assertSee('+RESERVE')
-            ->assertSee('+PRIMARY');
+            ->assertSee('+PRIMARY'); // shown as the reserve's parent context
     }
 
     public function test_replace_value_is_blocked_for_mixed_messenger_kinds(): void
@@ -868,9 +869,10 @@ class DataBrowserBulkTest extends TestCase
 
         Livewire::actingAs($owner)
             ->test(DataBrowser::class, ['typeFilter' => 'price'])
-            ->assertSee('WAVE-01')
-            ->assertSee('149')
+            ->assertSee('149')   // amount shows in the value rail
             ->assertSee('PLN')
+            ->call('pickValue', '149', 'PLN')   // dive into the occurrences
+            ->assertSee('WAVE-01')
             ->assertSee('/міс')
             ->assertSee('199');
     }
@@ -1068,7 +1070,8 @@ class DataBrowserBulkTest extends TestCase
 
         Livewire::actingAs($owner)
             ->test(DataBrowser::class, ['typeFilter' => 'phone', 'roleFilter' => 'hidden'])
-            ->assertSee('+HIDDEN-PHONE')
+            ->assertSee('+HIDDEN-PHONE')   // listed in the value rail
+            ->call('pickValue', '+HIDDEN-PHONE', '')
             ->assertSee('Резерв для')
             ->assertSee('+MAIN-PHONE')
             ->assertSee('Приховано')
@@ -1076,7 +1079,8 @@ class DataBrowserBulkTest extends TestCase
 
         Livewire::actingAs($owner)
             ->test(DataBrowser::class, ['typeFilter' => 'messenger', 'kindFilter' => 'telegram', 'roleFilter' => 'hidden'])
-            ->assertSee('@hidden_tg')
+            ->assertSee('@hidden_tg')   // listed in the value rail
+            ->call('pickValue', '@hidden_tg', '')
             ->assertSee('Резерв для')
             ->assertSee('@main_tg')
             ->assertSee('Приховано')

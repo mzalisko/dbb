@@ -23,11 +23,26 @@
             : 'Усі контактні дані з усіх сайтів. Шукайте, фільтруйте, виконуйте групові операції.'" />
 
     <div style="padding:0 40px;">
-        <div style="display:flex; align-items:center; gap:10px; height:44px; padding:0 18px; border-radius:999px; background:var(--card); border:1px solid var(--ink-3); max-width:600px;">
-            <x-icon.search width="15" height="15" style="color:var(--ink-5);" />
-            <input wire:model.live.debounce.300ms="search" type="text"
-                   placeholder="Пошук по {{ $totalCount }} записах…"
-                   style="flex:1; font:14.5px var(--font-sans); color:var(--ink-7); background:transparent; border:0; outline:none;" />
+        <div style="display:flex; align-items:center; gap:14px; flex-wrap:wrap;">
+            <div style="display:flex; align-items:center; gap:10px; height:44px; padding:0 18px; border-radius:999px; background:var(--card); border:1px solid var(--ink-3); flex:1; min-width:240px; max-width:520px;">
+                <x-icon.search width="15" height="15" style="color:var(--ink-5);" />
+                <input wire:model.live.debounce.300ms="search" type="text"
+                       placeholder="Пошук по {{ $totalCount }} записах…"
+                       style="flex:1; font:14.5px var(--font-sans); color:var(--ink-7); background:transparent; border:0; outline:none;" />
+            </div>
+
+            {{-- Axis: organise the left rail by value (find a number/price) or by site --}}
+            <div style="display:inline-flex; background:var(--ink-2); border-radius:999px; padding:3px;">
+                @foreach (['value' => 'За значенням', 'site' => 'За сайтом'] as $akey => $alabel)
+                    <button wire:click="$set('axis', '{{ $akey }}')" style="
+                        border:0; padding:6px 14px; border-radius:999px; font:12.5px var(--font-sans); cursor:pointer;
+                        background:{{ $axis === $akey ? 'var(--card)' : 'transparent' }};
+                        color:{{ $axis === $akey ? 'var(--ink-9)' : 'var(--ink-6)' }};
+                        box-shadow:{{ $axis === $akey ? '0 1px 2px rgba(0,0,0,.08)' : 'none' }};">
+                        {{ $alabel }}
+                    </button>
+                @endforeach
+            </div>
         </div>
 
         {{-- Type filter (data-driven from ContactEntry::TYPES) --}}
@@ -44,7 +59,8 @@
                 </button>
             @endforeach
 
-            {{-- Site filter --}}
+            {{-- Site filter (value axis only — in the site axis the rail is the site picker) --}}
+            @if ($axis === 'value')
             <span style="width:1px; height:18px; background:var(--ink-3); margin:0 4px; align-self:center;"></span>
             <select wire:model.live="siteFilter" aria-label="Фільтр по сайту"
                     style="height:30px; padding:0 30px 0 12px; border-radius:999px;
@@ -60,6 +76,7 @@
                     <option value="{{ $s->id }}">{{ $s->name }}</option>
                 @endforeach
             </select>
+            @endif
         </div>
 
         {{-- Kind sub-filter (for types with kinds, e.g. messengers) — pick one
@@ -79,28 +96,7 @@
             </div>
         @endif
 
-        {{-- Role/state sub-filter — pick Active / Reserve / Hidden, then act on them. --}}
-        <div style="display:flex; align-items:center; gap:6px; margin-top:10px; flex-wrap:wrap;">
-            <span style="font:11px var(--font-mono); color:var(--ink-5); text-transform:uppercase; letter-spacing:.06em; margin-right:2px;">Стан</span>
-            @php
-                $roleOptions = $typeFilter === 'price'
-                    ? ['' => 'Всі', 'primary' => 'Активні', 'hidden' => 'Приховані']
-                    : ['' => 'Всі', 'primary' => 'Активні', 'backup' => 'Резервні', 'hidden' => 'Приховані'];
-            @endphp
-            @foreach ($roleOptions as $rkey => $rlabel)
-                <button wire:click="$set('roleFilter', '{{ $rkey }}')" style="
-                    height:28px; padding:0 11px; border-radius:999px; font:12px var(--font-sans); cursor:pointer;
-                    display:inline-flex; align-items:center; gap:5px;
-                    background:{{ $roleFilter === $rkey ? 'var(--ink-9)' : 'transparent' }};
-                    color:{{ $roleFilter === $rkey ? 'var(--paper)' : 'var(--ink-6)' }};
-                    box-shadow:{{ $roleFilter === $rkey ? 'none' : 'inset 0 0 0 1px var(--ink-3)' }};">
-                    @if($rkey === 'hidden')
-                        <x-icon.eye-off width="13" height="13" class="state-icon state-icon--hidden" />
-                    @endif
-                    {{ $rlabel }}
-                </button>
-            @endforeach
-        </div>
+        {{-- Стан перенесено у праву панель (мініфільтр над входженнями) --}}
     </div>
 
     {{-- Bulk action bar --}}
@@ -168,17 +164,92 @@
     @endif
 
     <div style="padding:20px 40px 64px; flex:1; overflow-y:auto;">
-        <div class="card" style="overflow:hidden;">
-            @php $pageAllSelected = $selectAllMatching || ($pageIds && empty(array_diff($pageIds, $selected))); @endphp
-            <div style="display:grid; grid-template-columns:32px 1.4fr 1.6fr 1fr 100px 80px; gap:12px; padding:12px 18px; border-bottom:1px solid var(--ink-3); background:var(--paper-2);">
-                <button type="button" class="row-check row-check--head {{ $pageAllSelected ? 'is-checked' : '' }}"
-                        wire:click="selectPage(@js($pageIds))" title="Обрати сторінку">
-                    @if ($pageAllSelected) <x-icon.check width="11" height="11" /> @endif
-                </button>
-                @foreach (['Значення', 'Сайт', 'Мітка', 'Гео', $trashed ? 'Видалено' : 'Роль'] as $h)
-                    <span class="eyebrow" style="font-size:10px;">{{ $h }}</span>
-                @endforeach
+        <div style="display:grid; grid-template-columns:300px 1fr; gap:18px; align-items:start;">
+
+            {{-- LEFT: finder rail — value axis lists distinct values; site axis lists sites --}}
+            <div class="card" style="overflow:hidden; align-self:start;">
+                <div style="padding:12px 16px; border-bottom:1px solid var(--ink-3); background:var(--paper-2);">
+                    <span class="eyebrow" style="font-size:10px;">{{ $axis === 'value' ? 'Значення' : 'Сайти' }}</span>
+                </div>
+                <div style="max-height:560px; overflow-y:auto;">
+                    @if ($axis === 'value')
+                        @forelse ($valueGroups as $g)
+                            @php
+                                $gcur = $g->currency ?? '';
+                                $gdisp = $typeFilter === 'price' ? rtrim(rtrim(number_format((float) $g->gkey, 2, '.', ' '), '0'), '.') : $g->gkey;
+                                $on = $pickedValue !== '' && (string) $pickedValue === (string) $g->gkey && (string) $pickedCurrency === (string) $gcur;
+                            @endphp
+                            <button type="button" wire:key="vg-{{ md5($g->gkey.'|'.$gcur) }}"
+                                    wire:click="pickValue('{{ addslashes($g->gkey) }}', '{{ addslashes($gcur) }}')"
+                                    style="display:flex; align-items:center; gap:9px; width:100%; text-align:left; padding:11px 16px; border:0; border-bottom:1px solid var(--ink-2); cursor:pointer;
+                                           background:{{ $on ? 'var(--accent-soft)' : 'transparent' }}; box-shadow:{{ $on ? 'inset 3px 0 0 var(--accent)' : 'none' }};">
+                                <span class="mono" style="flex:1; min-width:0; font:13px var(--font-mono); color:var(--ink-9); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ $gdisp }}{{ $gcur ? ' '.$gcur : '' }}</span>
+                                <span class="mono" style="font:11px var(--font-mono); color:var(--ink-6); background:var(--ink-2); border-radius:999px; padding:2px 8px; white-space:nowrap;">×{{ $g->n }}</span>
+                                <span style="font:11px var(--font-sans); color:var(--ink-5); white-space:nowrap;">{{ $g->sites }}&nbsp;с.</span>
+                            </button>
+                        @empty
+                            <div style="padding:40px 16px; text-align:center; color:var(--ink-5); font:13px var(--font-sans);">Немає значень.</div>
+                        @endforelse
+                    @else
+                        @forelse ($sites as $s)
+                            @php $on = (int) $siteFilter === (int) $s->id; @endphp
+                            <button type="button" wire:key="sg-{{ $s->id }}" wire:click="$set('siteFilter', '{{ $s->id }}')"
+                                    style="display:flex; align-items:center; gap:9px; width:100%; text-align:left; padding:11px 16px; border:0; border-bottom:1px solid var(--ink-2); cursor:pointer;
+                                           background:{{ $on ? 'var(--accent-soft)' : 'transparent' }}; box-shadow:{{ $on ? 'inset 3px 0 0 var(--accent)' : 'none' }};">
+                                <span style="flex:1; min-width:0; font:13px var(--font-sans); color:var(--ink-9); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ $s->name }}</span>
+                            </button>
+                        @empty
+                            <div style="padding:40px 16px; text-align:center; color:var(--ink-5); font:13px var(--font-sans);">Немає сайтів.</div>
+                        @endforelse
+                    @endif
+                </div>
             </div>
+
+            {{-- RIGHT: working set — occurrences of the picked value / chosen site --}}
+            <div class="card" style="overflow:hidden;">
+                <div style="display:flex; align-items:center; gap:12px; padding:12px 18px; border-bottom:1px solid var(--ink-3); background:var(--paper-2); flex-wrap:wrap;">
+                    <div style="flex:1; min-width:0;">
+                        @if ($axis === 'value' && $pickedValue !== '')
+                            <span class="mono" style="font:14px var(--font-mono); color:var(--ink-9);">{{ $pickedValue }}{{ $pickedCurrency ? ' '.$pickedCurrency : '' }}</span>
+                            <span style="font:12px var(--font-sans); color:var(--ink-5);"> · {{ $entries->total() }} входжень</span>
+                        @elseif ($axis === 'site' && $siteFilter !== '')
+                            <span class="mono" style="font:13px var(--font-mono); color:var(--ink-9);">{{ optional($sites->firstWhere('id', (int) $siteFilter))->name ?? 'Сайт' }}</span>
+                            <span style="font:12px var(--font-sans); color:var(--ink-5);"> · {{ $entries->total() }} записів</span>
+                        @else
+                            <span style="font:12.5px var(--font-sans); color:var(--ink-5);">{{ $axis === 'value' ? 'Оберіть значення зліва' : 'Оберіть сайт зліва' }}</span>
+                        @endif
+                    </div>
+                    @php
+                        $roleOptions = $typeFilter === 'price'
+                            ? ['' => 'Усі', 'primary' => 'Активні', 'hidden' => 'Приховані']
+                            : ['' => 'Усі', 'primary' => 'Активні', 'backup' => 'Резервні', 'hidden' => 'Приховані'];
+                    @endphp
+                    <div style="display:inline-flex; gap:6px; flex-wrap:wrap;">
+                        @foreach ($roleOptions as $rkey => $rlabel)
+                            <button wire:click="$set('roleFilter', '{{ $rkey }}')" style="
+                                height:26px; padding:0 10px; border-radius:999px; font:11.5px var(--font-sans); cursor:pointer;
+                                display:inline-flex; align-items:center; gap:5px;
+                                background:{{ $roleFilter === $rkey ? 'var(--ink-9)' : 'var(--card)' }};
+                                color:{{ $roleFilter === $rkey ? 'var(--paper)' : 'var(--ink-6)' }};
+                                box-shadow:{{ $roleFilter === $rkey ? 'none' : 'inset 0 0 0 1px var(--ink-3)' }};">
+                                @if($rkey === 'hidden')<x-icon.eye-off width="12" height="12" class="state-icon state-icon--hidden" />@endif
+                                {{ $rlabel }}
+                            </button>
+                        @endforeach
+                    </div>
+                </div>
+
+                @if ($this->hasWorkingSet())
+                    @php $pageAllSelected = $selectAllMatching || ($pageIds && empty(array_diff($pageIds, $selected))); @endphp
+                    <div style="display:grid; grid-template-columns:32px 1.4fr 1.6fr 1fr 100px 80px; gap:12px; padding:12px 18px; border-bottom:1px solid var(--ink-3); background:var(--paper-2);">
+                        <button type="button" class="row-check row-check--head {{ $pageAllSelected ? 'is-checked' : '' }}"
+                                wire:click="selectPage(@js($pageIds))" title="Обрати сторінку">
+                            @if ($pageAllSelected) <x-icon.check width="11" height="11" /> @endif
+                        </button>
+                        @foreach (['Значення', 'Сайт', 'Мітка', 'Гео', $trashed ? 'Видалено' : 'Роль'] as $h)
+                            <span class="eyebrow" style="font-size:10px;">{{ $h }}</span>
+                        @endforeach
+                    </div>
 
             @forelse ($entries as $i => $entry)
                 @php
@@ -255,13 +326,22 @@
                     @endif
                 </div>
             @empty
-                <div style="padding:80px; text-align:center; color:var(--ink-5); font:13.5px var(--font-sans);">
-                    {{ $trashed ? 'Кошик порожній.' : 'Немає записів для обраного фільтру.' }}
+                <div style="padding:64px; text-align:center; color:var(--ink-5); font:13.5px var(--font-sans);">
+                    {{ $trashed ? 'Кошик порожній.' : 'Немає входжень.' }}
                 </div>
             @endforelse
-        </div>
 
-        {{ $entries->links('livewire.quiet-pagination') }}
+                    <div style="padding:14px 18px;">{{ $entries->links('livewire.quiet-pagination') }}</div>
+                @else
+                    <div style="padding:72px 24px; text-align:center; color:var(--ink-5); font:13.5px var(--font-sans);">
+                        {{ $axis === 'value'
+                            ? '← Оберіть значення зліва, щоб побачити всі його входження та змінити вибірково.'
+                            : '← Оберіть сайт зліва, щоб побачити його записи.' }}
+                    </div>
+                @endif
+            </div>
+
+        </div>
     </div>
 
     {{-- Bulk edit drawer (replace value / change label) --}}

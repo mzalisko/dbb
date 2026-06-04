@@ -9,6 +9,7 @@ use App\Services\ActivityLogService;
 use App\Services\BulkActionService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\On;
 use Livewire\Attributes\Title;
@@ -55,6 +56,21 @@ class DataBrowser extends Component
     #[Url]
     public bool $trashed = false;
 
+    /**
+     * Left-pane axis: 'value' lists distinct values (find a number/price, then act
+     * on its occurrences — the headline use case); 'site' lists sites to dive into.
+     */
+    #[Url]
+    public string $axis = 'value';
+
+    /** The value-group picked in the 'value' axis — occurrences narrow to it. */
+    #[Url]
+    public string $pickedValue = '';
+
+    /** Disambiguator for the price axis (1000 UAH ≠ 1000 EUR). */
+    #[Url]
+    public string $pickedCurrency = '';
+
     public function mount(): void
     {
         // Normalise stale/empty URLs (e.g. the old "all types" value) against the registry.
@@ -70,6 +86,10 @@ class DataBrowser extends Component
             $this->kindFilter = '';
         } elseif (! array_key_exists($this->kindFilter, $kinds)) {
             $this->kindFilter = (string) array_key_first($kinds);
+        }
+
+        if (! in_array($this->axis, ['value', 'site'], true)) {
+            $this->axis = 'value';
         }
     }
 
@@ -143,6 +163,9 @@ class DataBrowser extends Component
         if ($value === 'price' && $this->roleFilter === 'backup') {
             $this->roleFilter = '';
         }
+        // The picked value belongs to the old entity — drop it with the selection.
+        $this->pickedValue = '';
+        $this->pickedCurrency = '';
         $this->resetPage();
         $this->clearSelected();
     }
@@ -151,6 +174,34 @@ class DataBrowser extends Component
     {
         // A kind is its own entity (a Viber link is not a Telegram link), so
         // switching it drops the selection too — you re-pick within the new kind.
+        $this->pickedValue = '';
+        $this->pickedCurrency = '';
+        $this->resetPage();
+        $this->clearSelected();
+    }
+
+    public function updatingAxis(): void
+    {
+        // Switching how the left rail is organised resets the working set.
+        $this->pickedValue = '';
+        $this->pickedCurrency = '';
+        $this->resetPage();
+        $this->clearSelected();
+    }
+
+    /** Pick a value-group from the left rail; occurrences narrow to it. */
+    public function pickValue(string $value, string $currency = ''): void
+    {
+        $this->pickedValue = $value;
+        $this->pickedCurrency = $currency;
+        $this->resetPage();
+        $this->clearSelected();
+    }
+
+    public function clearPick(): void
+    {
+        $this->pickedValue = '';
+        $this->pickedCurrency = '';
         $this->resetPage();
         $this->clearSelected();
     }
@@ -278,7 +329,70 @@ class DataBrowser extends Component
             ->when($this->search, fn ($q) => $q->where(fn ($q2) => $q2
                 ->where('value', 'like', "%{$this->search}%")
                 ->orWhere('label', 'like', "%{$this->search}%")
-            ));
+            ))
+            // Value axis: a picked group narrows every read AND bulk action to just
+            // that value's occurrences — this is what makes "replace selectively
+            // where it occurs" safe (pickedValue='' = whole filter, unchanged).
+            ->when($this->axis === 'value' && $this->pickedValue !== '', function ($q) {
+                $this->typeFilter === 'price'
+                    ? $q->where('price', $this->pickedValue)
+                        ->when($this->pickedCurrency !== '', fn ($q2) => $q2->where('currency', $this->pickedCurrency))
+                    : $q->where('value', $this->pickedValue);
+            });
+    }
+
+    /** Column the 'value' axis groups by — the price amount, else the raw value. */
+    private function valueGroupColumn(): string
+    {
+        return $this->typeFilter === 'price' ? 'price' : 'value';
+    }
+
+    /**
+     * Distinct value-groups for the left rail: each row is one value (or price
+     * amount + currency) with how many entries carry it and across how many sites.
+     * Honours every active filter except the pick itself.
+     *
+     * @return \Illuminate\Support\Collection<int, object>
+     */
+    protected function valueGroups()
+    {
+        $col = $this->valueGroupColumn();
+
+        $base = $this->applyVisibility(ContactEntry::query())
+            ->when($this->typeFilter === '', fn ($q) => $q->whereRaw('1 = 0'))
+            ->when($this->trashed, fn ($q) => $q->onlyTrashed())
+            ->when($this->typeFilter, fn ($q) => $q->where('type', $this->typeFilter))
+            ->when($this->kindFilter, fn ($q) => $q->where('kind', $this->kindFilter))
+            ->when($this->roleFilter, fn ($q) => $q->where('role', $this->roleFilter))
+            ->when($this->siteFilter, fn ($q) => $q->where('site_id', $this->siteFilter))
+            ->when($this->search, fn ($q) => $q->where(fn ($q2) => $q2
+                ->where('value', 'like', "%{$this->search}%")
+                ->orWhere('label', 'like', "%{$this->search}%")
+            ))
+            ->whereNotNull($col)
+            ->reorder();
+
+        if ($this->typeFilter === 'price') {
+            return $base
+                ->select('price as gkey', 'currency', DB::raw('COUNT(*) as n'), DB::raw('COUNT(DISTINCT site_id) as sites'))
+                ->groupBy('price', 'currency')
+                ->orderByDesc('n')->orderByDesc('price')
+                ->limit(200)->get();
+        }
+
+        return $base
+            ->select("{$col} as gkey", DB::raw('COUNT(*) as n'), DB::raw('COUNT(DISTINCT site_id) as sites'))
+            ->groupBy($col)
+            ->orderByDesc('n')->orderBy($col)
+            ->limit(200)->get();
+    }
+
+    /** Is a working set chosen (a value picked, or a site in the site axis)? */
+    public function hasWorkingSet(): bool
+    {
+        return $this->axis === 'value'
+            ? $this->pickedValue !== ''
+            : $this->siteFilter !== '';
     }
 
     /**
@@ -1433,6 +1547,7 @@ class DataBrowser extends Component
             'types' => $typeLabels,
             'kinds' => $this->kindLabelsForType($this->typeFilter),
             'selectionEntities' => $this->selectionEntityLabels(),
+            'valueGroups' => $this->axis === 'value' ? $this->valueGroups() : collect(),
         ]);
     }
 }

@@ -397,6 +397,52 @@ class DataBrowser extends Component
     }
 
     /**
+     * Promote a reserve to a standalone primary — it captures the geo it had been
+     * inheriting so its targeting survives the detach. Logged as one semantic feed
+     * entry (the owen-it per-field audit is suppressed so the role/parent/geo churn
+     * doesn't also show as a plain "entry.updated").
+     */
+    public function makePrimary(int $id): void
+    {
+        $entry = ContactEntry::with('parent')->find($id);
+        if (! $entry || (is_null($entry->parent_id) && $entry->role !== 'backup')) {
+            return;
+        }
+
+        $user = Auth::user();
+        if (! $user || ! $user->can('update', $entry)) {
+            $this->dispatch('toast', type: 'error', message: 'Немає прав на цей запис');
+
+            return;
+        }
+
+        $parent = $entry->parent;
+
+        ContactEntry::disableAuditing();
+        try {
+            $entry->update([
+                'role'      => 'primary',
+                'parent_id' => null,
+                'visible'   => true,
+                'geo_tag'   => $parent?->geo_tag,
+                'geo_mode'  => $parent?->geo_mode ?? 'all',
+                'countries' => $parent?->countries,
+            ]);
+            $entry->forceFill(['failover_down' => false])->save();
+        } finally {
+            ContactEntry::enableAuditing();
+        }
+
+        ActivityLogService::log('entry.made_primary', $entry, [
+            'site_id' => $entry->site_id,
+            'type'    => $entry->type,
+            'value'   => $entry->value,
+            'from'    => $parent?->value,
+        ]);
+        $this->dispatch('toast', type: 'success', message: 'Переведено в основні');
+    }
+
+    /**
      * Authorised query for the explicitly-picked ids. Honours trash mode so the
      * review/preview drawers resolve soft-deleted rows when browsing the trash.
      */

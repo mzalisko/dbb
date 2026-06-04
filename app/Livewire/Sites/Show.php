@@ -672,20 +672,28 @@ class Show extends Component
         // inheriting from its (now-detached) primary so its targeting is preserved.
         $parent = $entry->parent;
         $wasReserve = ! is_null($entry->parent_id) || $entry->role === 'backup';
-        $entry->update([
-            'role'      => 'primary',
-            'parent_id' => null,
-            'visible'   => true,
-            'geo_tag'   => $parent?->geo_tag,
-            'geo_mode'  => $parent?->geo_mode ?? 'all',
-            'countries' => $parent?->countries,
-        ]);
-        // A hand-promoted number starts life up (serving), not failed-over.
-        $entry->forceFill(['failover_down' => false])->save();
+
+        // One clean semantic feed entry — suppress the per-field owen-it audit that
+        // the role/parent/geo change would otherwise file as a plain "entry.updated".
+        ContactEntry::disableAuditing();
+        try {
+            $entry->update([
+                'role'      => 'primary',
+                'parent_id' => null,
+                'visible'   => true,
+                'geo_tag'   => $parent?->geo_tag,
+                'geo_mode'  => $parent?->geo_mode ?? 'all',
+                'countries' => $parent?->countries,
+            ]);
+            // A hand-promoted number starts life up (serving), not failed-over.
+            $entry->forceFill(['failover_down' => false])->save();
+        } finally {
+            ContactEntry::enableAuditing();
+        }
 
         // Promoting a reserve is a real failover change — log it so it surfaces in
-        // the activity feed (owen-it excludes `order` and this is role/parent churn
-        // it would otherwise file as a plain edit). site_id in props attributes it.
+        // the activity feed (the audit above is suppressed to keep one semantic
+        // entry). site_id in props attributes it to the site.
         if ($wasReserve) {
             ActivityLogService::log('entry.made_primary', $entry, [
                 'site_id' => $entry->site_id,

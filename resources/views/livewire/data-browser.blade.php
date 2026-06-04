@@ -295,6 +295,13 @@
                                     <em>{{ $entry->parent->label }}</em>
                                 @endif
                             </span>
+                            @unless($trashed)
+                                <button type="button" wire:click.stop="makePrimary({{ $entry->id }})"
+                                        style="display:inline-flex; align-items:center; gap:4px; margin-top:5px; border:0; background:transparent; padding:0; font:11.5px var(--font-sans); color:var(--accent); cursor:pointer;"
+                                        title="Від'єднати від «{{ $entry->parent->value }}» і зробити окремим основним">
+                                    <x-icon.bolt width="11" height="11" /> Зробити основним
+                                </button>
+                            @endunless
                         @endif
                     </span>
                     <span class="mono" style="font:12.5px var(--font-mono); color:var(--ink-7);">{{ $entry->site?->name ?? '—' }}</span>

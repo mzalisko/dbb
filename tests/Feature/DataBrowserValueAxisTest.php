@@ -3,12 +3,14 @@
 namespace Tests\Feature;
 
 use App\Livewire\DataBrowser;
+use App\Models\ActivityLog;
 use App\Models\Client;
 use App\Models\ContactEntry;
 use App\Models\Site;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
+use OwenIt\Auditing\Models\Audit;
 use Tests\TestCase;
 
 /**
@@ -115,6 +117,53 @@ class DataBrowserValueAxisTest extends TestCase
         // 1000 UAH and 1000 EUR are different groups — picking one excludes the other.
         $component->call('pickValue', '1000', 'UAH')
             ->assertViewHas('entries', fn ($e) => $e->total() === 2);
+    }
+
+    public function test_make_primary_detaches_reserve_captures_geo_and_logs_once(): void
+    {
+        $owner = User::factory()->create(['role' => 'owner']);
+        $site = $this->siteForOwner($owner);
+        $primary = ContactEntry::factory()->for($site)->phone()->create([
+            'role' => 'primary', 'geo_tag' => 'UA', 'geo_mode' => 'except', 'countries' => ['PL'],
+        ]);
+        $reserve = ContactEntry::factory()->backup($primary)->create([
+            'geo_tag' => null, 'geo_mode' => 'all', 'countries' => null,
+        ]);
+
+        Livewire::actingAs($owner)
+            ->test(DataBrowser::class, ['typeFilter' => 'phone'])
+            ->call('makePrimary', $reserve->id);
+
+        $reserve->refresh();
+        $this->assertNull($reserve->parent_id);
+        $this->assertSame('primary', $reserve->role);
+        $this->assertSame('UA', $reserve->geo_tag);       // inherited geo captured
+        $this->assertSame('except', $reserve->geo_mode);
+        $this->assertSame(['PL'], $reserve->countries);
+
+        // One clean semantic feed entry, no "entry.updated" audit noise.
+        $this->assertSame(1, ActivityLog::where('action', 'entry.made_primary')->count());
+        $this->assertSame(0, Audit::where('auditable_type', ContactEntry::class)
+            ->where('auditable_id', $reserve->id)->where('event', 'updated')->count());
+    }
+
+    public function test_make_primary_is_blocked_without_update_rights(): void
+    {
+        $owner = User::factory()->create(['role' => 'owner']);
+        // A limited-scope user with no granted sites cannot touch this entry.
+        $manager = User::factory()->create([
+            'role' => 'manager', 'access_scope' => 'limited', 'group_access' => [], 'site_access' => [],
+        ]);
+        $site = $this->siteForOwner($owner);
+        $primary = ContactEntry::factory()->for($site)->phone()->create();
+        $reserve = ContactEntry::factory()->backup($primary)->create();
+
+        Livewire::actingAs($manager)
+            ->test(DataBrowser::class, ['typeFilter' => 'phone'])
+            ->call('makePrimary', $reserve->id)
+            ->assertDispatched('toast', fn ($e, $p) => ($p['type'] ?? null) === 'error');
+
+        $this->assertSame('backup', $reserve->fresh()->role);
     }
 
     public function test_no_pick_shows_the_prompt_not_the_table(): void

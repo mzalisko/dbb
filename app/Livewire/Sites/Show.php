@@ -501,6 +501,10 @@ class Show extends Component
         $this->entryOldPrice  = $entry->old_price;
         $this->entryPriceUnit = $entry->price_unit ?? '';
         $this->entrySku       = $entry->sku ?? '';
+        if ($entry->type === 'price' && ($this->entryValue === '' || $this->entryValue === $this->entrySku) && $entry->price !== null) {
+            $amount = rtrim(rtrim(number_format((float) $entry->price, 2, '.', ' '), '0'), '.');
+            $this->entryValue = trim($amount . ' ' . trim(collect([$entry->currency, $entry->price_unit])->filter()->join(' ')));
+        }
         $this->editingEntry   = true;
         $this->addingEntry    = false;
     }
@@ -562,6 +566,11 @@ class Show extends Component
 
     public function saveEntry(): void
     {
+        if ($this->entryType === 'price' && trim($this->entryValue) === '' && $this->entryPrice !== null) {
+            $amount = rtrim(rtrim(number_format((float) $this->entryPrice, 2, '.', ' '), '0'), '.');
+            $this->entryValue = trim($amount . ' ' . trim(collect([$this->entryCurrency, $this->entryPriceUnit])->filter()->join(' ')));
+        }
+
         $rules = [
             'entryRole'    => 'required|in:primary,backup,hidden',
             'entryGeoMode' => 'required|in:all,only,except',
@@ -579,9 +588,12 @@ class Show extends Component
             $rules['entryValue'] = 'required|max:500';
             $rules['entryKind']  = 'required|in:' . implode(',', $allowedMessengerKinds);
         } elseif ($this->entryType === 'price') {
-            $rules['entryPrice']    = 'required|numeric|min:0';
-            $rules['entryCurrency'] = 'required|size:3';
+            $rules['entryValue']    = 'required|max:500';
+            $rules['entryLabel']    = 'nullable|max:255';
             $rules['entrySku']      = 'required|max:255';
+            $rules['entryPrice']    = 'nullable|numeric|min:0';
+            $rules['entryOldPrice'] = 'nullable|numeric|min:0';
+            $rules['entryCurrency'] = 'nullable|size:3';
         } elseif ($this->entryType === 'social') {
             $rules['entryValue'] = 'required|max:500';
             $rules['entryKind']  = 'required|in:' . implode(',', array_keys(\App\Models\ContactEntry::SOCIAL_KINDS));

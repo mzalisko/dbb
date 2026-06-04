@@ -1,93 +1,103 @@
-{{-- ── Prices sub-section ── --}}
-{{-- MULTI-CURRENCY info box --}}
-<div class="howto">
-    <div class="howto__title">Multi-currency</div>
-    <div class="howto__text">
-        Один <b>SKU</b>, кілька цін під різні гео — клієнт у Польщі бачить PLN, у Україні — UAH, решта світу — EUR/USD. Стара ціна показується як <span style="text-decoration:line-through;">перекреслена</span>.
+{{-- Prices sub-section --}}
+@php
+    $activePriceCount = $allPricesAll->where('visible', true)->count();
+    $priceBlockCount = $priceBySkuAll->count();
+    $formatPriceText = function ($price) {
+        $rawValue = trim((string) ($price->value ?? ''));
+        $sku = trim((string) ($price->sku ?? ''));
+
+        if ($rawValue !== '' && $rawValue !== $sku) {
+            return $rawValue;
+        }
+
+        if ($price->price !== null) {
+            $amount = rtrim(rtrim(number_format((float) $price->price, 2, '.', ' '), '0'), '.');
+            $suffix = trim(collect([$price->currency, $price->price_unit])->filter()->join(' '));
+
+            return trim($amount . ' ' . $suffix);
+        }
+
+        return '—';
+    };
+@endphp
+
+<div class="price-note">
+    <div class="price-note__title">Цінові блоки</div>
+    <div class="price-note__text">
+        Значення ціни тепер можна вводити як текст: 3000, 3000грн, 3000с. Блок групує варіанти, а гео-правило показує для кого працює конкретний рядок.
     </div>
 </div>
 
-{{-- Stats --}}
-@php
-    $activePriceCount = $allPricesAll->where('visible',true)->count();
-    $currencyCount = $allPricesAll->pluck('currency')->unique()->count();
-@endphp
 <div class="price-stats">
-    {{ $activePriceCount }} активних &middot; {{ $currencyCount }} {{ $currencyCount===1?'валюта':'валют' }}
+    {{ $activePriceCount }} активних &middot; {{ $priceBlockCount }} {{ $priceBlockCount === 1 ? 'блок' : 'блоків' }}
 </div>
 
-<div class="card ctable">
-    <div class="crow crow--price crow--head">
-        <span></span><span></span>
-        <span class="eyebrow eyebrow-xxs">Назва &middot; SKU</span>
-        <span class="eyebrow eyebrow-xxs">Ціна</span>
-        <span class="eyebrow eyebrow-xxs">Валюта &middot; Одиниця</span>
-        <span class="eyebrow eyebrow-xxs">Гео-правило</span>
-        <span class="eyebrow eyebrow-xxs">Статус</span>
+<div class="card ctable ctable--price-groups">
+    <div class="price-head">
+        <span>Блок</span>
+        <span>Ціна</span>
+        <span>Мітка</span>
+        <span>Гео</span>
+        <span>Статус</span>
         <span></span>
     </div>
-    @foreach($priceBySkuAll as $sku => $prices)
-        {{-- SKU group header --}}
-        <div class="sku-head">
-            <span class="sku-head__label">
-                <span class="eyebrow eyebrow-xxs" style="margin-right:8px;">SKU</span>
-                <strong style="color:var(--ink-9);">{{ $sku }}</strong>
-                <span style="color:var(--ink-4); margin-left:8px;">&middot; {{ $prices->first()?->label }}</span>
-            </span>
-            <span class="sku-head__meta">
-                <span class="sku-head__count">{{ $prices->count() }} {{ $prices->count()===1?'ціна':'цін' }}</span>
+
+    @forelse($priceBySkuAll as $sku => $prices)
+        @php
+            $first = $prices->first();
+            $blockName = $sku ?: ($first?->label ?: 'Без блоку');
+            $blockGeo = $first?->geo_label ?? 'Усім';
+        @endphp
+        <div class="price-group">
+            <div class="price-group__head">
+                <span class="price-group__dot"></span>
+                <div class="price-group__main">
+                    <div class="price-group__name">{{ $blockName }}</div>
+                    <div class="price-group__meta">{{ $prices->count() }} {{ $prices->count() === 1 ? 'варіант' : 'варіантів' }} &middot; гео блоку: {{ $blockGeo }}</div>
+                </div>
                 <button type="button"
-                        class="sku-head__add"
+                        class="price-group__add"
                         wire:click="addPriceToSku(@js($sku))"
-                        title="Додати ціну до {{ $sku }}">
-                    <x-icon.plus width="12" height="12" /> ціна
+                        title="Додати ціну до {{ $blockName }}">
+                    + ціна
                 </button>
-            </span>
-        </div>
-        @foreach($prices as $j => $price)
-            @php
-                $currSymbol = match($price->currency) {'PLN'=>'zł','UAH'=>'₴','EUR'=>'€','USD'=>'$',default=>$price->currency};
-                $currFlag = match($price->currency) {'PLN'=>'🇵🇱','UAH'=>'🇺🇦','EUR'=>'🇪🇺','USD'=>'🇺🇸',default=>''};
-            @endphp
-            <div wire:click="editEntry({{ $price->id }})" class="crow crow--price crow--main crow--bordered" style="cursor:pointer;">
-                <span class="cc-drag" @click.stop>&#x2807;</span>
-                <span class="cc-num">#{{ $j+1 }}</span>
-                <div>
-                    <div class="price-name">{{ $price->label }}</div>
-                    <div class="price-sku">SKU &middot; {{ $price->sku }}</div>
-                </div>
-                <div class="price-amount">
-                    <span class="mono price-val">{{ number_format($price->price,0,'.',' ') }} {{ $currSymbol }}</span>
-                    @if($price->old_price)
-                        <span class="mono price-old">{{ number_format($price->old_price,0,'.',' ') }}</span>
-                    @endif
-                </div>
-                <span class="price-cur">{{ $currFlag }} {{ $price->currency }} /{{ $price->price_unit }}</span>
-                <span class="cc-geo">{{ $price->geo_label }}</span>
-                <span class="cc-role {{ $price->visible ? '' : 'cc-role--muted' }}">
-                    @if($price->visible)
-                        <span class="role-dot" style="background:var(--ok);"></span>
-                    @else
-                        <x-icon.eye-off width="13" height="13" class="state-icon state-icon--hidden" />
-                    @endif
-                </span>
-                <span class="cc-actions">
-                    <button class="cc-edit" wire:click.stop="editEntry({{ $price->id }})" title="Редагувати">
-                        <x-icon.edit width="13" height="13" />
-                    </button>
-                    <button class="cc-delete"
-                            wire:click.stop="requestDeleteEntry({{ $price->id }})"
-                            title="Видалити">
-                        <x-icon.trash width="13" height="13" />
-                    </button>
-                </span>
             </div>
-        @endforeach
-    @endforeach
-    @if($priceBySkuAll->isEmpty())
+
+            @foreach($prices as $j => $price)
+                @php
+                    $priceText = $formatPriceText($price);
+                    $isHidden = ! $price->visible;
+                @endphp
+                <div wire:click="editEntry({{ $price->id }})" class="price-row {{ $isHidden ? 'price-row--hidden' : '' }}">
+                    <span class="price-row__index">{{ $j + 1 }}</span>
+                    <span class="mono price-row__value">{{ $priceText }}</span>
+                    <span class="price-row__label">{{ $price->label ?: 'Без мітки' }}</span>
+                    <span class="price-row__geo">{{ $price->geo_label }}</span>
+                    <span class="price-row__status">
+                        @if($price->visible)
+                            <span class="failover-dot"></span> Активна
+                        @else
+                            <span class="failover-dot failover-dot--muted"></span> Прихована
+                        @endif
+                    </span>
+                    <span class="cc-actions">
+                        <button class="cc-edit" wire:click.stop="editEntry({{ $price->id }})" title="Редагувати">
+                            <x-icon.edit width="13" height="13" />
+                        </button>
+                        <button class="cc-delete"
+                                wire:click.stop="requestDeleteEntry({{ $price->id }})"
+                                title="Видалити">
+                            <x-icon.trash width="13" height="13" />
+                        </button>
+                    </span>
+                </div>
+            @endforeach
+        </div>
+    @empty
         <div class="ctable__empty">Немає цін.</div>
-    @endif
+    @endforelse
+
     <div class="ctable__foot">
-        <button class="ctable__add" wire:click="addEntry('price')">+ Додати ціну</button>
+        <button class="ctable__add" wire:click="addEntry('price')">+ Додати ціновий блок</button>
     </div>
 </div>

@@ -310,16 +310,15 @@ class SiteContactEntriesTest extends TestCase
             ->assertSet('entryCurrency', 'EUR')
             ->set('entryLabel', 'Базовий')
             ->set('entrySku', 'SKU-100')
-            ->set('entryPrice', 100)
-            ->set('entryCurrency', 'PLN')
+            ->set('entryValue', '100 PLN')
             ->call('saveEntry');
 
         $this->assertDatabaseHas('contact_entries', [
-            'site_id'  => $site->id,
-            'type'     => 'price',
-            'sku'      => 'SKU-100',
-            'currency' => 'PLN',
-            'role'     => 'primary',
+            'site_id' => $site->id,
+            'type'    => 'price',
+            'sku'     => 'SKU-100',
+            'value'   => '100 PLN',
+            'role'    => 'primary',
         ]);
     }
 
@@ -342,7 +341,7 @@ class SiteContactEntriesTest extends TestCase
             ->assertSet('entryPriceUnit', '/міс');
     }
 
-    /** Task: a price requires sku + amount + currency. */
+    /** Task: a price requires a block and free-form value. */
     public function test_price_requires_sku_and_amount(): void
     {
         [$user, $site] = $this->ownerSite();
@@ -352,6 +351,6 @@ class SiteContactEntriesTest extends TestCase
             ->call('addEntry', 'price')
             ->set('entrySku', '')
             ->call('saveEntry')
-            ->assertHasErrors(['entryPrice', 'entrySku']);
+            ->assertHasErrors(['entryValue', 'entrySku']);
     }
 }

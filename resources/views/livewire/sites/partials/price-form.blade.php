@@ -1,59 +1,25 @@
-{{-- ─── Price entry form (shared by edit + add modes) ─── --}}
-@php
-    $currencies = ['EUR' => '€', 'USD' => '$', 'PLN' => 'zł', 'UAH' => '₴'];
-@endphp
+{{-- Price entry form (shared by edit + add modes) --}}
 <div class="drawer-stack">
 
-    {{-- НАЗВА --}}
     <div>
-        <label class="label">Назва позиції</label>
-        <input class="input" wire:model="entryLabel" placeholder="напр. Преміум-підписка">
-        @error('entryLabel') <div class="field-error">{{ $message }}</div> @enderror
-    </div>
-
-    {{-- SKU --}}
-    <div>
-        <label class="label">SKU</label>
-        <input class="input mono" wire:model="entrySku" placeholder="напр. SKU-1024">
-        <p class="field-hint">Спільний SKU групує одну позицію в різних валютах (multi-currency).</p>
+        <label class="label">Ціновий блок</label>
+        <input class="input mono" wire:model="entrySku" placeholder="напр. ПОЛЬША, КАНАДА, США">
+        <p class="field-hint">Блок групує варіанти цін. У майбутній логіці гео блоку буде джерелом для дочірніх цін.</p>
         @error('entrySku') <div class="field-error">{{ $message }}</div> @enderror
     </div>
 
-    {{-- ЦІНА + СТАРА ЦІНА --}}
-    <div class="field-row2">
-        <div>
-            <label class="label">Ціна</label>
-            <input class="input mono" type="number" step="0.01" min="0" wire:model="entryPrice" placeholder="0.00">
-            @error('entryPrice') <div class="field-error">{{ $message }}</div> @enderror
-        </div>
-        <div>
-            <label class="label">Стара ціна <span class="label-opt">(необов'язково)</span></label>
-            <input class="input mono" type="number" step="0.01" min="0" wire:model="entryOldPrice" placeholder="—">
-            @error('entryOldPrice') <div class="field-error">{{ $message }}</div> @enderror
-        </div>
-    </div>
-
-    {{-- ВАЛЮТА --}}
     <div>
-        <label class="label">Валюта</label>
-        <div class="country-pills">
-            @foreach($currencies as $code => $symbol)
-                <button type="button"
-                        class="country-pill {{ $entryCurrency === $code ? 'is-active' : '' }}"
-                        wire:click="$set('entryCurrency', '{{ $code }}')">{{ $symbol }} {{ $code }}</button>
-            @endforeach
-        </div>
-        @error('entryCurrency') <div class="field-error">{{ $message }}</div> @enderror
+        <label class="label">Текст ціни</label>
+        <input class="input mono" wire:model="entryValue" placeholder="напр. 3000, 3000грн, 3000с">
+        @error('entryValue') <div class="field-error">{{ $message }}</div> @enderror
     </div>
 
-    {{-- ОДИНИЦЯ --}}
     <div>
-        <label class="label">Одиниця <span class="label-opt">(необов'язково)</span></label>
-        <input class="input" wire:model="entryPriceUnit" placeholder="напр. /міс, /рік, за шт.">
-        @error('entryPriceUnit') <div class="field-error">{{ $message }}</div> @enderror
+        <label class="label">Мітка <span class="label-opt">(необов'язково)</span></label>
+        <input class="input" wire:model="entryLabel" placeholder="напр. для всіх, для України, окремо RU/BY">
+        @error('entryLabel') <div class="field-error">{{ $message }}</div> @enderror
     </div>
 
-    {{-- ПРАВИЛО ВИДИМОСТІ --}}
     <div>
         <label class="label">Правило видимості</label>
         <p class="field-hint">Кому показувати цю ціну: всім, тільки вибраним країнам або всім крім вибраних.</p>
@@ -83,7 +49,6 @@
         @endif
     </div>
 
-    {{-- СТАТУС --}}
     <div>
         <label class="label">Статус</label>
         <div class="role-cards">

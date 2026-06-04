@@ -1,6 +1,5 @@
 {{-- Prices sub-section --}}
 @php
-    $activePriceCount = $allPricesAll->where('visible', true)->count();
     $priceBlockCount = $priceBySkuAll->count();
     $formatPriceText = function ($price) {
         $rawValue = trim((string) ($price->value ?? ''));
@@ -29,7 +28,7 @@
 </div>
 
 <div class="price-stats">
-    {{ $activePriceCount }} активних &middot; {{ $priceBlockCount }} {{ $priceBlockCount === 1 ? 'блок' : 'блоків' }}
+    {{ $priceBlockCount }} {{ $priceBlockCount === 1 ? 'блок' : 'блоків' }}
 </div>
 
 <div class="card ctable ctable--price-groups">
@@ -38,7 +37,6 @@
         <span>Ціна</span>
         <span>Мітка</span>
         <span>Гео</span>
-        <span>Статус</span>
         <span></span>
     </div>
 
@@ -50,36 +48,35 @@
         @endphp
         <div class="price-group">
             <div class="price-group__head">
-                <span class="price-group__dot"></span>
                 <div class="price-group__main">
                     <div class="price-group__name">{{ $blockName }}</div>
                     <div class="price-group__meta">{{ $prices->count() }} {{ $prices->count() === 1 ? 'варіант' : 'варіантів' }} &middot; гео блоку: {{ $blockGeo }}</div>
                 </div>
-                <button type="button"
-                        class="price-group__add"
-                        wire:click="addPriceToSku(@js($sku))"
-                        title="Додати ціну до {{ $blockName }}">
-                    + ціна
-                </button>
+                <div class="price-group__actions">
+                    <button type="button"
+                            class="price-group__add"
+                            wire:click="addPriceToSku(@js($sku))"
+                            title="Додати ціну до {{ $blockName }}">
+                        + ціна
+                    </button>
+                    <button type="button"
+                            class="price-group__delete"
+                            wire:click="requestDeletePriceBlock(@js($sku))"
+                            title="Видалити блок {{ $blockName }}">
+                        <x-icon.trash width="13" height="13" />
+                    </button>
+                </div>
             </div>
 
             @foreach($prices as $j => $price)
                 @php
                     $priceText = $formatPriceText($price);
-                    $isHidden = ! $price->visible;
                 @endphp
-                <div wire:click="editEntry({{ $price->id }})" class="price-row {{ $isHidden ? 'price-row--hidden' : '' }}">
+                <div wire:click="editEntry({{ $price->id }})" class="price-row">
                     <span class="price-row__index">{{ $j + 1 }}</span>
                     <span class="mono price-row__value">{{ $priceText }}</span>
                     <span class="price-row__label">{{ $price->label ?: 'Без мітки' }}</span>
                     <span class="price-row__geo">{{ $price->geo_label }}</span>
-                    <span class="price-row__status">
-                        @if($price->visible)
-                            <span class="failover-dot"></span> Активна
-                        @else
-                            <span class="failover-dot failover-dot--muted"></span> Прихована
-                        @endif
-                    </span>
                     <span class="cc-actions">
                         <button class="cc-edit" wire:click.stop="editEntry({{ $price->id }})" title="Редагувати">
                             <x-icon.edit width="13" height="13" />

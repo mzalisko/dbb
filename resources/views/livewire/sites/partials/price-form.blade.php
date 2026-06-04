@@ -49,31 +49,4 @@
         @endif
     </div>
 
-    <div>
-        <label class="label">Статус</label>
-        <div class="role-cards">
-            @foreach([
-                ['k'=>'primary', 'l'=>'Активна',   'd'=>'Показується відвідувачам'],
-                ['k'=>'hidden',  'l'=>'Прихована', 'd'=>'У базі, але не показується'],
-            ] as $role)
-                @php $isActive = $entryRole === $role['k']; @endphp
-                <div class="role-card {{ $isActive ? 'is-active' : '' }}"
-                     wire:click="setEntryRole('{{ $role['k'] }}')">
-                    <span class="role-card__radio">
-                        @if($isActive)<span class="role-card__dot"></span>@endif
-                    </span>
-                    <div>
-                        <div class="role-card__label {{ $role['k'] === 'hidden' ? 'role-card__label--with-icon' : '' }}">
-                            @if($role['k'] === 'hidden')
-                                <x-icon.eye-off width="14" height="14" class="state-icon state-icon--hidden" />
-                            @endif
-                            {{ $role['l'] }}
-                        </div>
-                        <div class="role-card__desc">{{ $role['d'] }}</div>
-                    </div>
-                </div>
-            @endforeach
-        </div>
-    </div>
-
 </div>

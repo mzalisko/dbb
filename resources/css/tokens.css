@@ -1781,7 +1781,7 @@ svg { display: block; }
 .price-head,
 .price-row {
   display: grid;
-  grid-template-columns: minmax(130px, .85fr) minmax(130px, .85fr) minmax(150px, 1fr) minmax(110px, .65fr) minmax(94px, .5fr) minmax(64px, auto);
+  grid-template-columns: minmax(130px, .85fr) minmax(130px, .85fr) minmax(150px, 1fr) minmax(110px, .65fr) minmax(64px, auto);
   gap: 14px;
   align-items: center;
 }
@@ -1797,19 +1797,13 @@ svg { display: block; }
 .price-group + .price-group { border-top: 1px solid var(--ink-3); }
 .price-group__head {
   display: grid;
-  grid-template-columns: 14px minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 12px;
   align-items: center;
   min-height: 62px;
   padding: 13px 18px;
   background: color-mix(in srgb, var(--paper-2) 76%, var(--card));
   box-shadow: inset 3px 0 0 var(--ink-3);
-}
-.price-group__dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 999px;
-  background: var(--ok);
 }
 .price-group__name {
   color: var(--ink-9);
@@ -1826,6 +1820,27 @@ svg { display: block; }
   color: var(--accent);
   cursor: pointer;
   font: 13px var(--font-sans);
+}
+.price-group__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.price-group__delete {
+  width: 28px;
+  height: 28px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--ink-5);
+  cursor: pointer;
+  display: inline-grid;
+  place-items: center;
+}
+.price-group__delete:hover {
+  border-color: color-mix(in srgb, var(--bad) 28%, var(--ink-3));
+  background: var(--bad-soft);
+  color: var(--bad);
 }
 .price-row {
   min-height: 52px;
@@ -1846,20 +1861,10 @@ svg { display: block; }
   overflow-wrap: anywhere;
 }
 .price-row__label,
-.price-row__geo,
-.price-row__status {
+.price-row__geo {
   color: var(--ink-6);
   font: 13px var(--font-sans);
   overflow-wrap: anywhere;
-}
-.price-row__status {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-.price-row__status .failover-dot {
-  width: 8px;
-  height: 8px;
 }
 
 @media (max-width: 820px) {
@@ -1870,8 +1875,7 @@ svg { display: block; }
     gap: 8px 12px;
   }
   .price-row > .price-row__label,
-  .price-row > .price-row__geo,
-  .price-row > .price-row__status {
+  .price-row > .price-row__geo {
     grid-column: 2 / -1;
   }
   .price-row > .cc-actions {

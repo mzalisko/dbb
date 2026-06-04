@@ -341,6 +341,27 @@ class SiteContactEntriesTest extends TestCase
             ->assertSet('entryPriceUnit', '/міс');
     }
 
+    public function test_price_block_can_be_deleted_with_confirmation(): void
+    {
+        [$user, $site] = $this->ownerSite();
+        $keep = ContactEntry::factory()->for($site)->price()->create(['sku' => 'KEEP']);
+        $first = ContactEntry::factory()->for($site)->price()->create(['sku' => 'ROMANIA']);
+        $second = ContactEntry::factory()->for($site)->price()->create(['sku' => 'ROMANIA']);
+
+        Livewire::actingAs($user)
+            ->test(Show::class, ['site' => $site])
+            ->call('requestDeletePriceBlock', 'ROMANIA')
+            ->assertSet('confirmingAction', true)
+            ->assertSet('confirmAction', 'delete-price-block')
+            ->assertSet('confirmPriceSku', 'ROMANIA')
+            ->call('confirmPendingAction')
+            ->assertSet('confirmingAction', false);
+
+        $this->assertSoftDeleted('contact_entries', ['id' => $first->id]);
+        $this->assertSoftDeleted('contact_entries', ['id' => $second->id]);
+        $this->assertDatabaseHas('contact_entries', ['id' => $keep->id]);
+    }
+
     /** Task: a price requires a block and free-form value. */
     public function test_price_requires_sku_and_amount(): void
     {

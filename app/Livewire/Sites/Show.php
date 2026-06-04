@@ -91,6 +91,7 @@ class Show extends Component
     public ?string $confirmGeoCode = null;
     public ?string $confirmMessengerKind = null;
     public ?string $confirmCategory = null;
+    public ?string $confirmPriceSku = null;
     public ?string $confirmSiteStatus = null;
     public ?string $confirmActivityScope = null;
     public string $confirmDeleteSiteName = '';
@@ -635,11 +636,11 @@ class Show extends Component
             'kind'       => $entryKind ?: null,
             'value'      => $this->entryValue,
             'label'      => $this->entryLabel ?: null,
-            'role'       => $this->entryRole,
+            'role'       => $this->entryType === 'price' ? 'primary' : $this->entryRole,
             'geo_tag'    => $entryGeoTag ?: null,
             'geo_mode'   => $entryGeoMode,
             'countries'  => $entryCountries ?: null,
-            'parent_id'  => $this->entryRole === 'backup' ? $this->entryParentId : null,
+            'parent_id'  => $this->entryType === 'price' ? null : ($this->entryRole === 'backup' ? $this->entryParentId : null),
             // Price columns belong to the price type only — otherwise the form's
             // default currency ('EUR') would leak onto phones/messengers and a plain
             // edit would look like "price changed" in the audit feed.
@@ -648,7 +649,7 @@ class Show extends Component
             'old_price'  => $this->entryType === 'price' ? $this->entryOldPrice : null,
             'price_unit' => $this->entryType === 'price' ? ($this->entryPriceUnit ?: null) : null,
             'sku'        => $this->entryType === 'price' ? ($this->entrySku ?: null) : null,
-            'visible'    => $this->entryRole !== 'hidden',
+            'visible'    => $this->entryType === 'price' ? true : $this->entryRole !== 'hidden',
         ];
 
         if ($this->editEntryId) {
@@ -810,11 +811,69 @@ class Show extends Component
         $this->confirmAction = 'delete-entry';
         $this->confirmEntryId = $entry->id;
         $this->confirmGeoCode = null;
+        $this->confirmPriceSku = null;
         $this->confirmTitle = 'Видалити ' . $kind . '?';
         $this->confirmSubject = $entry->value . ($entry->label ? ' · ' . $entry->label : '');
         $this->confirmMessage = $backupCount > 0
             ? 'Разом із цим записом буде видалено резервів: ' . $backupCount . '. Дію не можна скасувати.'
             : 'Запис буде видалено з бази. Дію не можна скасувати.';
+    }
+
+    public function requestDeletePriceBlock(string $sku): void
+    {
+        $sku = trim($sku);
+        $entries = $this->priceBlockEntries($sku);
+
+        if ($entries->isEmpty()) {
+            return;
+        }
+
+        $entries->each(fn($entry) => $this->authorize('delete', $entry));
+
+        $this->confirmingAction = true;
+        $this->confirmAction = 'delete-price-block';
+        $this->confirmEntryId = null;
+        $this->confirmGeoCode = null;
+        $this->confirmMessengerKind = null;
+        $this->confirmCategory = null;
+        $this->confirmPriceSku = $sku;
+        $this->confirmTitle = 'Видалити ціновий блок?';
+        $this->confirmSubject = ($sku !== '' ? $sku : 'Без блоку') . ' · ' . $entries->count() . ' ' . ($entries->count() === 1 ? 'ціна' : 'цін');
+        $this->confirmMessage = 'Буде видалено весь блок разом з усіма його варіантами. Дію не можна скасувати.';
+        $this->confirmButtonLabel = 'Видалити блок';
+        $this->confirmIsDanger = true;
+    }
+
+    public function deletePriceBlock(string $sku): void
+    {
+        $entries = $this->priceBlockEntries(trim($sku));
+
+        if ($entries->isEmpty()) {
+            return;
+        }
+
+        $entries->each(function ($entry) {
+            $this->authorize('delete', $entry);
+            $entry->delete();
+        });
+
+        $this->resetEntryForm();
+        $this->dispatch('toast', type: 'success', message: 'Ціновий блок видалено');
+    }
+
+    private function priceBlockEntries(string $sku): Collection
+    {
+        $query = $this->site->contactEntries()
+            ->where('type', 'price')
+            ->orderBy('order');
+
+        if ($sku === '') {
+            $query->where(fn($q) => $q->whereNull('sku')->orWhere('sku', ''));
+        } else {
+            $query->where('sku', $sku);
+        }
+
+        return $query->get();
     }
 
     public function requestRemoveGeoRule(int $id): void
@@ -915,6 +974,7 @@ class Show extends Component
         $this->confirmGeoCode = null;
         $this->confirmMessengerKind = null;
         $this->confirmCategory = null;
+        $this->confirmPriceSku = null;
         $this->confirmSiteStatus = null;
         $this->confirmActivityScope = $scope;
         $this->confirmDeleteSiteName = '';
@@ -935,6 +995,7 @@ class Show extends Component
         $this->confirmGeoCode = null;
         $this->confirmMessengerKind = null;
         $this->confirmCategory = null;
+        $this->confirmPriceSku = null;
         $this->confirmSiteStatus = null;
         $this->confirmActivityScope = null;
         $this->confirmDeleteSiteName = '';
@@ -967,6 +1028,13 @@ class Show extends Component
             $id = $this->confirmEntryId;
             $this->cancelConfirm();
             $this->deleteEntry($id);
+            return;
+        }
+
+        if ($this->confirmAction === 'delete-price-block' && $this->confirmPriceSku !== null) {
+            $sku = $this->confirmPriceSku;
+            $this->cancelConfirm();
+            $this->deletePriceBlock($sku);
             return;
         }
 

@@ -1628,7 +1628,14 @@ svg { display: block; }
   transition: background .12s;
 }
 .failover-row:hover { background: var(--paper-2); }
-.failover-row--primary { min-height: 68px; }
+.failover-row--primary {
+  min-height: 68px;
+  background: color-mix(in srgb, var(--paper-2) 76%, var(--card));
+  box-shadow: inset 3px 0 0 var(--ink-3);
+}
+.failover-row--primary:hover {
+  background: var(--paper-2);
+}
 .failover-row--backup {
   min-height: 52px;
   padding: 10px 18px;

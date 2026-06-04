@@ -252,6 +252,44 @@ class DataBrowserBulkTest extends TestCase
         $this->assertSame('+1', $e->fresh()->value);
     }
 
+    public function test_value_edit_is_a_two_step_confirm_flow(): void
+    {
+        $owner = User::factory()->create(['role' => 'owner']);
+        $ids = ContactEntry::factory()->for($this->siteForOwner($owner))->phone()->count(2)
+            ->create(['value' => '+OLD'])->pluck('id')->map(fn ($i) => (int) $i)->all();
+
+        Livewire::actingAs($owner)
+            ->test(DataBrowser::class)
+            ->call('selectPage', $ids)
+            ->call('openEdit', 'value')
+            ->assertSet('editStep', 1)
+            ->set('editValue', '+NEW')
+            ->call('editConfirm')
+            ->assertSet('editStep', 2)   // confirmation step
+            ->call('editBack')
+            ->assertSet('editStep', 1)
+            ->call('editConfirm')
+            ->call('applyEdit')
+            ->assertSet('editingField', false);
+
+        $this->assertSame(2, ContactEntry::whereIn('id', $ids)->where('value', '+NEW')->count());
+    }
+
+    public function test_value_edit_confirm_step_requires_a_value(): void
+    {
+        $owner = User::factory()->create(['role' => 'owner']);
+        $e = ContactEntry::factory()->for($this->siteForOwner($owner))->phone()->create();
+
+        Livewire::actingAs($owner)
+            ->test(DataBrowser::class)
+            ->call('selectPage', [(int) $e->id])
+            ->call('openEdit', 'value')
+            ->set('editValue', '   ')
+            ->call('editConfirm')
+            ->assertSet('editStep', 1)   // blocked on step 1
+            ->assertDispatched('toast', fn ($ev, $p) => ($p['type'] ?? null) === 'error');
+    }
+
     public function test_site_filter_scopes_select_all_matching(): void
     {
         $owner = User::factory()->create(['role' => 'owner']);

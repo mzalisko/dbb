@@ -352,44 +352,61 @@
                          :title="$editTitles[$editField] ?? 'Редагувати'"
                          @drawer-close.window="$wire.closeEdit()">
                 <div style="display:flex; flex-direction:column; gap:18px;">
-                    <div>
-                        <div class="eyebrow" style="font-size:10px;">Обрано</div>
-                        <div style="margin-top:4px; font:400 20px var(--font-sans); color:var(--ink-9); letter-spacing:-0.01em;">{{ $this->selectedCount() }} записів</div>
+                    {{-- step indicator --}}
+                    <div style="display:flex; gap:6px;">
+                        <span style="flex:1; height:4px; border-radius:999px; background:var(--accent);"></span>
+                        <span style="flex:1; height:4px; border-radius:999px; background:{{ $editStep === 2 ? 'var(--accent)' : 'var(--ink-2)' }};"></span>
                     </div>
+                    <div class="eyebrow" style="font-size:10px;">Крок {{ $editStep }} / 2 · {{ $this->selectedCount() }} обрано</div>
 
-                    @if ($selectionPreview->isNotEmpty())
-                        <div style="display:flex; flex-direction:column; gap:6px; max-height:220px; overflow-y:auto;">
-                            @foreach ($selectionPreview as $p)
-                                <div style="display:flex; align-items:center; gap:10px; padding:8px 12px; border-radius:8px; background:var(--paper-2);">
-                                    <span class="mono" style="flex:1; min-width:0; font:12.5px var(--font-mono); color:var(--ink-9); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ $editField === 'label' ? ($p->label ?: '—') : $p->value }}</span>
-                                    <span class="mono" style="font:11.5px var(--font-mono); color:var(--ink-5); white-space:nowrap;">{{ $p->site?->name ?? '—' }}</span>
-                                </div>
-                            @endforeach
-                            @if ($this->selectedCount() > $selectionPreview->count())
-                                <div style="padding:2px 4px; font:12px var(--font-sans); color:var(--ink-5);">…та ще {{ $this->selectedCount() - $selectionPreview->count() }}</div>
-                            @endif
+                    @if ($editStep === 1)
+                        <div>
+                            <label style="display:block; font:12px var(--font-mono); color:var(--ink-5); text-transform:uppercase; letter-spacing:.06em;">
+                                {{ $editField === 'value' ? 'Нове значення' : 'Нова мітка' }}
+                            </label>
+                            <input type="text" wire:model="editValue" wire:keydown.enter="editConfirm"
+                                   x-init="$nextTick(() => $el.focus())"
+                                   placeholder="{{ $editField === 'value' ? 'Напр. +48 22 111 22 33' : 'Напр. Підписка · Pro' }}"
+                                   style="margin-top:8px; width:100%; height:44px; padding:0 14px; border-radius:10px; background:var(--card); border:1px solid var(--ink-3); font:14.5px var(--font-sans); color:var(--ink-9); outline:none;" />
+                            <div style="margin-top:8px; font:12px var(--font-sans); color:var(--ink-5);">
+                                Далі — список, що саме зміниться, перед застосуванням.
+                            </div>
                         </div>
+                    @else
+                        <div style="font:13px var(--font-sans); color:var(--ink-6);">
+                            {{ $editField === 'value' ? 'Значення' : 'Мітку' }} буде змінено на
+                            <b class="mono" style="color:var(--ink-9);">{{ trim($editValue) !== '' ? $editValue : '—' }}</b>
+                            у {{ $this->selectedCount() }} {{ $editField === 'value' ? 'входженнях' : 'записах' }}. Дію можна відмінити.
+                        </div>
+                        @if ($selectionPreview->isNotEmpty())
+                            <div style="display:flex; flex-direction:column; gap:6px; max-height:300px; overflow-y:auto;">
+                                @foreach ($selectionPreview as $p)
+                                    @php $old = $editField === 'label' ? ($p->label ?: '—') : $p->value; @endphp
+                                    <div style="display:flex; align-items:center; gap:8px; padding:8px 12px; border-radius:8px; background:var(--paper-2);">
+                                        <span class="mono" style="flex:1; min-width:0; font:12.5px var(--font-mono); color:var(--ink-5); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-decoration:line-through;">{{ $old }}</span>
+                                        <x-icon.arrow width="12" height="12" style="color:var(--ink-4); flex-shrink:0;" />
+                                        <span class="mono" style="flex:1; min-width:0; font:12.5px var(--font-mono); color:var(--ink-9); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ trim($editValue) !== '' ? $editValue : '—' }}</span>
+                                        <span class="mono" style="font:11px var(--font-mono); color:var(--ink-5); white-space:nowrap;">{{ $p->site?->name ?? '—' }}</span>
+                                    </div>
+                                @endforeach
+                                @if ($this->selectedCount() > $selectionPreview->count())
+                                    <div style="padding:2px 4px; font:12px var(--font-sans); color:var(--ink-5);">…та ще {{ $this->selectedCount() - $selectionPreview->count() }}</div>
+                                @endif
+                            </div>
+                        @endif
                     @endif
-
-                    <div>
-                        <label style="display:block; font:12px var(--font-mono); color:var(--ink-5); text-transform:uppercase; letter-spacing:.06em;">
-                            {{ $editField === 'value' ? 'Нове значення' : 'Нова мітка' }}
-                        </label>
-                        <input type="text" wire:model="editValue" wire:keydown.enter="applyEdit"
-                               x-init="$nextTick(() => $el.focus())"
-                               placeholder="{{ $editField === 'value' ? 'Напр. +48 22 111 22 33' : 'Напр. Підписка · Pro' }}"
-                               style="margin-top:8px; width:100%; height:44px; padding:0 14px; border-radius:10px; background:var(--card); border:1px solid var(--ink-3); font:14.5px var(--font-sans); color:var(--ink-9); outline:none;" />
-                        <div style="margin-top:8px; font:12px var(--font-sans); color:var(--ink-5);">
-                            Застосується до всіх {{ $this->selectedCount() }} обраних записів{{ $editField === 'value' ? ' — навіть на різних сайтах' : '' }}. Дію можна відмінити.
-                        </div>
-                    </div>
                 </div>
 
                 <x-slot:footer>
-                    <button class="btn btn-ghost" wire:click="closeEdit">Скасувати</button>
-                    <button class="btn btn-primary" wire:click="applyEdit">
-                        {{ $editField === 'value' ? 'Замінити' : 'Зберегти' }}
-                    </button>
+                    @if ($editStep === 1)
+                        <button class="btn btn-ghost" wire:click="closeEdit">Скасувати</button>
+                        <button class="btn btn-primary" wire:click="editConfirm">Далі →</button>
+                    @else
+                        <button class="btn btn-ghost" wire:click="editBack">← Назад</button>
+                        <button class="btn btn-primary" wire:click="applyEdit">
+                            {{ $editField === 'value' ? 'Замінити' : 'Зберегти' }} {{ $this->selectedCount() }}
+                        </button>
+                    @endif
                 </x-slot:footer>
             </x-ui.drawer>
         </div>

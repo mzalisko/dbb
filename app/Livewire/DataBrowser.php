@@ -93,10 +93,11 @@ class DataBrowser extends Component
         }
     }
 
-    /** Bulk "edit field" drawer state. */
+    /** Bulk "edit field" drawer state — two steps: enter (1) → confirm (2). */
     public bool $editingField = false;
     public string $editField = 'value';   // value | label
     public string $editValue = '';
+    public int $editStep = 1;
 
     /** Selection review drawer (see / trim the cross-site set). */
     public bool $reviewingSelection = false;
@@ -536,6 +537,7 @@ class DataBrowser extends Component
 
         $this->editField = $field;
         $this->editValue = '';
+        $this->editStep = 1;
         $this->editingField = true;
     }
 
@@ -544,6 +546,23 @@ class DataBrowser extends Component
         $this->editingField = false;
         $this->editField = 'value';
         $this->editValue = '';
+        $this->editStep = 1;
+    }
+
+    /** Step 1 → 2: validate input is present, then show the confirmation list. */
+    public function editConfirm(): void
+    {
+        if ($this->editField === 'value' && trim($this->editValue) === '') {
+            $this->dispatch('toast', type: 'error', message: 'Введіть нове значення');
+
+            return;
+        }
+        $this->editStep = 2;
+    }
+
+    public function editBack(): void
+    {
+        $this->editStep = 1;
     }
 
     public function applyEdit(): void

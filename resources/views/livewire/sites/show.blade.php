@@ -2,9 +2,19 @@
      x-data="{
          hashParts() { return (location.hash.slice(1) || '').split('/'); },
          validActivityType(t) { return ['all','update','create','delete','failover'].includes(t); },
+         validDataCats: @js($visibleDataCategories),
+         hashDataCat() {
+             const p = this.hashParts();
+             return p[0] === 'data' && this.validDataCats.includes(p[1]) ? p[1] : @js($initialDataCat);
+         },
+         dataHash() { return 'data' + (this.cat ? '/' + this.cat : ''); },
          tab:         (['overview','data','activity','settings'].includes((location.hash.slice(1)||'').split('/')[0]) ? location.hash.slice(1).split('/')[0] : 'overview'),
-         settingsSub: ((location.hash.slice(1).split('/')[1] || 'failover') === 'api' ? 'general' : (location.hash.slice(1).split('/')[1] || 'failover')),
-         cat: @js($initialDataCat), geo: 'all', msgKind: 'all',
+         settingsSub: (() => {
+             const p = (location.hash.slice(1) || '').split('/');
+             const s = p[0] === 'settings' ? (p[1] || 'failover') : 'failover';
+             return s === 'api' ? 'general' : s;
+         })(),
+         cat: null, geo: 'all', msgKind: 'all',
          actFilter: ((location.hash.slice(1).split('/')[0] === 'activity' && ['update','create','delete','failover'].includes(location.hash.slice(1).split('/')[1])) ? location.hash.slice(1).split('/')[1] : 'all'),
          activeActivity: (location.hash.slice(1).split('/')[0] === 'activity' ? (location.hash.slice(1).split('/')[2] || '') : ''),
          scrollActivity(key) {
@@ -33,7 +43,10 @@
          }
      }"
      x-init="
-         $watch('tab',         t => history.replaceState(null,'',location.pathname+'#'+t+(t==='settings'?'/'+settingsSub:'')));
+         cat = hashDataCat();
+         if(tab==='data') history.replaceState(null,'',location.pathname+'#'+dataHash());
+         $watch('tab',         t => history.replaceState(null,'',location.pathname+'#'+(t==='settings' ? 'settings/'+settingsSub : (t==='data' ? dataHash() : t))));
+         $watch('cat',         c => { if(tab==='data') history.replaceState(null,'',location.pathname+'#'+dataHash()); });
          $watch('settingsSub', s => { if(tab==='settings') history.replaceState(null,'',location.pathname+'#settings/'+s); });
          focusActivityFromHash();
      ">

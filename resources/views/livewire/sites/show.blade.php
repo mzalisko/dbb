@@ -8,6 +8,7 @@
              return p[0] === 'data' && this.validDataCats.includes(p[1]) ? p[1] : @js($initialDataCat);
          },
          dataHash() { return 'data' + (this.cat ? '/' + this.cat : ''); },
+         activityHash() { return 'activity' + (this.actFilter && this.actFilter !== 'all' ? '/' + this.actFilter + (this.activeActivity ? '/' + this.activeActivity : '') : ''); },
          tab:         (['overview','data','activity','settings'].includes((location.hash.slice(1)||'').split('/')[0]) ? location.hash.slice(1).split('/')[0] : 'overview'),
          settingsSub: (() => {
              const p = (location.hash.slice(1) || '').split('/');
@@ -45,8 +46,10 @@
      x-init="
          cat = hashDataCat();
          if(tab==='data') history.replaceState(null,'',location.pathname+'#'+dataHash());
-         $watch('tab',         t => history.replaceState(null,'',location.pathname+'#'+(t==='settings' ? 'settings/'+settingsSub : (t==='data' ? dataHash() : t))));
+         if(tab==='activity') history.replaceState(null,'',location.pathname+'#'+activityHash());
+         $watch('tab',         t => history.replaceState(null,'',location.pathname+'#'+(t==='settings' ? 'settings/'+settingsSub : (t==='data' ? dataHash() : (t==='activity' ? activityHash() : t)))));
          $watch('cat',         c => { if(tab==='data') history.replaceState(null,'',location.pathname+'#'+dataHash()); });
+         $watch('actFilter',   f => { if(tab==='activity') history.replaceState(null,'',location.pathname+'#'+activityHash()); });
          $watch('settingsSub', s => { if(tab==='settings') history.replaceState(null,'',location.pathname+'#settings/'+s); });
          focusActivityFromHash();
      ">

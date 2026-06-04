@@ -43,7 +43,7 @@
             ['k' => 'create', 'l' => 'Створення'], ['k' => 'delete', 'l' => 'Видалення'],
             ['k' => 'failover', 'l' => 'Failover'],
         ] as $f)
-            <button class="filter-pill" :class="actFilter==='{{ $f['k'] }}' ? 'is-active' : ''" @click="actFilter='{{ $f['k'] }}'">
+            <button class="filter-pill" :class="actFilter==='{{ $f['k'] }}' ? 'is-active' : ''" @click="activeActivity=''; actFilter='{{ $f['k'] }}'">
                 {{ $f['l'] }} <span class="pill-count">{{ $tabCounts[$f['k']] }}</span>
             </button>
         @endforeach

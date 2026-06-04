@@ -115,9 +115,12 @@
                     @foreach($msg->backups as $j => $backup)
                         @php $bk = $resolveMsgKindMeta($backup->kind); @endphp
                         <div wire:click="editEntry({{ $backup->id }})"
-                             class="failover-row failover-row--backup"
+                             class="failover-row failover-row--backup {{ $servingId === $backup->id ? 'failover-row--serving' : '' }}"
                              data-backup-id="{{ $backup->id }}">
                             <span class="failover-backup-index">
+                                @if($servingId === $backup->id)
+                                    <span class="failover-dot failover-dot--serving" title="Працює зараз"></span>
+                                @endif
                                 <span class="failover-branch">└</span>
                                 <span class="failover-order">{{ $j + 1 }}</span>
                             </span>

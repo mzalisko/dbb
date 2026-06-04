@@ -1642,6 +1642,12 @@ svg { display: block; }
   border-top: 1px dashed var(--ink-3);
   color: var(--ink-7);
 }
+.failover-row--serving {
+  background: color-mix(in srgb, var(--ok-soft) 48%, var(--card));
+}
+.failover-row--serving:hover {
+  background: color-mix(in srgb, var(--ok-soft) 68%, var(--card));
+}
 .failover-row--hidden { opacity: .62; }
 .failover-dot {
   width: 14px;
@@ -1652,6 +1658,11 @@ svg { display: block; }
 }
 .failover-dot--bad { background: var(--bad); }
 .failover-dot--muted { background: var(--ink-4); }
+.failover-dot--serving {
+  width: 8px;
+  height: 8px;
+  background: var(--ok);
+}
 .failover-value {
   min-width: 0;
   overflow-wrap: anywhere;
@@ -1678,7 +1689,7 @@ svg { display: block; }
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
+  gap: 7px;
   color: var(--ink-5);
 }
 .failover-branch {

@@ -1,5 +1,13 @@
 {{-- Phones sub-section --}}
 <div class="card ctable ctable--failover">
+    <div class="failover-head">
+        <span>Статус</span>
+        <span>Номер</span>
+        <span>Мітка</span>
+        <span>Гео</span>
+        <span>Роль</span>
+        <span></span>
+    </div>
     <div x-data="sortable()" class="failover-stack">
         @forelse($phonePrimaries as $i => $phone)
             @php

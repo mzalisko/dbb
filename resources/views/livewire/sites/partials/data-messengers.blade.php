@@ -73,6 +73,14 @@
 </div>
 
 <div class="card ctable ctable--failover">
+    <div class="failover-head">
+        <span>Статус</span>
+        <span>Контакт</span>
+        <span>Мітка</span>
+        <span>Гео</span>
+        <span>Роль</span>
+        <span></span>
+    </div>
     <div x-data="sortable()" class="failover-stack">
         @forelse($msgPrimaries as $i => $msg)
             @php
@@ -86,7 +94,10 @@
                  data-msg-kind="{{ $msg->kind }}"
                  x-show="msgKind === 'all' || msgKind === @js($msg->kind)">
                 <div wire:click="editEntry({{ $msg->id }})" class="failover-row failover-row--primary">
-                    <span class="msg-badge msg-badge--compact" style="background:{{ $k['color'] }};">{{ $k['short'] }}</span>
+                    <span class="msg-status-badge">
+                        <span class="failover-dot {{ $isDown ? 'failover-dot--bad' : '' }}"></span>
+                        <span class="msg-badge msg-badge--compact" style="background:{{ $k['color'] }};">{{ $k['short'] }}</span>
+                    </span>
                     <span class="mono failover-value" style="{{ $isDown ? 'text-decoration:line-through; color:var(--ink-5);' : '' }}">{{ $msg->value }}</span>
                     <span class="failover-label">{{ $msg->label ?: $k['label'] }}</span>
                     <span class="failover-geo">{{ $msg->geo_label }}</span>
@@ -157,7 +168,10 @@
              class="failover-row failover-row--hidden"
              data-msg-kind="{{ $msg->kind }}"
              x-show="msgKind === 'all' || msgKind === @js($msg->kind)">
-            <span class="msg-badge msg-badge--compact msg-badge--muted" style="background:{{ $k['color'] }};">{{ $k['short'] }}</span>
+            <span class="msg-status-badge">
+                <span class="failover-dot failover-dot--muted"></span>
+                <span class="msg-badge msg-badge--compact msg-badge--muted" style="background:{{ $k['color'] }};">{{ $k['short'] }}</span>
+            </span>
             <span class="mono failover-value failover-value--sub">{{ $msg->value }}</span>
             <span class="failover-label failover-label--muted">{{ $msg->label ?: $k['label'] }}</span>
             <span class="failover-geo">{{ $msg->geo_label }}</span>

@@ -1,7 +1,7 @@
 {{-- Phones sub-section --}}
 <div class="card ctable ctable--failover">
     <div class="failover-head">
-        <span>Статус</span>
+        <span></span>
         <span>Номер</span>
         <span>Мітка</span>
         <span>Гео</span>

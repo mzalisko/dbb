@@ -74,7 +74,7 @@
 
 <div class="card ctable ctable--failover">
     <div class="failover-head">
-        <span>Статус</span>
+        <span></span>
         <span>Контакт</span>
         <span>Мітка</span>
         <span>Гео</span>

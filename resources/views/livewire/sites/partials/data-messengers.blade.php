@@ -1,4 +1,4 @@
-{{-- ── Messengers sub-section ── --}}
+{{-- Messengers sub-section --}}
 @php
     $kinds = \App\Models\ContactEntry::MSG_KINDS;
     $hiddenMsgs = $hiddenMsgs ?? collect();
@@ -46,193 +46,130 @@
         </span>
     @endforeach
 
-        <span class="msg-pill-add" x-data="{open:false}">
-            <button class="msg-pill-add__btn"
+    <span class="msg-pill-add" x-data="{open:false}">
+        <button class="msg-pill-add__btn"
+                type="button"
+                title="Додати платформу"
+                @click="open=!open"
+                :class="open ? 'is-active' : ''">+</button>
+        <span x-show="open" x-cloak class="msg-pill-add__pop" @click.outside="open=false">
+            <input wire:model="newMessengerKind"
+                   list="messenger-kind-options-{{ $geoKey ?? 'all' }}"
+                   class="msg-pill-add__input"
+                   placeholder="Signal або Custom"
+                   @keydown.enter.prevent="$wire.addMessengerKind(); open=false"
+                   @keydown.escape="open=false">
+            <datalist id="messenger-kind-options-{{ $geoKey ?? 'all' }}">
+                @foreach($availableMessengerKinds as $kindKey => $kindMeta)
+                    <option value="{{ $kindMeta['label'] }}"></option>
+                @endforeach
+            </datalist>
+            <button class="msg-pill-add__ok"
                     type="button"
-                    title="Додати платформу"
-                    @click="open=!open"
-                    :class="open ? 'is-active' : ''">+</button>
-            <span x-show="open" x-cloak class="msg-pill-add__pop" @click.outside="open=false">
-                <input wire:model="newMessengerKind"
-                       list="messenger-kind-options-{{ $geoKey ?? 'all' }}"
-                       class="msg-pill-add__input"
-                       placeholder="Signal або Custom"
-                       @keydown.enter.prevent="$wire.addMessengerKind(); open=false"
-                       @keydown.escape="open=false">
-                <datalist id="messenger-kind-options-{{ $geoKey ?? 'all' }}">
-                    @foreach($availableMessengerKinds as $kindKey => $kindMeta)
-                        <option value="{{ $kindMeta['label'] }}"></option>
-                    @endforeach
-                </datalist>
-                <button class="msg-pill-add__ok"
-                        type="button"
-                        wire:click="addMessengerKind"
-                        @click="open=false">OK</button>
-            </span>
+                    wire:click="addMessengerKind"
+                    @click="open=false">OK</button>
         </span>
+    </span>
 </div>
 
-{{-- Messenger table --}}
-<div class="card ctable">
-    {{-- Header --}}
-    <div class="crow crow--msg crow--head">
-        <span></span>
-        <span class="eyebrow eyebrow-xxs">#</span>
-        <span class="eyebrow eyebrow-xxs">Контакт</span>
-        <span class="eyebrow eyebrow-xxs">ISO</span>
-        <span class="eyebrow eyebrow-xxs">Мітка</span>
-        <span class="eyebrow eyebrow-xxs">Гео-правило</span>
-        <span class="eyebrow eyebrow-xxs">Роль</span>
-        <span></span>
-    </div>
-
-    {{-- Sortable primary entries --}}
-    <div x-data="sortable()">
+<div class="card ctable ctable--failover">
+    <div x-data="sortable()" class="failover-stack">
         @forelse($msgPrimaries as $i => $msg)
-            @php $k = $resolveMsgKindMeta($msg->kind); @endphp
-            <div class="ctable-group"
+            @php
+                $k = $resolveMsgKindMeta($msg->kind);
+                $serving = $msg->failoverServing();
+                $servingId = $serving?->id;
+                $isDown = (bool) $msg->failover_down;
+            @endphp
+            <div class="failover-group"
                  data-entry-id="{{ $msg->id }}"
                  data-msg-kind="{{ $msg->kind }}"
                  x-show="msgKind === 'all' || msgKind === @js($msg->kind)">
-
-                {{-- Primary row --}}
-                @php $serving = $msg->failoverServing(); $servingId = $serving?->id; @endphp
-                <div wire:click="editEntry({{ $msg->id }})" class="crow crow--msg crow--main">
-                    <span class="cc-drag" @click.stop>&#x2807;</span>
-                    <span class="cc-num">#{{ $i+1 }}</span>
-                    <div class="msg-contact">
-                        <span class="msg-badge" style="background:{{ $k['color'] }};">{{ $k['short'] }}</span>
-                        <div>
-                            <div class="mono cc-val" style="{{ $msg->failover_down ? 'text-decoration:line-through; color:var(--ink-5);' : '' }}">{{ $msg->value }}</div>
-                            <div class="msg-kind">{{ $k['label'] }}</div>
-                        </div>
-                    </div>
-                    <span class="cc-iso">@include('livewire.sites.partials.preview-tag-badge', ['entry' => $msg])</span>
-                    <span class="cc-label">{{ $msg->label }}</span>
-                    <span class="cc-geo">{{ $msg->geo_label }}</span>
-                    <span class="cc-role">
-                        @if($msg->failover_down)
-                            <span class="role-dot" style="background:var(--bad);"></span> Збій
+                <div wire:click="editEntry({{ $msg->id }})" class="failover-row failover-row--primary">
+                    <span class="msg-badge msg-badge--compact" style="background:{{ $k['color'] }};">{{ $k['short'] }}</span>
+                    <span class="mono failover-value" style="{{ $isDown ? 'text-decoration:line-through; color:var(--ink-5);' : '' }}">{{ $msg->value }}</span>
+                    <span class="failover-label">{{ $msg->label ?: $k['label'] }}</span>
+                    <span class="failover-geo">{{ $msg->geo_label }}</span>
+                    <span class="failover-role">
+                        @if($isDown)
+                            Збій
                         @else
-                            <span class="role-dot" style="background:var(--ok);"></span> Головний
+                            Основний
                         @endif
                     </span>
-                    <span class="cc-actions">
-                        @if($msg->failover_down)
-                            <button class="cc-promote" wire:click.stop="restoreFailover({{ $msg->id }})"
-                                    title="Відновити — зняти збій" style="color:var(--ok);">&#x21A9;</button>
+                    <span class="failover-actions">
+                        @if($isDown)
+                            <button class="cc-promote" wire:click.stop="restoreFailover({{ $msg->id }})" title="Відновити">↩</button>
                         @endif
                         <button class="cc-edit" wire:click.stop="editEntry({{ $msg->id }})" title="Редагувати">
                             <x-icon.edit width="13" height="13" />
                         </button>
-                        <button class="cc-delete"
-                                wire:click.stop="requestDeleteEntry({{ $msg->id }})"
-                                title="Видалити">
+                        <button class="cc-delete" wire:click.stop="requestDeleteEntry({{ $msg->id }})" title="Видалити">
                             <x-icon.trash width="13" height="13" />
                         </button>
+                        <span class="cc-drag failover-drag" @click.stop title="Змінити порядок">&#x2807;</span>
                     </span>
                 </div>
 
-                {{-- РЕЗЕРВ section --}}
-                @if($msg->backups->count() > 0)
-                    <div x-data="{open:false}" class="creserve">
-                        <div class="creserve__head" @click="open=!open">
-                            <span class="creserve__title">
-                                <span x-text="open?'&#x25BE;':'&#x25B8;'"></span>
-                                РЕЗЕРВ &middot; {{ $msg->backups->count() }}
+                <div class="failover-reserves" x-data="backupSortable({{ $msg->id }})">
+                    @foreach($msg->backups as $j => $backup)
+                        @php $bk = $resolveMsgKindMeta($backup->kind); @endphp
+                        <div wire:click="editEntry({{ $backup->id }})"
+                             class="failover-row failover-row--backup"
+                             data-backup-id="{{ $backup->id }}">
+                            <span class="failover-backup-index">
+                                <span class="failover-branch">└</span>
+                                <span class="failover-order">{{ $j + 1 }}</span>
                             </span>
-                            <button class="creserve__add" wire:click.stop="addEntry('messenger', {{ $msg->id }})">+ Додати резерв</button>
+                            <span class="mono failover-value failover-value--sub" style="{{ $backup->failover_down ? 'text-decoration:line-through;' : '' }}">{{ $backup->value }}</span>
+                            <span class="failover-label failover-label--muted">{{ $backup->label ?: 'резерв · ' . $bk['label'] }}</span>
+                            <span class="failover-geo">{{ $msg->geo_label }}</span>
+                            <span class="failover-role failover-role--muted">Резерв</span>
+                            <span class="failover-actions">
+                                @if($backup->failover_down)
+                                    <button class="cc-promote" wire:click.stop="restoreFailover({{ $backup->id }})" title="Відновити">↩</button>
+                                @endif
+                                <button class="cc-promote" wire:click.stop="promoteEntry({{ $backup->id }})" title="Зробити основним">↑</button>
+                                <button class="cc-delete" wire:click.stop="requestDeleteEntry({{ $backup->id }})" title="Видалити">
+                                    <x-icon.trash width="13" height="13" />
+                                </button>
+                                <span class="cc-drag failover-drag" @click.stop title="Змінити порядок">&#x2807;</span>
+                            </span>
                         </div>
-                        {{-- Backup rows — sortable --}}
-                        <div x-show="open" x-data="backupSortable({{ $msg->id }})">
-                            @foreach($msg->backups as $j => $backup)
-                                @php $bk = $resolveMsgKindMeta($backup->kind); @endphp
-                                <div wire:click="editEntry({{ $backup->id }})"
-                                     class="crow crow--msg crow--backup"
-                                     data-backup-id="{{ $backup->id }}"
-                                     style="cursor:pointer;">
-                                    <span class="cc-drag" @click.stop style="color:var(--ink-4);">&#x2807;</span>
-                                    <span class="cc-num cc-num--backup">#{{ $i+1 }}.{{ $j+1 }}</span>
-                                    <div class="msg-contact">
-                                        <span class="msg-badge msg-badge--sm" style="background:{{ $bk['color'] }};">{{ $bk['short'] }}</span>
-                                        <span class="mono cc-val--sub" style="{{ $backup->failover_down ? 'text-decoration:line-through;' : '' }}">{{ $backup->value }}</span>
-                                    </div>
-                                    <span class="cc-iso">@include('livewire.sites.partials.preview-tag-badge', ['entry' => $msg])</span>
-                                    <span class="cc-label--muted">{{ $backup->label }}</span>
-                                    <span class="cc-geo">{{ $msg->geo_label }}</span>
-                                    <span class="cc-role cc-role--muted">
-                                        @if($backup->role === 'hidden')
-                                            <x-icon.eye-off width="13" height="13" class="state-icon state-icon--hidden" /> Приховано
-                                        @elseif($backup->failover_down)
-                                            <span class="role-dot" style="background:var(--bad);"></span> Збій
-                                        @elseif($servingId === $backup->id)
-                                            <span class="role-dot" style="background:var(--ok);"></span> Працює зараз
-                                        @else
-                                            <span class="role-dot" style="background:var(--info);"></span> Резерв
-                                        @endif
-                                    </span>
-                                    <span class="cc-actions">
-                                        @if($backup->failover_down)
-                                            <button class="cc-promote" wire:click.stop="restoreFailover({{ $backup->id }})"
-                                                    title="Відновити — зняти збій" style="color:var(--ok);">&#x21A9;</button>
-                                        @endif
-                                        <button class="cc-promote" wire:click.stop="promoteEntry({{ $backup->id }})" title="Зробити головним">↑</button>
-                                        <button class="cc-delete"
-                                                wire:click.stop="requestDeleteEntry({{ $backup->id }})"
-                                                title="Видалити">
-                                            <x-icon.trash width="13" height="13" />
-                                        </button>
-                                    </span>
-                                </div>
-                            @endforeach
-                        </div>
-                    </div>
-                @else
-                    <div class="creserve creserve--empty">
-                        <button class="creserve__add-inline" wire:click.stop="addEntry('messenger', {{ $msg->id }})">+ Додати резерв</button>
-                    </div>
-                @endif
+                    @endforeach
+                </div>
 
+                <div class="failover-addrow">
+                    <button wire:click.stop="addEntry('messenger', {{ $msg->id }})">+ приєднати резерв</button>
+                </div>
             </div>
         @empty
             <div class="ctable__empty">Немає месенджерів для обраного гео.</div>
         @endforelse
     </div>
 
-    {{-- Hidden entries --}}
     @foreach($hiddenMsgs as $msg)
         @php $k = $resolveMsgKindMeta($msg->kind); @endphp
         <div wire:click="editEntry({{ $msg->id }})"
-             class="crow crow--msg crow--hidden"
+             class="failover-row failover-row--hidden"
              data-msg-kind="{{ $msg->kind }}"
-             x-show="msgKind === 'all' || msgKind === @js($msg->kind)"
-             style="cursor:pointer;">
-            <span style="color:var(--ink-4);">&#x2807;</span>
-            <span class="cc-num">#{{ $loop->index+1 }}</span>
-            <div class="msg-contact">
-                <span class="msg-badge msg-badge--sm" style="background:{{ $k['color'] }};">{{ $k['short'] }}</span>
-                <span class="mono cc-val--sub">{{ $msg->value }}</span>
-            </div>
-            <span class="cc-iso">@include('livewire.sites.partials.preview-tag-badge', ['entry' => $msg])</span>
-            <span class="cc-label--muted">{{ $msg->label }}</span>
-            <span class="cc-geo">{{ $msg->geo_label }}</span>
-            <span class="cc-role cc-role--muted">
-                <x-icon.eye-off width="13" height="13" class="state-icon state-icon--hidden" /> Приховано
-            </span>
-            <span class="cc-actions">
+             x-show="msgKind === 'all' || msgKind === @js($msg->kind)">
+            <span class="msg-badge msg-badge--compact msg-badge--muted" style="background:{{ $k['color'] }};">{{ $k['short'] }}</span>
+            <span class="mono failover-value failover-value--sub">{{ $msg->value }}</span>
+            <span class="failover-label failover-label--muted">{{ $msg->label ?: $k['label'] }}</span>
+            <span class="failover-geo">{{ $msg->geo_label }}</span>
+            <span class="failover-role failover-role--muted">Приховано</span>
+            <span class="failover-actions">
                 <button class="cc-edit" wire:click.stop="editEntry({{ $msg->id }})" title="Редагувати">
                     <x-icon.edit width="13" height="13" />
                 </button>
-                <button class="cc-delete"
-                        wire:click.stop="requestDeleteEntry({{ $msg->id }})"
-                        title="Видалити">
+                <button class="cc-delete" wire:click.stop="requestDeleteEntry({{ $msg->id }})" title="Видалити">
                     <x-icon.trash width="13" height="13" />
                 </button>
             </span>
         </div>
     @endforeach
 
-    {{-- Footer --}}
     <div class="ctable__foot">
         <button class="ctable__add" wire:click="addEntry('messenger', null, {{ $gkParam }})">
             + Додати {{ isset($geoKey) && $geoKey !== 'all' ? $geoKey : '' }} месенджер

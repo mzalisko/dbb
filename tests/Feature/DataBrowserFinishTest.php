@@ -1,0 +1,212 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Livewire\DataBrowser;
+use App\Models\ActivityLog;
+use App\Models\Client;
+use App\Models\ContactEntry;
+use App\Models\Site;
+use App\Models\User;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Livewire\Livewire;
+use Tests\TestCase;
+
+/**
+ * Closing the Data Browser phase: step-by-step confirm on the price and
+ * find-replace drawers, the "за сайтом" failover-group view with ↑↓ reorder,
+ * and the social/address types flowing through the same two-pane.
+ */
+class DataBrowserFinishTest extends TestCase
+{
+    use RefreshDatabase;
+
+    private function siteForOwner(User $owner, array $categories = null): Site
+    {
+        $site = Site::factory()->for(Client::factory()->for($owner))->create();
+        if ($categories !== null) {
+            $site->forceFill(['data_categories' => $categories])->save();
+        }
+
+        return $site;
+    }
+
+    // ── DB-T04b: price & replace are two-step (enter → confirm) ───────────
+
+    public function test_price_edit_two_step_confirm_applies(): void
+    {
+        $owner = User::factory()->create(['role' => 'owner']);
+        $ids = ContactEntry::factory()->for($this->siteForOwner($owner))->price()->count(2)
+            ->create(['currency' => 'EUR'])->pluck('id')->map(fn ($i) => (int) $i)->all();
+
+        Livewire::actingAs($owner)
+            ->test(DataBrowser::class, ['typeFilter' => 'price'])
+            ->call('selectPage', $ids)
+            ->call('openPriceEdit')
+            ->assertSet('priceStep', 1)
+            ->set('priceField', 'currency')
+            ->set('priceValue', 'PLN')
+            ->call('priceConfirm')
+            ->assertSet('priceStep', 2)
+            ->call('priceBack')
+            ->assertSet('priceStep', 1)
+            ->call('priceConfirm')
+            ->call('applyPriceEdit')
+            ->assertSet('editingPrice', false);
+
+        $this->assertSame(2, ContactEntry::whereIn('id', $ids)->where('currency', 'PLN')->count());
+    }
+
+    public function test_price_confirm_rejects_bad_currency_and_stays_on_step_one(): void
+    {
+        $owner = User::factory()->create(['role' => 'owner']);
+        $id = (int) ContactEntry::factory()->for($this->siteForOwner($owner))->price()->create(['currency' => 'EUR'])->id;
+
+        Livewire::actingAs($owner)
+            ->test(DataBrowser::class, ['typeFilter' => 'price'])
+            ->call('selectPage', [$id])
+            ->call('openPriceEdit')
+            ->set('priceField', 'currency')
+            ->set('priceValue', 'XYZ')
+            ->call('priceConfirm')
+            ->assertSet('priceStep', 1)
+            ->assertDispatched('toast', fn ($e, $p) => ($p['type'] ?? null) === 'error');
+    }
+
+    public function test_replace_two_step_confirm_applies(): void
+    {
+        $owner = User::factory()->create(['role' => 'owner']);
+        $m = ContactEntry::factory()->for($this->siteForOwner($owner))->phone()->create(['value' => '+380501112233']);
+
+        Livewire::actingAs($owner)
+            ->test(DataBrowser::class)
+            ->call('selectPage', [(int) $m->id])
+            ->call('openReplace')
+            ->assertSet('replaceStep', 1)
+            ->set('findText', '+380')
+            ->set('replaceText', '+48')
+            ->call('replaceConfirm')
+            ->assertSet('replaceStep', 2)
+            ->call('applyReplace')
+            ->assertSet('editingReplace', false);
+
+        $this->assertSame('+48501112233', $m->fresh()->value);
+    }
+
+    public function test_replace_confirm_requires_find_text(): void
+    {
+        $owner = User::factory()->create(['role' => 'owner']);
+        $e = ContactEntry::factory()->for($this->siteForOwner($owner))->phone()->create();
+
+        Livewire::actingAs($owner)
+            ->test(DataBrowser::class)
+            ->call('selectPage', [(int) $e->id])
+            ->call('openReplace')
+            ->set('findText', '')
+            ->call('replaceConfirm')
+            ->assertSet('replaceStep', 1)
+            ->assertDispatched('toast', fn ($e2, $p) => ($p['type'] ?? null) === 'error');
+    }
+
+    // ── DB-T05: "за сайтом" failover groups + ↑↓ reorder ─────────────────
+
+    public function test_site_axis_lists_failover_groups_with_reserves(): void
+    {
+        $owner = User::factory()->create(['role' => 'owner']);
+        $site = $this->siteForOwner($owner);
+        $p = ContactEntry::factory()->for($site)->phone()->create(['value' => '+MAIN']);
+        ContactEntry::factory()->backup($p)->create(['value' => '+R1', 'order' => 1]);
+        ContactEntry::factory()->backup($p)->create(['value' => '+R2', 'order' => 2]);
+
+        Livewire::actingAs($owner)
+            ->test(DataBrowser::class, ['typeFilter' => 'phone'])
+            ->set('axis', 'site')
+            ->set('siteFilter', (string) $site->id)
+            ->assertSee('+MAIN')
+            ->assertSee('+R1')
+            ->assertSee('+R2')
+            ->assertSee('резерв');
+    }
+
+    public function test_reorder_reserve_up_swaps_order_and_logs_once(): void
+    {
+        $owner = User::factory()->create(['role' => 'owner']);
+        $site = $this->siteForOwner($owner);
+        $p = ContactEntry::factory()->for($site)->phone()->create();
+        $r1 = ContactEntry::factory()->backup($p)->create(['order' => 1]);
+        $r2 = ContactEntry::factory()->backup($p)->create(['order' => 2]);
+
+        Livewire::actingAs($owner)
+            ->test(DataBrowser::class, ['typeFilter' => 'phone'])
+            ->set('axis', 'site')
+            ->set('siteFilter', (string) $site->id)
+            ->call('reorderReserve', $r2->id, 'up');
+
+        $this->assertSame(1, $r2->fresh()->order);
+        $this->assertSame(2, $r1->fresh()->order);
+
+        $log = ActivityLog::where('action', 'entry.reordered')->first();
+        $this->assertNotNull($log);
+        $this->assertSame('reserves', $log->properties['scope'] ?? null);
+    }
+
+    public function test_reorder_reserve_at_the_edge_is_a_noop_without_a_log(): void
+    {
+        $owner = User::factory()->create(['role' => 'owner']);
+        $site = $this->siteForOwner($owner);
+        $p = ContactEntry::factory()->for($site)->phone()->create();
+        $r1 = ContactEntry::factory()->backup($p)->create(['order' => 1]);
+        ContactEntry::factory()->backup($p)->create(['order' => 2]);
+
+        Livewire::actingAs($owner)
+            ->test(DataBrowser::class)
+            ->call('reorderReserve', $r1->id, 'up'); // already first
+
+        $this->assertSame(1, $r1->fresh()->order);
+        $this->assertSame(0, ActivityLog::where('action', 'entry.reordered')->count());
+    }
+
+    public function test_manager_cannot_reorder_an_unowned_reserve(): void
+    {
+        $owner = User::factory()->create(['role' => 'owner']);
+        $manager = User::factory()->create(['role' => 'manager', 'access_scope' => 'limited', 'site_access' => []]);
+        $site = $this->siteForOwner($owner);
+        $p = ContactEntry::factory()->for($site)->phone()->create();
+        $r1 = ContactEntry::factory()->backup($p)->create(['order' => 1]);
+        $r2 = ContactEntry::factory()->backup($p)->create(['order' => 2]);
+
+        Livewire::actingAs($manager)
+            ->test(DataBrowser::class)
+            ->call('reorderReserve', $r2->id, 'up')
+            ->assertDispatched('toast', fn ($e, $pp) => ($pp['type'] ?? null) === 'error');
+
+        $this->assertSame(1, $r1->fresh()->order); // untouched
+        $this->assertSame(0, ActivityLog::where('action', 'entry.reordered')->count());
+    }
+
+    // ── DB-T07: social & address flow through the same two-pane ──────────
+
+    public function test_social_type_value_axis_lists_links(): void
+    {
+        $owner = User::factory()->create(['role' => 'owner']);
+        $site = $this->siteForOwner($owner, ['phones', 'messengers', 'socials']);
+        ContactEntry::factory()->for($site)->social('instagram')->create(['value' => 'https://insta/acme']);
+
+        Livewire::actingAs($owner)
+            ->test(DataBrowser::class, ['typeFilter' => 'social'])
+            ->assertSet('typeFilter', 'social')
+            ->assertSee('https://insta/acme');
+    }
+
+    public function test_address_type_value_axis_lists_addresses(): void
+    {
+        $owner = User::factory()->create(['role' => 'owner']);
+        $site = $this->siteForOwner($owner, ['phones', 'messengers', 'addresses']);
+        ContactEntry::factory()->for($site)->address()->create(['value' => 'Kyiv, Khreshchatyk 1']);
+
+        Livewire::actingAs($owner)
+            ->test(DataBrowser::class, ['typeFilter' => 'address'])
+            ->assertSet('typeFilter', 'address')
+            ->assertSee('Kyiv, Khreshchatyk 1');
+    }
+}

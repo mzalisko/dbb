@@ -102,10 +102,11 @@ class DataBrowser extends Component
     /** Selection review drawer (see / trim the cross-site set). */
     public bool $reviewingSelection = false;
 
-    /** Find & replace (substring) drawer. */
+    /** Find & replace (substring) drawer — two steps: enter (1) → confirm (2). */
     public bool $editingReplace = false;
     public string $findText = '';
     public string $replaceText = '';
+    public int $replaceStep = 1;
 
     /** Bulk geo drawer. */
     public bool $editingGeo = false;
@@ -116,10 +117,11 @@ class DataBrowser extends Component
     public bool $editingRole = false;
     public string $roleValue = 'primary';
 
-    /** Bulk price-fields drawer (only for the price type). */
+    /** Bulk price-fields drawer (only for the price type) — enter (1) → confirm (2). */
     public bool $editingPrice = false;
     public string $priceField = 'currency'; // currency | price_unit | price | old_price
     public string $priceValue = '';
+    public int $priceStep = 1;
 
     /** Duplicate the selection onto other sites (multi-target). */
     public bool $duplicating = false;
@@ -440,6 +442,84 @@ class DataBrowser extends Component
             'from'    => $parent?->value,
         ]);
         $this->dispatch('toast', type: 'success', message: 'Переведено в основні');
+    }
+
+    /**
+     * Move a reserve up/down within its primary's failover queue (site axis). One
+     * semantic entry.reordered is logged; owen-it ignores `order`, so this is the
+     * only trail. No-op (and no log) when the reserve is already at the edge.
+     */
+    public function reorderReserve(int $id, string $direction): void
+    {
+        if (! in_array($direction, ['up', 'down'], true)) {
+            return;
+        }
+
+        $entry = ContactEntry::find($id);
+        if (! $entry || is_null($entry->parent_id)) {
+            return;
+        }
+
+        $user = Auth::user();
+        if (! $user || ! $user->can('update', $entry)) {
+            $this->dispatch('toast', type: 'error', message: 'Немає прав на цей запис');
+
+            return;
+        }
+
+        $ids = ContactEntry::where('parent_id', $entry->parent_id)
+            ->where('site_id', $entry->site_id)
+            ->orderBy('order')
+            ->pluck('id')->map(fn ($i) => (int) $i)->values()->all();
+
+        $pos = array_search((int) $entry->id, $ids, true);
+        $swap = $direction === 'up' ? $pos - 1 : $pos + 1;
+        if ($pos === false || $swap < 0 || $swap >= count($ids)) {
+            return; // already at the edge
+        }
+
+        [$ids[$pos], $ids[$swap]] = [$ids[$swap], $ids[$pos]];
+
+        ContactEntry::disableAuditing();
+        try {
+            foreach ($ids as $order => $eid) {
+                ContactEntry::where('id', $eid)
+                    ->where('parent_id', $entry->parent_id)
+                    ->update(['order' => $order + 1]);
+            }
+        } finally {
+            ContactEntry::enableAuditing();
+        }
+
+        ActivityLogService::log('entry.reordered', $entry->parent, [
+            'site_id' => $entry->site_id,
+            'type'    => $entry->type,
+            'scope'   => 'reserves',
+            'count'   => count($ids),
+        ]);
+    }
+
+    /**
+     * Failover groups for the site axis: each primary (parent_id null) of the chosen
+     * site + type (+kind) with its reserves in queue order. Read-scoped like the rest.
+     *
+     * @return \Illuminate\Support\Collection<int, ContactEntry>
+     */
+    protected function siteFailoverGroups()
+    {
+        if ($this->axis !== 'site' || $this->siteFilter === '') {
+            return collect();
+        }
+
+        return $this->applyVisibility(ContactEntry::query())
+            ->where('site_id', $this->siteFilter)
+            ->where('type', $this->typeFilter)
+            ->when($this->kindFilter, fn ($q) => $q->where('kind', $this->kindFilter))
+            ->whereNull('parent_id')
+            ->with(['backups' => fn ($q) => $q->orderBy('order')])
+            ->orderBy('order')->orderBy('value')
+            ->limit(200)
+            ->get();
     }
 
     /**
@@ -784,6 +864,7 @@ class DataBrowser extends Component
         }
         $this->priceField = 'currency';
         $this->priceValue = '';
+        $this->priceStep = 1;
         $this->editingPrice = true;
     }
 
@@ -792,6 +873,31 @@ class DataBrowser extends Component
         $this->editingPrice = false;
         $this->priceField = 'currency';
         $this->priceValue = '';
+        $this->priceStep = 1;
+    }
+
+    /** Step 1 → 2: validate the chosen field's value, then show the confirmation. */
+    public function priceConfirm(): void
+    {
+        $field = $this->priceField;
+        $raw = trim($this->priceValue);
+
+        if ($field === 'currency' && ! in_array(strtoupper($raw), ['EUR', 'USD', 'PLN', 'UAH'], true)) {
+            $this->dispatch('toast', type: 'error', message: 'Оберіть валюту');
+
+            return;
+        }
+        if (in_array($field, ['price', 'old_price'], true) && $raw !== '' && ! is_numeric(str_replace(',', '.', $raw))) {
+            $this->dispatch('toast', type: 'error', message: 'Вкажіть число');
+
+            return;
+        }
+        $this->priceStep = 2;
+    }
+
+    public function priceBack(): void
+    {
+        $this->priceStep = 1;
     }
 
     public function applyPriceEdit(): void
@@ -889,6 +995,7 @@ class DataBrowser extends Component
 
         $this->findText = '';
         $this->replaceText = '';
+        $this->replaceStep = 1;
         $this->editingReplace = true;
     }
 
@@ -897,6 +1004,23 @@ class DataBrowser extends Component
         $this->editingReplace = false;
         $this->findText = '';
         $this->replaceText = '';
+        $this->replaceStep = 1;
+    }
+
+    /** Step 1 → 2: need something to search for before showing the confirmation. */
+    public function replaceConfirm(): void
+    {
+        if ($this->findText === '') {
+            $this->dispatch('toast', type: 'error', message: 'Введіть текст для пошуку');
+
+            return;
+        }
+        $this->replaceStep = 2;
+    }
+
+    public function replaceBack(): void
+    {
+        $this->replaceStep = 1;
     }
 
     public function applyReplace(): void
@@ -1613,6 +1737,7 @@ class DataBrowser extends Component
             'kinds' => $this->kindLabelsForType($this->typeFilter),
             'selectionEntities' => $this->selectionEntityLabels(),
             'valueGroups' => $this->axis === 'value' ? $this->valueGroups() : collect(),
+            'siteGroups' => $this->siteFailoverGroups(),
         ]);
     }
 }

@@ -239,7 +239,55 @@
                     </div>
                 </div>
 
-                @if ($this->hasWorkingSet())
+                @if ($axis === 'site' && $siteFilter !== '')
+                    {{-- Site axis: failover groups — a primary with its reserves in
+                         queue order; reorder with ↑↓, detach with «зробити основним». --}}
+                    @forelse ($siteGroups as $group)
+                        @php
+                            $headVal = $typeFilter === 'price'
+                                ? (rtrim(rtrim(number_format((float) $group->price, 2, '.', ' '), '0'), '.').' '.$group->currency)
+                                : $group->value;
+                            $resCount = $group->backups->count();
+                        @endphp
+                        <div style="border-top:1px solid var(--ink-2); padding:14px 18px;">
+                            <div style="display:grid; grid-template-columns:14px 1.3fr 1fr auto; gap:12px; align-items:center;">
+                                @if ($group->role === 'hidden')
+                                    <x-icon.eye-off width="13" height="13" class="state-icon state-icon--hidden" />
+                                @else
+                                    <span class="dot dot-ok"></span>
+                                @endif
+                                <span class="mono" style="font:13.5px var(--font-mono); color:var(--ink-9); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ $headVal }}</span>
+                                <span style="font:12.5px var(--font-sans); color:var(--ink-6); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ $group->label }}</span>
+                                <span style="font:12px var(--font-sans); color:var(--ink-5); white-space:nowrap;">{{ $group->geo_label }}</span>
+                            </div>
+
+                            @foreach ($group->backups as $bi => $b)
+                                <div style="display:grid; grid-template-columns:14px 24px 1.3fr 1fr auto; gap:10px; align-items:center; padding:9px 0 0 0; margin-top:9px; border-top:1px dashed var(--ink-3);">
+                                    <span style="color:var(--ink-4); text-align:center;">↳</span>
+                                    <span class="mono" style="font:11px var(--font-mono); color:var(--ink-5);">{{ $bi + 1 }}</span>
+                                    <span class="mono" style="font:13px var(--font-mono); color:var(--ink-7); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ $b->value }}</span>
+                                    <span style="display:inline-flex; align-items:center; gap:6px; font:11.5px var(--font-sans); color:var(--info);"><span class="dot dot-info"></span> резерв</span>
+                                    <span style="display:inline-flex; align-items:center; gap:4px; justify-content:flex-end;">
+                                        <button type="button" wire:click="reorderReserve({{ $b->id }}, 'up')" @disabled($bi === 0)
+                                                style="width:26px; height:26px; border-radius:6px; border:1px solid var(--ink-3); background:var(--card); color:var(--ink-6); cursor:pointer; {{ $bi === 0 ? 'opacity:.4; cursor:default;' : '' }}" title="Підняти">↑</button>
+                                        <button type="button" wire:click="reorderReserve({{ $b->id }}, 'down')" @disabled($bi === $resCount - 1)
+                                                style="width:26px; height:26px; border-radius:6px; border:1px solid var(--ink-3); background:var(--card); color:var(--ink-6); cursor:pointer; {{ $bi === $resCount - 1 ? 'opacity:.4; cursor:default;' : '' }}" title="Опустити">↓</button>
+                                        @can('update', $b)
+                                            <button type="button" wire:click="makePrimary({{ $b->id }})"
+                                                    style="margin-left:4px; height:26px; padding:0 9px; border-radius:6px; border:1px solid var(--ink-3); background:var(--card); color:var(--accent); cursor:pointer; font:11.5px var(--font-sans);" title="Зробити основним">→ основним</button>
+                                        @endcan
+                                    </span>
+                                </div>
+                            @endforeach
+
+                            @if ($resCount === 0)
+                                <div style="padding:8px 0 0 26px; font:11.5px var(--font-sans); color:var(--ink-4);">Без резервів</div>
+                            @endif
+                        </div>
+                    @empty
+                        <div style="padding:64px; text-align:center; color:var(--ink-5); font:13.5px var(--font-sans);">Немає записів на цьому сайті.</div>
+                    @endforelse
+                @elseif ($this->hasWorkingSet())
                     @php $pageAllSelected = $selectAllMatching || ($pageIds && empty(array_diff($pageIds, $selected))); @endphp
                     <div style="display:grid; grid-template-columns:32px 1.4fr 1.6fr 1fr 100px 80px; gap:12px; padding:12px 18px; border-bottom:1px solid var(--ink-3); background:var(--paper-2);">
                         <button type="button" class="row-check row-check--head {{ $pageAllSelected ? 'is-checked' : '' }}"
@@ -472,26 +520,62 @@
             <x-ui.drawer :open="true" title="Замінити підрядок" :sub="$this->selectedCount() . ' обрано'"
                          @drawer-close.window="$wire.closeReplace()">
                 <div style="display:flex; flex-direction:column; gap:18px;">
-                    <div style="font:13px var(--font-sans); color:var(--ink-6);">
-                        Замінює частину значення там, де вона трапляється. Напр. <b>+380</b> → <b>+48</b>. Записи без збігу не змінюються.
+                    <div style="display:flex; gap:6px;">
+                        <span style="flex:1; height:4px; border-radius:999px; background:var(--accent);"></span>
+                        <span style="flex:1; height:4px; border-radius:999px; background:{{ $replaceStep === 2 ? 'var(--accent)' : 'var(--ink-2)' }};"></span>
                     </div>
 
-                    <div>
-                        <label style="display:block; font:12px var(--font-mono); color:var(--ink-5); text-transform:uppercase; letter-spacing:.06em;">Знайти</label>
-                        <input type="text" wire:model="findText" x-init="$nextTick(() => $el.focus())" placeholder="+380"
-                               style="margin-top:8px; width:100%; height:44px; padding:0 14px; border-radius:10px; background:var(--card); border:1px solid var(--ink-3); font:14.5px var(--font-mono); color:var(--ink-9); outline:none;" />
-                    </div>
-                    <div>
-                        <label style="display:block; font:12px var(--font-mono); color:var(--ink-5); text-transform:uppercase; letter-spacing:.06em;">Замінити на</label>
-                        <input type="text" wire:model="replaceText" wire:keydown.enter="applyReplace" placeholder="+48"
-                               style="margin-top:8px; width:100%; height:44px; padding:0 14px; border-radius:10px; background:var(--card); border:1px solid var(--ink-3); font:14.5px var(--font-mono); color:var(--ink-9); outline:none;" />
-                        <div style="margin-top:8px; font:12px var(--font-sans); color:var(--ink-5);">Порожнє «Замінити на» — видалить підрядок. Дію можна відмінити.</div>
-                    </div>
+                    @if ($replaceStep === 1)
+                        <div style="font:13px var(--font-sans); color:var(--ink-6);">
+                            Замінює частину значення там, де вона трапляється. Напр. <b>+380</b> → <b>+48</b>. Записи без збігу не змінюються.
+                        </div>
+                        <div>
+                            <label style="display:block; font:12px var(--font-mono); color:var(--ink-5); text-transform:uppercase; letter-spacing:.06em;">Знайти</label>
+                            <input type="text" wire:model="findText" x-init="$nextTick(() => $el.focus())" placeholder="+380"
+                                   style="margin-top:8px; width:100%; height:44px; padding:0 14px; border-radius:10px; background:var(--card); border:1px solid var(--ink-3); font:14.5px var(--font-mono); color:var(--ink-9); outline:none;" />
+                        </div>
+                        <div>
+                            <label style="display:block; font:12px var(--font-mono); color:var(--ink-5); text-transform:uppercase; letter-spacing:.06em;">Замінити на</label>
+                            <input type="text" wire:model="replaceText" wire:keydown.enter="replaceConfirm" placeholder="+48"
+                                   style="margin-top:8px; width:100%; height:44px; padding:0 14px; border-radius:10px; background:var(--card); border:1px solid var(--ink-3); font:14.5px var(--font-mono); color:var(--ink-9); outline:none;" />
+                            <div style="margin-top:8px; font:12px var(--font-sans); color:var(--ink-5);">Порожнє «Замінити на» — видалить підрядок.</div>
+                        </div>
+                    @else
+                        <div style="font:13px var(--font-sans); color:var(--ink-6);">
+                            У значеннях замінимо <b class="mono" style="color:var(--ink-9);">{{ $findText }}</b> →
+                            <b class="mono" style="color:var(--ink-9);">{{ $replaceText !== '' ? $replaceText : '∅' }}</b>.
+                            Записи без збігу лишаться як є. Дію можна відмінити.
+                        </div>
+                        @if ($selectionPreview->isNotEmpty())
+                            <div style="display:flex; flex-direction:column; gap:6px; max-height:300px; overflow-y:auto;">
+                                @foreach ($selectionPreview as $p)
+                                    @php $will = str_contains((string) $p->value, $findText); @endphp
+                                    <div style="display:flex; align-items:center; gap:8px; padding:8px 12px; border-radius:8px; background:var(--paper-2);">
+                                        <span class="mono" style="flex:1; min-width:0; font:12.5px var(--font-mono); color:{{ $will ? 'var(--ink-5)' : 'var(--ink-4)' }}; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; {{ $will ? 'text-decoration:line-through;' : '' }}">{{ $p->value }}</span>
+                                        @if ($will)
+                                            <x-icon.arrow width="12" height="12" style="color:var(--ink-4); flex-shrink:0;" />
+                                            <span class="mono" style="flex:1; min-width:0; font:12.5px var(--font-mono); color:var(--ink-9); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ str_replace($findText, $replaceText, (string) $p->value) }}</span>
+                                        @else
+                                            <span style="font:11px var(--font-sans); color:var(--ink-4); white-space:nowrap;">без збігу</span>
+                                        @endif
+                                    </div>
+                                @endforeach
+                                @if ($this->selectedCount() > $selectionPreview->count())
+                                    <div style="padding:2px 4px; font:12px var(--font-sans); color:var(--ink-5);">…та ще {{ $this->selectedCount() - $selectionPreview->count() }}</div>
+                                @endif
+                            </div>
+                        @endif
+                    @endif
                 </div>
 
                 <x-slot:footer>
-                    <button class="btn btn-ghost" wire:click="closeReplace">Скасувати</button>
-                    <button class="btn btn-primary" wire:click="applyReplace">Замінити</button>
+                    @if ($replaceStep === 1)
+                        <button class="btn btn-ghost" wire:click="closeReplace">Скасувати</button>
+                        <button class="btn btn-primary" wire:click="replaceConfirm">Далі →</button>
+                    @else
+                        <button class="btn btn-ghost" wire:click="replaceBack">← Назад</button>
+                        <button class="btn btn-primary" wire:click="applyReplace">Замінити</button>
+                    @endif
                 </x-slot:footer>
             </x-ui.drawer>
         </div>
@@ -583,55 +667,74 @@
             <x-ui.drawer :open="true" title="Змінити ціни" :sub="$this->selectedCount() . ' обрано'"
                          @drawer-close.window="$wire.closePriceEdit()">
                 <div style="display:flex; flex-direction:column; gap:18px;">
-                    <div>
-                        <label style="display:block; font:12px var(--font-mono); color:var(--ink-5); text-transform:uppercase; letter-spacing:.06em;">Поле</label>
-                        <div style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap;">
-                            @foreach ($priceFieldLabels as $fkey => $flabel)
-                                <button type="button" wire:click="$set('priceField', '{{ $fkey }}')"
-                                        style="height:34px; padding:0 12px; border-radius:8px; font:13px var(--font-sans); cursor:pointer;
-                                               background:{{ $priceField === $fkey ? 'var(--ink-9)' : 'var(--card)' }};
-                                               color:{{ $priceField === $fkey ? 'var(--paper)' : 'var(--ink-7)' }};
-                                               border:1px solid {{ $priceField === $fkey ? 'var(--ink-9)' : 'var(--ink-3)' }};">
-                                    {{ $flabel }}
-                                </button>
-                            @endforeach
-                        </div>
+                    <div style="display:flex; gap:6px;">
+                        <span style="flex:1; height:4px; border-radius:999px; background:var(--accent);"></span>
+                        <span style="flex:1; height:4px; border-radius:999px; background:{{ $priceStep === 2 ? 'var(--accent)' : 'var(--ink-2)' }};"></span>
                     </div>
+                    <div class="eyebrow" style="font-size:10px;">Крок {{ $priceStep }} / 2 · {{ $this->selectedCount() }} обрано</div>
 
-                    @if ($priceField === 'currency')
+                    @if ($priceStep === 1)
                         <div>
-                            <label style="display:block; font:12px var(--font-mono); color:var(--ink-5); text-transform:uppercase; letter-spacing:.06em;">Валюта</label>
-                            <div style="margin-top:8px; display:flex; gap:8px;">
-                                @foreach (['EUR', 'USD', 'PLN', 'UAH'] as $cur)
-                                    <button type="button" wire:click="$set('priceValue', '{{ $cur }}')"
-                                            style="flex:1; height:44px; border-radius:10px; font:14px var(--font-mono); cursor:pointer;
-                                                   background:{{ $priceValue === $cur ? 'var(--ink-9)' : 'var(--card)' }};
-                                                   color:{{ $priceValue === $cur ? 'var(--paper)' : 'var(--ink-7)' }};
-                                                   border:1px solid {{ $priceValue === $cur ? 'var(--ink-9)' : 'var(--ink-3)' }};">
-                                        {{ $cur }}
+                            <label style="display:block; font:12px var(--font-mono); color:var(--ink-5); text-transform:uppercase; letter-spacing:.06em;">Поле</label>
+                            <div style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap;">
+                                @foreach ($priceFieldLabels as $fkey => $flabel)
+                                    <button type="button" wire:click="$set('priceField', '{{ $fkey }}')"
+                                            style="height:34px; padding:0 12px; border-radius:8px; font:13px var(--font-sans); cursor:pointer;
+                                                   background:{{ $priceField === $fkey ? 'var(--ink-9)' : 'var(--card)' }};
+                                                   color:{{ $priceField === $fkey ? 'var(--paper)' : 'var(--ink-7)' }};
+                                                   border:1px solid {{ $priceField === $fkey ? 'var(--ink-9)' : 'var(--ink-3)' }};">
+                                        {{ $flabel }}
                                     </button>
                                 @endforeach
                             </div>
                         </div>
-                    @else
-                        <div>
-                            <label style="display:block; font:12px var(--font-mono); color:var(--ink-5); text-transform:uppercase; letter-spacing:.06em;">
-                                {{ $priceFieldLabels[$priceField] }}
-                            </label>
-                            <input type="text" wire:model="priceValue" wire:keydown.enter="applyPriceEdit"
-                                   x-init="$nextTick(() => $el.focus())"
-                                   placeholder="{{ $priceField === 'price_unit' ? 'напр. міс / шт / рік' : 'напр. 199' }}"
-                                   style="margin-top:8px; width:100%; height:44px; padding:0 14px; border-radius:10px; background:var(--card); border:1px solid var(--ink-3); font:14.5px var(--font-sans); color:var(--ink-9); outline:none;" />
-                            <div style="margin-top:8px; font:12px var(--font-sans); color:var(--ink-5);">
-                                @if (in_array($priceField, ['price', 'old_price']))Порожнє поле — прибрати значення. @endif
-                                Застосується до всіх {{ $this->selectedCount() }} обраних. Дію можна відмінити.
+
+                        @if ($priceField === 'currency')
+                            <div>
+                                <label style="display:block; font:12px var(--font-mono); color:var(--ink-5); text-transform:uppercase; letter-spacing:.06em;">Валюта</label>
+                                <div style="margin-top:8px; display:flex; gap:8px;">
+                                    @foreach (['EUR', 'USD', 'PLN', 'UAH'] as $cur)
+                                        <button type="button" wire:click="$set('priceValue', '{{ $cur }}')"
+                                                style="flex:1; height:44px; border-radius:10px; font:14px var(--font-mono); cursor:pointer;
+                                                       background:{{ $priceValue === $cur ? 'var(--ink-9)' : 'var(--card)' }};
+                                                       color:{{ $priceValue === $cur ? 'var(--paper)' : 'var(--ink-7)' }};
+                                                       border:1px solid {{ $priceValue === $cur ? 'var(--ink-9)' : 'var(--ink-3)' }};">
+                                            {{ $cur }}
+                                        </button>
+                                    @endforeach
+                                </div>
                             </div>
+                        @else
+                            <div>
+                                <label style="display:block; font:12px var(--font-mono); color:var(--ink-5); text-transform:uppercase; letter-spacing:.06em;">
+                                    {{ $priceFieldLabels[$priceField] }}
+                                </label>
+                                <input type="text" wire:model="priceValue" wire:keydown.enter="priceConfirm"
+                                       x-init="$nextTick(() => $el.focus())"
+                                       placeholder="{{ $priceField === 'price_unit' ? 'напр. міс / шт / рік' : 'напр. 199' }}"
+                                       style="margin-top:8px; width:100%; height:44px; padding:0 14px; border-radius:10px; background:var(--card); border:1px solid var(--ink-3); font:14.5px var(--font-sans); color:var(--ink-9); outline:none;" />
+                                <div style="margin-top:8px; font:12px var(--font-sans); color:var(--ink-5);">
+                                    @if (in_array($priceField, ['price', 'old_price']))Порожнє поле — прибрати значення. @endif
+                                </div>
+                            </div>
+                        @endif
+                    @else
+                        @php $pv = trim($priceValue); @endphp
+                        <div style="font:13px var(--font-sans); color:var(--ink-6);">
+                            <b style="color:var(--ink-9);">{{ $priceFieldLabels[$priceField] }}</b> буде змінено на
+                            <b class="mono" style="color:var(--ink-9);">{{ $pv !== '' ? $pv : (in_array($priceField, ['price','old_price']) ? '∅ (прибрати)' : '—') }}</b>
+                            у {{ $this->selectedCount() }} обраних цінах. Дію можна відмінити.
                         </div>
                     @endif
                 </div>
                 <x-slot:footer>
-                    <button class="btn btn-ghost" wire:click="closePriceEdit">Скасувати</button>
-                    <button class="btn btn-primary" wire:click="applyPriceEdit">Застосувати</button>
+                    @if ($priceStep === 1)
+                        <button class="btn btn-ghost" wire:click="closePriceEdit">Скасувати</button>
+                        <button class="btn btn-primary" wire:click="priceConfirm">Далі →</button>
+                    @else
+                        <button class="btn btn-ghost" wire:click="priceBack">← Назад</button>
+                        <button class="btn btn-primary" wire:click="applyPriceEdit">Застосувати {{ $this->selectedCount() }}</button>
+                    @endif
                 </x-slot:footer>
             </x-ui.drawer>
         </div>

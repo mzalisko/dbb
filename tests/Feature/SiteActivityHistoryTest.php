@@ -21,8 +21,10 @@ class SiteActivityHistoryTest extends TestCase
     {
         $owner = User::factory()->create(['role' => 'owner']);
         $client = Client::factory()->for($owner)->create();
-        $siteA = Site::factory()->for($client)->create(['name' => 'Site A']);
-        $siteB = Site::factory()->for($client)->create(['name' => 'Site B']);
+        // Explicit status so the maintenance update below is always a real change
+        // (the factory randomises status — otherwise no site.status.changed audit).
+        $siteA = Site::factory()->for($client)->create(['name' => 'Site A', 'status' => 'active']);
+        $siteB = Site::factory()->for($client)->create(['name' => 'Site B', 'status' => 'active']);
         $entryA = ContactEntry::factory()->for($siteA)->phone()->create(['label' => 'A']);
         $entryB = ContactEntry::factory()->for($siteB)->phone()->create(['label' => 'B']);
 
@@ -63,7 +65,9 @@ class SiteActivityHistoryTest extends TestCase
     public function test_owner_can_clear_only_failover_history_for_site(): void
     {
         $owner = User::factory()->create(['role' => 'owner']);
-        $site = Site::factory()->for(Client::factory()->for($owner))->create();
+        // Explicit status so the maintenance update is always a real change (the
+        // factory randomises status, which otherwise makes this assertion flaky).
+        $site = Site::factory()->for(Client::factory()->for($owner))->create(['status' => 'active']);
         $entry = ContactEntry::factory()->for($site)->phone()->create(['label' => 'Primary']);
 
         $site->update(['status' => 'maintenance']);

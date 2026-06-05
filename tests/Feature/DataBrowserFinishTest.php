@@ -198,6 +198,25 @@ class DataBrowserFinishTest extends TestCase
         $this->assertSame(0, ActivityLog::where('action', 'entry.reordered')->count());
     }
 
+    // ── Stale data: entries on deleted sites must not surface ────────────
+
+    public function test_entries_on_deleted_sites_are_hidden(): void
+    {
+        $owner = User::factory()->create(['role' => 'owner']);
+        $client = Client::factory()->for($owner)->create();
+        $live = Site::factory()->for($client)->create();
+        $dead = Site::factory()->for($client)->create();
+        ContactEntry::factory()->for($live)->phone()->create(['value' => '+LIVE']);
+        ContactEntry::factory()->for($dead)->phone()->create(['value' => '+DEADSITE']);
+        $dead->delete(); // soft-delete the site — its entries stay in the table
+
+        Livewire::actingAs($owner)
+            ->test(DataBrowser::class, ['typeFilter' => 'phone'])
+            ->assertViewHas('totalCount', 1)   // only the live site's entry counts
+            ->assertSee('+LIVE')
+            ->assertDontSee('+DEADSITE');
+    }
+
     // ── DB-T07: social & address flow through the same two-pane ──────────
 
     public function test_social_type_value_axis_lists_links(): void

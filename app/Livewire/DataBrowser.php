@@ -263,6 +263,11 @@ class DataBrowser extends Component
 
         $query->whereIn('type', $readableTypes);
 
+        // Only entries on a LIVE site — a deleted (soft-deleted) site keeps its rows
+        // in the table, but they must not surface here (restore the site first). This
+        // is what kept showing "already-deleted" data for owner/admin.
+        $query->whereHas('site');
+
         if (in_array($user?->role, ['owner', 'admin'], true)) {
             return $query;
         }

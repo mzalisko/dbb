@@ -99,69 +99,7 @@
         {{-- Стан перенесено у праву панель (мініфільтр над входженнями) --}}
     </div>
 
-    {{-- Bulk action bar --}}
-    @if ($this->hasSelection())
-        @php
-            $mixedType = count($selectionEntities) > 1;
-            $valueHint = $mixedType ? 'Лише для одного виду — обрано: '.implode(' + ', $selectionEntities) : '';
-        @endphp
-        <div style="margin-top:16px;">
-            <x-ui.bulk-bar :count="$this->selectedCount()" :total="$entries->total()" :all-matching="$selectAllMatching">
-                <button class="bulk-action" wire:click="openReview">
-                    <x-icon.list width="13" height="13" /> Огляд
-                </button>
-                @if ($trashed)
-                    <button class="bulk-action" wire:click="restoreSelected">
-                        <x-icon.refresh width="13" height="13" /> Відновити
-                    </button>
-                    <button class="bulk-action bulk-action--danger" wire:click="purgeSelected"
-                            wire:confirm="Видалити обрані записи НАЗАВЖДИ? Це не можна відмінити.">
-                        <x-icon.trash width="13" height="13" /> Видалити назавжди
-                    </button>
-                @else
-                    <button class="bulk-action" wire:click="openEdit('value')" @disabled($mixedType) @if ($mixedType) title="{{ $valueHint }}" @endif>
-                        <x-icon.edit width="13" height="13" /> Замінити значення
-                    </button>
-                    <button class="bulk-action" wire:click="openReplace" @disabled($mixedType) @if ($mixedType) title="{{ $valueHint }}" @endif>
-                        <x-icon.refresh width="13" height="13" /> Підрядок
-                    </button>
-                    <button class="bulk-action" wire:click="openEdit('label')">
-                        <x-icon.tag width="13" height="13" /> Мітка
-                    </button>
-                    <button class="bulk-action" wire:click="openRole">
-                        <x-icon.bolt width="13" height="13" /> Стан
-                    </button>
-                    @if ($typeFilter === 'price')
-                        <button class="bulk-action" wire:click="openPriceEdit">
-                            <x-icon.tag width="13" height="13" /> Ціна
-                        </button>
-                    @endif
-                    <button class="bulk-action" wire:click="openGeo">
-                        <x-icon.globe width="13" height="13" /> Гео
-                    </button>
-                    <button class="bulk-action" wire:click="openDuplicate">
-                        <x-icon.copy width="13" height="13" /> Дублювати
-                    </button>
-                    <button class="bulk-action" wire:click="openMove">
-                        <x-icon.share width="13" height="13" /> Перемістити
-                    </button>
-                    @unless ($mixedType)
-                        <button class="bulk-action" wire:click="openAttach">
-                            <x-icon.link width="13" height="13" /> Приєднати резерв
-                        </button>
-                    @endunless
-                    <button class="bulk-action bulk-action--danger" wire:click="bulkDelete">
-                        <x-icon.trash width="13" height="13" /> Видалити
-                    </button>
-                    @if ($mixedType)
-                        <span style="display:inline-flex; align-items:center; gap:5px; font:11.5px var(--font-sans); color:rgba(250,249,246,.55); white-space:nowrap;">
-                            <x-icon.info width="12" height="12" /> значення — оберіть один вид
-                        </span>
-                    @endif
-                @endif
-            </x-ui.bulk-bar>
-        </div>
-    @endif
+    {{-- Bulk actions live in a clean bar at the BOTTOM of the working set (right pane). --}}
 
     <div style="padding:20px 40px 64px; flex:1; overflow-y:auto;">
         <div style="display:grid; grid-template-columns:300px 1fr; gap:18px; align-items:start;">
@@ -394,10 +332,100 @@
                             : '← Оберіть сайт зліва, щоб побачити його записи.' }}
                     </div>
                 @endif
+
+                {{-- Clean action bar pinned to the BOTTOM of the working set (replaces the old dark top bar) --}}
+                @if ($this->hasSelection())
+                    @php
+                        $mixedType = count($selectionEntities) > 1;
+                        $valueHint = $mixedType ? 'Лише для одного виду — обрано: '.implode(' + ', $selectionEntities) : '';
+                        $actStyle = 'height:30px; padding:0 11px; border-radius:8px; border:1px solid var(--ink-3); background:var(--card); color:var(--ink-8); font:12.5px var(--font-sans); cursor:pointer; white-space:nowrap;';
+                        $dangerStyle = $actStyle.' color:var(--bad); border-color:var(--bad-soft);';
+                    @endphp
+                    <div style="position:sticky; bottom:0; display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding:12px 18px; border-top:1px solid var(--ink-3); background:var(--card); box-shadow:0 -6px 14px -10px rgba(0,0,0,.18);">
+                        <span class="mono" style="font:12.5px var(--font-mono); color:var(--ink-8);">{{ $this->selectedCount() }} обрано</span>
+                        @if (! $selectAllMatching && $entries->total() > $this->selectedCount())
+                            <button type="button" wire:click.stop="selectAllFiltered" style="border:0; background:transparent; color:var(--accent); font:12px var(--font-sans); cursor:pointer;">Обрати всі {{ $entries->total() }}</button>
+                        @elseif ($selectAllMatching)
+                            <span style="font:12px var(--font-sans); color:var(--ink-5);">усі {{ $entries->total() }} за фільтром</span>
+                        @endif
+                        <span style="width:1px; height:16px; background:var(--ink-3); margin:0 2px;"></span>
+                        <button type="button" style="{{ $actStyle }}" wire:click="openReview">Огляд</button>
+                        @if ($trashed)
+                            <button type="button" style="{{ $actStyle }}" wire:click="restoreSelected">Відновити</button>
+                            <button type="button" style="{{ $dangerStyle }}" wire:click="purgeSelected" wire:confirm="Видалити обрані записи НАЗАВЖДИ? Це не можна відмінити.">Видалити назавжди</button>
+                        @else
+                            <button type="button" style="{{ $actStyle }}" wire:click="openEdit('value')" @disabled($mixedType) @if ($mixedType) title="{{ $valueHint }}" @endif>Замінити значення</button>
+                            <button type="button" style="{{ $actStyle }}" wire:click="openReplace" @disabled($mixedType) @if ($mixedType) title="{{ $valueHint }}" @endif>Підрядок</button>
+                            <button type="button" style="{{ $actStyle }}" wire:click="openEdit('label')">Мітка</button>
+                            <button type="button" style="{{ $actStyle }}" wire:click="openRole">Стан</button>
+                            @if ($typeFilter === 'price')<button type="button" style="{{ $actStyle }}" wire:click="openPriceEdit">Ціна</button>@endif
+                            <button type="button" style="{{ $actStyle }}" wire:click="openGeo">Гео</button>
+                            <button type="button" style="{{ $actStyle }}" wire:click="openDuplicate">Дублювати</button>
+                            <button type="button" style="{{ $actStyle }}" wire:click="openMove">Перемістити</button>
+                            @unless ($mixedType)<button type="button" style="{{ $actStyle }}" wire:click="openAttach">Приєднати резерв</button>@endunless
+                            <button type="button" style="{{ $dangerStyle }}" wire:click="bulkDelete">Видалити</button>
+                        @endif
+                        <span style="margin-left:auto; display:inline-flex; align-items:center; gap:10px;">
+                            <span style="font:12px var(--font-sans); color:var(--ink-5);">діє лише на {{ $this->selectedCount() }} обрані · з відміною</span>
+                            <button type="button" wire:click.stop="clearSelected" style="border:0; background:transparent; color:var(--ink-5); font:12px var(--font-sans); cursor:pointer;">Зняти виділення</button>
+                        </span>
+                    </div>
+                @endif
             </div>
 
-        </div>
-    </div>
+        </div>{{-- /two-pane grid --}}
+
+        {{-- Persistent "who is whose reserve" panel — primaries with their failover queue --}}
+        @if ($reserveGroups->isNotEmpty())
+            <div style="margin-top:28px;">
+                <div style="display:flex; align-items:baseline; gap:10px; margin-bottom:12px; flex-wrap:wrap;">
+                    <h2 style="font:600 15px var(--font-sans); color:var(--ink-9); margin:0;">Резерви — хто чий</h2>
+                    <span style="font:12px var(--font-sans); color:var(--ink-5);">основний номер і його черга failover · ↑↓ порядок · «зробити основним» від'єднує</span>
+                </div>
+                <div class="card" style="overflow:hidden;">
+                    @foreach ($reserveGroups as $group)
+                        @php
+                            $headVal = $typeFilter === 'price'
+                                ? (rtrim(rtrim(number_format((float) $group->price, 2, '.', ' '), '0'), '.').' '.$group->currency)
+                                : $group->value;
+                            $resCount = $group->backups->count();
+                        @endphp
+                        <div style="padding:14px 18px; border-top:{{ $loop->first ? 'none' : '1px solid var(--ink-3)' }};">
+                            <div style="display:grid; grid-template-columns:14px 1.2fr 1fr 120px 80px; gap:12px; align-items:center;">
+                                @if ($group->role === 'hidden')
+                                    <x-icon.eye-off width="13" height="13" class="state-icon state-icon--hidden" />
+                                @else
+                                    <span class="dot dot-ok"></span>
+                                @endif
+                                <span class="mono" style="font:13.5px var(--font-mono); color:var(--ink-9); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ $headVal }}</span>
+                                <span style="font:12.5px var(--font-sans); color:var(--ink-6); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ $group->label }}</span>
+                                <span class="mono" style="font:11.5px var(--font-mono); color:var(--ink-5); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ $group->site?->name }}</span>
+                                <span style="font:11px var(--font-sans); color:var(--ink-5); text-align:right;">основний</span>
+                            </div>
+                            @foreach ($group->backups as $bi => $b)
+                                <div style="display:grid; grid-template-columns:14px 24px 1.2fr 1fr auto; gap:10px; align-items:center; padding:9px 0 0; margin-top:9px; border-top:1px dashed var(--ink-3);">
+                                    <span style="color:var(--ink-4); text-align:center;">↳</span>
+                                    <span class="mono" style="font:11px var(--font-mono); color:var(--ink-5);">{{ $bi + 1 }}</span>
+                                    <span class="mono" style="font:13px var(--font-mono); color:var(--ink-7); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ $b->value }}</span>
+                                    <span style="display:inline-flex; align-items:center; gap:6px; font:11.5px var(--font-sans); color:var(--info);"><span class="dot dot-info"></span> резерв · гео успадковане</span>
+                                    <span style="display:inline-flex; align-items:center; gap:4px; justify-content:flex-end;">
+                                        <button type="button" wire:click="reorderReserve({{ $b->id }}, 'up')" @disabled($bi === 0)
+                                                style="width:26px; height:26px; border-radius:6px; border:1px solid var(--ink-3); background:var(--card); color:var(--ink-6); cursor:pointer; {{ $bi === 0 ? 'opacity:.4; cursor:default;' : '' }}" title="Підняти">↑</button>
+                                        <button type="button" wire:click="reorderReserve({{ $b->id }}, 'down')" @disabled($bi === $resCount - 1)
+                                                style="width:26px; height:26px; border-radius:6px; border:1px solid var(--ink-3); background:var(--card); color:var(--ink-6); cursor:pointer; {{ $bi === $resCount - 1 ? 'opacity:.4; cursor:default;' : '' }}" title="Опустити">↓</button>
+                                        @can('update', $b)
+                                            <button type="button" wire:click="makePrimary({{ $b->id }})"
+                                                    style="margin-left:4px; height:26px; padding:0 9px; border-radius:6px; border:1px solid var(--ink-3); background:var(--card); color:var(--accent); cursor:pointer; font:11.5px var(--font-sans);" title="Зробити основним">→ основним</button>
+                                        @endcan
+                                    </span>
+                                </div>
+                            @endforeach
+                        </div>
+                    @endforeach
+                </div>
+            </div>
+        @endif
+    </div>{{-- /page padding --}}
 
     {{-- Bulk edit drawer (replace value / change label) --}}
     @if ($editingField)

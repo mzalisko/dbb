@@ -544,6 +544,31 @@ class DataBrowser extends Component
     }
 
     /**
+     * Failover groups for the persistent "who is whose reserve" panel under the
+     * two-pane: only primaries that actually HAVE reserves, for the current type
+     * (+kind), scoped by the site filter when set. Always available (both axes).
+     *
+     * @return \Illuminate\Support\Collection<int, ContactEntry>
+     */
+    protected function reserveGroups()
+    {
+        if ($this->typeFilter === '' || $this->trashed) {
+            return collect();
+        }
+
+        return $this->applyVisibility(ContactEntry::query())
+            ->where('type', $this->typeFilter)
+            ->when($this->kindFilter, fn ($q) => $q->where('kind', $this->kindFilter))
+            ->when($this->siteFilter, fn ($q) => $q->where('site_id', $this->siteFilter))
+            ->whereNull('parent_id')
+            ->whereHas('backups')
+            ->with(['backups' => fn ($q) => $q->orderBy('order'), 'site:id,name'])
+            ->orderBy('site_id')->orderBy('value')
+            ->limit(50)
+            ->get();
+    }
+
+    /**
      * Authorised query for the explicitly-picked ids. Honours trash mode so the
      * review/preview drawers resolve soft-deleted rows when browsing the trash.
      */
@@ -1759,6 +1784,7 @@ class DataBrowser extends Component
             'selectionEntities' => $this->selectionEntityLabels(),
             'valueGroups' => $this->axis === 'value' ? $this->valueGroups() : collect(),
             'siteGroups' => $this->siteFailoverGroups(),
+            'reserveGroups' => $this->reserveGroups(),
         ]);
     }
 }

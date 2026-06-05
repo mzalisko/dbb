@@ -128,6 +128,20 @@ class DataBrowserFinishTest extends TestCase
             ->assertSee('резерв');
     }
 
+    public function test_switching_to_site_axis_auto_picks_a_site_so_groups_show_at_once(): void
+    {
+        $owner = User::factory()->create(['role' => 'owner']);
+        $site = $this->siteForOwner($owner);
+        ContactEntry::factory()->for($site)->phone()->create(['value' => '+MAIN']);
+
+        Livewire::actingAs($owner)
+            ->test(DataBrowser::class, ['typeFilter' => 'phone'])
+            ->assertSet('siteFilter', '')
+            ->set('axis', 'site')
+            ->assertSet('siteFilter', (string) $site->id) // auto-picked — no extra click
+            ->assertSee('+MAIN');                          // failover view shows immediately
+    }
+
     public function test_reorder_reserve_up_swaps_order_and_logs_once(): void
     {
         $owner = User::factory()->create(['role' => 'owner']);

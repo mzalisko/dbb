@@ -192,6 +192,19 @@ class DataBrowser extends Component
         $this->clearSelected();
     }
 
+    public function updatedAxis(): void
+    {
+        // In the site axis the right pane is a per-site failover view, so it needs a
+        // site chosen — auto-pick the first accessible one so the groups show at once
+        // (otherwise the toggle just reveals an "оберіть сайт" prompt and feels empty).
+        if ($this->axis === 'site' && $this->siteFilter === '') {
+            $first = $this->sitesForUser()->first();
+            if ($first) {
+                $this->siteFilter = (string) $first->id;
+            }
+        }
+    }
+
     /** Pick a value-group from the left rail; occurrences narrow to it. */
     public function pickValue(string $value, string $currency = ''): void
     {

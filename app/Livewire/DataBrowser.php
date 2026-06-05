@@ -358,7 +358,7 @@ class DataBrowser extends Component
                 $this->typeFilter === 'price'
                     ? $q->where('price', $this->pickedValue)
                         ->when($this->pickedCurrency !== '', fn ($q2) => $q2->where('currency', $this->pickedCurrency))
-                    : $q->where('value', $this->pickedValue);
+                    : $q->whereRaw('TRIM(`value`) = ?', [$this->pickedValue]); // trim: match whitespace variants too
             });
     }
 
@@ -401,10 +401,13 @@ class DataBrowser extends Component
                 ->limit(200)->get();
         }
 
+        // TRIM so a stray leading/trailing space doesn't split one number into two
+        // rows (e.g. " +380…" vs "+380…"). The pick constraint trims too, so editing
+        // the merged group rewrites — and cleans — every whitespace variant.
         return $base
-            ->select("{$col} as gkey", DB::raw('COUNT(*) as n'), DB::raw('COUNT(DISTINCT site_id) as sites'))
-            ->groupBy($col)
-            ->orderByDesc('n')->orderBy($col)
+            ->selectRaw('TRIM(`value`) as gkey, COUNT(*) as n, COUNT(DISTINCT site_id) as sites')
+            ->groupBy(DB::raw('TRIM(`value`)'))
+            ->orderByDesc('n')->orderBy(DB::raw('TRIM(`value`)'))
             ->limit(200)->get();
     }
 

@@ -186,9 +186,14 @@
                                 ? (rtrim(rtrim(number_format((float) $group->price, 2, '.', ' '), '0'), '.').' '.$group->currency)
                                 : $group->value;
                             $resCount = $group->backups->count();
+                            $headSelected = $selectAllMatching || in_array($group->id, $selected, true);
                         @endphp
                         <div style="border-top:1px solid var(--ink-2); padding:14px 18px;">
-                            <div style="display:grid; grid-template-columns:14px 1.3fr 1fr auto; gap:12px; align-items:center;">
+                            <div wire:click="toggleSelected({{ $group->id }})"
+                                 style="display:grid; grid-template-columns:32px 14px 1.3fr 1fr auto; gap:12px; align-items:center; margin:-6px -8px; padding:6px 8px; border-radius:6px; cursor:pointer; background:{{ $headSelected ? 'var(--accent-soft)' : 'transparent' }};">
+                                <span class="row-check {{ $headSelected ? 'is-checked' : '' }}">
+                                    @if ($headSelected) <x-icon.check width="11" height="11" /> @endif
+                                </span>
                                 @if ($group->role === 'hidden')
                                     <x-icon.eye-off width="13" height="13" class="state-icon state-icon--hidden" />
                                 @else
@@ -200,18 +205,23 @@
                             </div>
 
                             @foreach ($group->backups as $bi => $b)
-                                <div style="display:grid; grid-template-columns:14px 24px 1.3fr 1fr auto; gap:10px; align-items:center; padding:9px 0 0 0; margin-top:9px; border-top:1px dashed var(--ink-3);">
+                                @php $backupSelected = $selectAllMatching || in_array($b->id, $selected, true); @endphp
+                                <div wire:click="toggleSelected({{ $b->id }})"
+                                     style="display:grid; grid-template-columns:32px 14px 24px 1.3fr 1fr auto; gap:10px; align-items:center; padding:9px 8px 0 8px; margin:9px -8px 0 -8px; border-top:1px dashed var(--ink-3); border-radius:6px; cursor:pointer; background:{{ $backupSelected ? 'var(--accent-soft)' : 'transparent' }};">
+                                    <span class="row-check {{ $backupSelected ? 'is-checked' : '' }}">
+                                        @if ($backupSelected) <x-icon.check width="11" height="11" /> @endif
+                                    </span>
                                     <span style="color:var(--ink-4); text-align:center;">↳</span>
                                     <span class="mono" style="font:11px var(--font-mono); color:var(--ink-5);">{{ $bi + 1 }}</span>
                                     <span class="mono" style="font:13px var(--font-mono); color:var(--ink-7); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ $b->value }}</span>
                                     <span style="display:inline-flex; align-items:center; gap:6px; font:11.5px var(--font-sans); color:var(--info);"><span class="dot dot-info"></span> резерв</span>
                                     <span style="display:inline-flex; align-items:center; gap:4px; justify-content:flex-end;">
-                                        <button type="button" wire:click="reorderReserve({{ $b->id }}, 'up')" @disabled($bi === 0)
+                                        <button type="button" wire:click.stop="reorderReserve({{ $b->id }}, 'up')" @disabled($bi === 0)
                                                 style="width:26px; height:26px; border-radius:6px; border:1px solid var(--ink-3); background:var(--card); color:var(--ink-6); cursor:pointer; {{ $bi === 0 ? 'opacity:.4; cursor:default;' : '' }}" title="Підняти">↑</button>
-                                        <button type="button" wire:click="reorderReserve({{ $b->id }}, 'down')" @disabled($bi === $resCount - 1)
+                                        <button type="button" wire:click.stop="reorderReserve({{ $b->id }}, 'down')" @disabled($bi === $resCount - 1)
                                                 style="width:26px; height:26px; border-radius:6px; border:1px solid var(--ink-3); background:var(--card); color:var(--ink-6); cursor:pointer; {{ $bi === $resCount - 1 ? 'opacity:.4; cursor:default;' : '' }}" title="Опустити">↓</button>
                                         @can('update', $b)
-                                            <button type="button" wire:click="makePrimary({{ $b->id }})"
+                                            <button type="button" wire:click.stop="makePrimary({{ $b->id }})"
                                                     style="margin-left:4px; height:26px; padding:0 9px; border-radius:6px; border:1px solid var(--ink-3); background:var(--card); color:var(--accent); cursor:pointer; font:11.5px var(--font-sans);" title="Зробити основним">→ основним</button>
                                         @endcan
                                     </span>

@@ -1,4 +1,17 @@
-<div x-show="tab==='overview'" x-cloak class="tab-pane" x-data="{ overviewSub: @js(($phoneCount + $msgCount) > 0 ? 'contacts' : ($addressCount > 0 ? 'addresses' : ($priceCount > 0 ? 'prices' : ($socialCount > 0 ? 'socials' : ($customCount > 0 ? 'custom' : ''))))) }">
+<div x-show="tab==='overview'" x-cloak class="tab-pane" x-data="{
+    validOverviewSubs: ['contacts', 'addresses', 'prices', 'socials', 'custom'],
+    defaultOverviewSub: @js(($phoneCount + $msgCount) > 0 ? 'contacts' : ($addressCount > 0 ? 'addresses' : ($priceCount > 0 ? 'prices' : ($socialCount > 0 ? 'socials' : ($customCount > 0 ? 'custom' : ''))))),
+    overviewSub: (() => {
+        const p = (location.hash.slice(1) || '').split('/');
+        return p[0] === 'overview' && ['contacts', 'addresses', 'prices', 'socials', 'custom'].includes(p[1])
+            ? p[1]
+            : @js(($phoneCount + $msgCount) > 0 ? 'contacts' : ($addressCount > 0 ? 'addresses' : ($priceCount > 0 ? 'prices' : ($socialCount > 0 ? 'socials' : ($customCount > 0 ? 'custom' : '')))));
+    })(),
+    setOverviewSub(value) {
+        this.overviewSub = value;
+        history.replaceState(null, '', location.pathname + '#overview/' + value);
+    }
+}">
     @php
         $overviewTabs = [
             ['key' => 'contacts', 'label' => 'Контакти', 'count' => $phoneCount + $msgCount, 'show' => ($phoneCount + $msgCount) > 0],
@@ -22,7 +35,7 @@
                 <button type="button"
                         class="overview-subtab"
                         :class="{ 'is-active': overviewSub === '{{ $item['key'] }}' }"
-                        @click="overviewSub = '{{ $item['key'] }}'">
+                        @click="setOverviewSub('{{ $item['key'] }}')">
                     <span>{{ $item['label'] }}</span>
                     <span class="pill-count">{{ $item['count'] }}</span>
                 </button>
@@ -213,9 +226,13 @@
                                                 $kindMeta = $typeKey === 'socials'
                                                     ? (\App\Models\ContactEntry::SOCIAL_KINDS[$entry->kind] ?? null)
                                                     : null;
-                                                $priceValue = $entry->price !== null
-                                                    ? rtrim(rtrim(number_format((float) $entry->price, 2, '.', ' '), '0'), '.')
-                                                    : trim((string) $entry->value);
+                                                $rawPriceValue = trim((string) $entry->value);
+                                                $priceValueUsesCustomText = $rawPriceValue !== '' && $rawPriceValue !== trim((string) $entry->sku);
+                                                $priceValue = $priceValueUsesCustomText
+                                                    ? \App\Support\PriceHtml::text($rawPriceValue)
+                                                    : ($entry->price !== null
+                                                        ? rtrim(rtrim(number_format((float) $entry->price, 2, '.', ' '), '0'), '.')
+                                                        : '');
                                                 $oldPrice = $entry->old_price !== null
                                                     ? rtrim(rtrim(number_format((float) $entry->old_price, 2, '.', ' '), '0'), '.')
                                                     : null;
@@ -224,7 +241,7 @@
                                                 @if($typeKey === 'prices')
                                                     <div class="ov-val ov-price-line">
                                                         <span>{{ $priceValue ?: '—' }}</span>
-                                                        @if($entry->currency)
+                                                        @if(!$priceValueUsesCustomText && $entry->currency)
                                                             <span>{{ $entry->currency }}</span>
                                                         @endif
                                                         @if($oldPrice)

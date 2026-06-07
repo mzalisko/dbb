@@ -7,6 +7,7 @@ use App\Models\ContactEntry;
 use App\Models\Site;
 use App\Services\ActivityLogService;
 use App\Services\BulkActionService;
+use App\Services\SitePluginSyncService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -462,6 +463,7 @@ class DataBrowser extends Component
             'value'   => $entry->value,
             'from'    => $parent?->value,
         ]);
+        $this->syncSites([(int) $entry->site_id]);
         $this->dispatch('toast', type: 'success', message: 'Переведено в основні');
     }
 
@@ -518,6 +520,7 @@ class DataBrowser extends Component
             'scope'   => 'reserves',
             'count'   => count($ids),
         ]);
+        $this->syncSites([(int) $entry->site_id]);
     }
 
     /**
@@ -761,6 +764,7 @@ class DataBrowser extends Component
                 $e->update([$field => $new]);
             },
             auditAction: 'entry.bulk.updated',
+            syncTouchedSites: true,
         );
 
         $this->closeEdit();
@@ -858,6 +862,7 @@ class DataBrowser extends Component
                 $e->update($data);
             },
             auditAction: 'entry.bulk.role',
+            syncTouchedSites: true,
         );
 
         $this->closeRole();
@@ -985,6 +990,7 @@ class DataBrowser extends Component
                 $e->update([$field => $value]);
             },
             auditAction: 'entry.bulk.price',
+            syncTouchedSites: true,
         );
 
         $this->closePriceEdit();
@@ -1096,6 +1102,7 @@ class DataBrowser extends Component
                 $changed++;
             },
             auditAction: 'entry.bulk.updated',
+            syncTouchedSites: true,
         );
 
         if ($changed === 0) {
@@ -1180,6 +1187,7 @@ class DataBrowser extends Component
                 ]);
             },
             auditAction: 'entry.bulk.geo',
+            syncTouchedSites: true,
         );
 
         $this->closeGeo();
@@ -1243,6 +1251,7 @@ class DataBrowser extends Component
                 $deleted[] = $e->id;
             },
             auditAction: 'entry.bulk.deleted',
+            syncTouchedSites: true,
         );
 
         $this->clearSelected();
@@ -1273,6 +1282,7 @@ class DataBrowser extends Component
             fn (ContactEntry $e) => $e->restore(),
             withTrashed: true,
             auditAction: 'entry.bulk.restored',
+            syncTouchedSites: true,
         );
 
         $this->dispatch('toast', type: 'success', message: "Відновлено {$result['done']}");
@@ -1289,6 +1299,7 @@ class DataBrowser extends Component
             fn (ContactEntry $e) => $e->restore(),
             withTrashed: true,
             auditAction: 'entry.bulk.restored',
+            syncTouchedSites: true,
         );
 
         $this->clearSelected();
@@ -1305,6 +1316,7 @@ class DataBrowser extends Component
             fn (ContactEntry $e) => $e->forceDelete(),
             withTrashed: true,
             auditAction: 'entry.bulk.purged',
+            syncTouchedSites: true,
         );
 
         $this->clearSelected();
@@ -1378,6 +1390,7 @@ class DataBrowser extends Component
 
         if ($created) {
             ActivityLogService::log('entry.bulk.created', null, ['done' => count($created), 'targets' => count($targets)], context: 'bulk');
+            $this->syncSites($targets);
         }
 
         $this->closeDuplicate();
@@ -1427,20 +1440,23 @@ class DataBrowser extends Component
         $user = Auth::user();
         $snapshot = [];   // id => previous site_id
         $done = 0;
+        $touchedSiteIds = [$target];
 
         ContactEntry::disableAuditing();
         try {
-            $this->selectedSourceQuery()->with('backups')->chunkById(500, function ($rows) use ($target, $user, &$snapshot, &$done) {
+            $this->selectedSourceQuery()->with('backups')->chunkById(500, function ($rows) use ($target, $user, &$snapshot, &$done, &$touchedSiteIds) {
                 foreach ($rows as $e) {
                     if (! $user || ! $user->can('update', $e) || $e->site_id === $target) {
                         continue;
                     }
                     $snapshot[$e->id] = $e->site_id;
+                    $touchedSiteIds[] = (int) $e->site_id;
                     $e->update(['site_id' => $target]);
                     // A primary takes its reserves along so the group stays on one site.
                     if (is_null($e->parent_id)) {
                         foreach ($e->backups as $b) {
                             $snapshot[$b->id] = $b->site_id;
+                            $touchedSiteIds[] = (int) $b->site_id;
                             $b->update(['site_id' => $target]);
                         }
                     }
@@ -1453,6 +1469,7 @@ class DataBrowser extends Component
 
         if ($done > 0) {
             ActivityLogService::log('entry.bulk.moved', null, ['done' => $done, 'site_id' => $target], context: 'bulk');
+            $this->syncSites($touchedSiteIds);
         }
 
         $this->closeMove();
@@ -1558,6 +1575,7 @@ class DataBrowser extends Component
         }
 
         ActivityLogService::log('entry.bulk.created', null, ['done' => count($created), 'type' => $type], context: 'bulk');
+        $this->syncSites($targets);
 
         $this->closeCreate();
 
@@ -1656,6 +1674,7 @@ class DataBrowser extends Component
 
         if ($done > 0) {
             ActivityLogService::log('entry.bulk.attached', null, ['done' => $done, 'parent_id' => $parent->id], context: 'bulk');
+            $this->syncSites([(int) $parent->site_id]);
         }
 
         $this->closeAttach();
@@ -1682,11 +1701,13 @@ class DataBrowser extends Component
     public function bulkPurgeCreated(array $ids): void
     {
         $user = Auth::user();
+        $siteIds = ContactEntry::whereIn('id', $ids)->pluck('site_id')->map(fn ($id) => (int) $id)->all();
         ContactEntry::whereIn('id', $ids)->get()->each(function (ContactEntry $e) use ($user) {
             if ($user && $user->can('delete', $e)) {
                 $e->forceDelete();
             }
         });
+        $this->syncSites($siteIds);
 
         $this->dispatch('toast', type: 'success', message: 'Скасовано');
     }
@@ -1698,12 +1719,15 @@ class DataBrowser extends Component
             return;
         }
         $user = Auth::user();
+        $siteIds = array_values(array_map('intval', array_values($snapshot)));
         ContactEntry::withTrashed()->whereIn('id', array_keys($snapshot))->get()
-            ->each(function (ContactEntry $e) use ($snapshot, $user) {
+            ->each(function (ContactEntry $e) use ($snapshot, $user, &$siteIds) {
                 if ($user && $user->can('update', $e)) {
+                    $siteIds[] = (int) $e->site_id;
                     $e->update(['site_id' => $snapshot[$e->id]]);
                 }
             });
+        $this->syncSites($siteIds);
 
         $this->dispatch('toast', type: 'success', message: 'Повернено');
     }
@@ -1741,6 +1765,25 @@ class DataBrowser extends Component
     private function withSkipped(string $message, int $skipped): string
     {
         return $skipped > 0 ? "{$message} • {$skipped} пропущено" : $message;
+    }
+
+    private function syncSites(array $siteIds): void
+    {
+        $user = Auth::user();
+        $siteIds = array_values(array_unique(array_filter(array_map('intval', $siteIds))));
+        if (empty($siteIds)) {
+            return;
+        }
+
+        $allowed = Site::query()
+            ->whereIn('id', $siteIds)
+            ->get()
+            ->filter(fn (Site $site) => $user && $user->can('update', $site))
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+
+        app(SitePluginSyncService::class)->syncMany($allowed);
     }
 
     public function render()

@@ -34,7 +34,7 @@ class DatabaseSeeder extends Seeder
         $owner = User::updateOrCreate(
             ['email' => 'admin@databridge.app'],
             [
-                'name'              => 'Admin',
+                'name'              => 'AA Admin',
                 'password'          => 'password',
                 'role'              => 'owner',
                 'organization_name' => 'DataBridge Agency',
@@ -42,13 +42,9 @@ class DatabaseSeeder extends Seeder
             ]
         );
 
-        User::whereIn('email', [
-            'ivan@databridge.app',
-            'olha@databridge.app',
-            'sam@databridge.app',
-            'dmytro@databridge.app',
-        ])->delete();
+        User::where('id', '!=', $owner->id)->delete();
 
+        /*
         $ivan = User::create([
             'name'              => 'Іван Петренко',
             'email'             => 'ivan@databridge.app',
@@ -86,6 +82,7 @@ class DatabaseSeeder extends Seeder
         ]);
 
         // ── Clients ──────────────────────────────────────────
+        */
         $nordwave = Client::create([
             'user_id'       => $owner->id,
             'company_name'  => 'NordWave Digital',
@@ -97,7 +94,7 @@ class DatabaseSeeder extends Seeder
         ]);
 
         $apex = Client::create([
-            'user_id'       => $ivan->id,
+            'user_id'       => $owner->id,
             'company_name'  => 'Apex Commerce GmbH',
             'contact_name'  => 'Mark Schmidt',
             'contact_email' => 'mark@apex-shop.com',
@@ -107,7 +104,7 @@ class DatabaseSeeder extends Seeder
         ]);
 
         $lumen = Client::create([
-            'user_id'       => $olha->id,
+            'user_id'       => $owner->id,
             'company_name'  => 'Lumen Digital Solutions',
             'contact_name'  => 'Andriy Lumen',
             'contact_email' => 'andriy@lumen-io.com',
@@ -127,7 +124,7 @@ class DatabaseSeeder extends Seeder
         ]);
 
         $northgate = Client::create([
-            'user_id'       => $sam->id,
+            'user_id'       => $owner->id,
             'company_name'  => 'NorthGate Retail',
             'contact_name'  => 'Serhiy Boyko',
             'contact_email' => 'serhiy@northgate.shop',
@@ -147,7 +144,7 @@ class DatabaseSeeder extends Seeder
         ]);
 
         $voltway = Client::create([
-            'user_id'       => $ivan->id,
+            'user_id'       => $owner->id,
             'company_name'  => 'VoltWay Innovations',
             'contact_name'  => 'Volt Founder',
             'contact_email' => 'hello@voltway.pro',
@@ -157,7 +154,7 @@ class DatabaseSeeder extends Seeder
         ]);
 
         $stone = Client::create([
-            'user_id'       => $olha->id,
+            'user_id'       => $owner->id,
             'company_name'  => 'StoneWorks Creative',
             'contact_name'  => 'Petro Stone',
             'contact_email' => 'petro@stoneworks.dev',
@@ -279,14 +276,14 @@ class DatabaseSeeder extends Seeder
             ['user_id' => null,        'action' => 'sync failed',    'subject_type' => Site::class,   'subject_id' => 3, 'created_at' => now()->subMinutes(18)],
             ['user_id' => $owner->id,  'action' => 'push success',   'subject_type' => Site::class,   'subject_id' => 2, 'created_at' => now()->subMinutes(30)],
             ['user_id' => null,        'action' => 'sync ok',        'subject_type' => Site::class,   'subject_id' => 7, 'created_at' => now()->subMinutes(45)],
-            ['user_id' => $olha->id,   'action' => 'push success',   'subject_type' => Site::class,   'subject_id' => 4, 'created_at' => now()->subHours(1)],
+            ['user_id' => $owner->id,  'action' => 'push success',   'subject_type' => Site::class,   'subject_id' => 4, 'created_at' => now()->subHours(1)],
             ['user_id' => null,        'action' => 'push success',   'subject_type' => Site::class,   'subject_id' => 5, 'created_at' => now()->subHours(1)->subMinutes(6)],
             ['user_id' => null,        'action' => 'sync timeout',   'subject_type' => Site::class,   'subject_id' => 3, 'created_at' => now()->subHours(1)->subMinutes(12)],
-            ['user_id' => $ivan->id,   'action' => 'client created', 'subject_type' => Client::class, 'subject_id' => 2, 'created_at' => now()->subHours(2)],
+            ['user_id' => $owner->id,  'action' => 'client created', 'subject_type' => Client::class, 'subject_id' => 2, 'created_at' => now()->subHours(2)],
             ['user_id' => $owner->id,  'action' => 'site created',   'subject_type' => Site::class,   'subject_id' => 1, 'created_at' => now()->subHours(3)],
-            ['user_id' => $olha->id,   'action' => 'client created', 'subject_type' => Client::class, 'subject_id' => 3, 'created_at' => now()->subHours(4)],
+            ['user_id' => $owner->id,  'action' => 'client created', 'subject_type' => Client::class, 'subject_id' => 3, 'created_at' => now()->subHours(4)],
             ['user_id' => $owner->id,  'action' => 'push success',   'subject_type' => Site::class,   'subject_id' => 6, 'created_at' => now()->subHours(5)],
-            ['user_id' => $sam->id,    'action' => 'client created', 'subject_type' => Client::class, 'subject_id' => 5, 'created_at' => now()->subHours(6)],
+            ['user_id' => $owner->id,  'action' => 'client created', 'subject_type' => Client::class, 'subject_id' => 5, 'created_at' => now()->subHours(6)],
         ];
 
         foreach ($logs as $log) {

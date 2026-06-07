@@ -70,7 +70,7 @@
 
             @foreach($prices as $j => $price)
                 @php
-                    $priceText = $formatPriceText($price);
+                    $priceText = \App\Support\PriceHtml::text($formatPriceText($price));
                 @endphp
                 <div wire:click="editEntry({{ $price->id }})" class="price-row">
                     <span class="price-row__index">{{ $j + 1 }}</span>

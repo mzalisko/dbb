@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\ContactEntry;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
 
@@ -32,6 +33,7 @@ class BulkActionService
         \Closure $action,
         bool $withTrashed = false,
         ?string $auditAction = null,
+        bool $syncTouchedSites = false,
     ): array {
         if (empty($ids)) {
             return ['done' => 0, 'skipped' => 0, 'batch_id' => null];
@@ -41,6 +43,7 @@ class BulkActionService
         $user = Auth::user();
         $done = 0;
         $skipped = 0;
+        $touchedSiteIds = [];
 
         // Suppress per-row model audits — the batch is one event, not N.
         // owen-it toggles auditing via a static on the auditable model class.
@@ -51,13 +54,27 @@ class BulkActionService
                 $query->withTrashed();
             }
 
-            $query->whereIn('id', $ids)->chunkById(500, function ($models) use (&$done, &$skipped, $ability, $action, $user) {
+            $query->whereIn('id', $ids)->chunkById(500, function ($models) use (&$done, &$skipped, &$touchedSiteIds, $ability, $action, $user, $syncTouchedSites) {
                 foreach ($models as $model) {
                     if ($ability !== null && (! $user || ! $user->can($ability, $model))) {
                         $skipped++;
                         continue;
                     }
+                    $beforeSiteId = $model instanceof ContactEntry ? (int) $model->site_id : null;
+                    $beforeDeleted = $model instanceof ContactEntry && method_exists($model, 'trashed') ? $model->trashed() : false;
                     $action($model);
+                    if ($syncTouchedSites && $model instanceof ContactEntry) {
+                        $afterSiteId = (int) ($model->site_id ?? $beforeSiteId);
+                        $afterDeleted = method_exists($model, 'trashed') ? $model->trashed() : false;
+                        if ($model->wasChanged() || $beforeDeleted !== $afterDeleted || ! $model->exists) {
+                            if ($beforeSiteId) {
+                                $touchedSiteIds[] = $beforeSiteId;
+                            }
+                            if ($afterSiteId) {
+                                $touchedSiteIds[] = $afterSiteId;
+                            }
+                        }
+                    }
                     $done++;
                 }
             });
@@ -74,6 +91,10 @@ class BulkActionService
                 'count'      => count($ids),
                 'ids_sample' => array_slice(array_values($ids), 0, 20),
             ], batchId: $batchId, context: 'bulk');
+        }
+
+        if ($syncTouchedSites && ! empty($touchedSiteIds)) {
+            app(SitePluginSyncService::class)->syncMany($touchedSiteIds);
         }
 
         return ['done' => $done, 'skipped' => $skipped, 'batch_id' => $batchId];

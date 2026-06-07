@@ -55,8 +55,10 @@
      ">
 
     <x-ui.topbar :crumbs="['Сайти', $site->name]" :back="true" :back-href="route('sites.index')">
-        <button class="btn btn-ghost btn-sm">
-            <x-icon.refresh width="13" height="13" /> Sync
+        <button class="btn btn-ghost btn-sm" wire:click="syncSite" wire:loading.attr="disabled" wire:target="syncSite">
+            <x-icon.refresh width="13" height="13" />
+            <span wire:loading.remove wire:target="syncSite">Sync</span>
+            <span wire:loading wire:target="syncSite">Sync...</span>
         </button>
         <button class="btn btn-primary btn-sm"
                 x-show="tab === 'data' && cat"

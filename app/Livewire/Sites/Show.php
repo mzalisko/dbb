@@ -7,6 +7,8 @@ use App\Models\ActivityLog;
 use App\Models\ContactEntry;
 use App\Models\SiteGroup;
 use App\Services\ActivityLogService;
+use App\Services\SitePluginSyncService;
+use App\Support\PriceHtml;
 use Livewire\Component;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Title;
@@ -15,6 +17,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Pagination\LengthAwarePaginator;
 use OwenIt\Auditing\Models\Audit;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 
 #[Layout('components.layouts.app')]
 #[Title('Сайт')]
@@ -141,6 +144,234 @@ class Show extends Component
         $this->siteGroupId = (string) (SiteGroup::query()
             ->where('name', $this->site->group)
             ->value('id') ?? '');
+    }
+
+    public function syncSite(bool $quiet = false): bool
+    {
+        $this->authorize('update', $this->site);
+
+        if (! $this->site->url || ! $this->site->api_key) {
+            if (! $quiet) {
+                $this->dispatch('toast', type: 'error', message: 'Для синхронізації потрібні URL сайту і API ключ.');
+            }
+            return false;
+        }
+
+        $ok = app(SitePluginSyncService::class)->sync($this->site);
+
+        $this->site->refresh();
+        if (! $quiet) {
+            $this->dispatch('toast', type: $ok ? 'success' : 'error', message: $ok
+                ? 'Дані відправлено в плагін.'
+                : ($this->site->status === 'maintenance' ? base64_decode('0KHQsNC50YIg0L3QsCDQv9Cw0YPQt9GWOiDQtNCw0L3RliDQvdC1INCy0ZbQtNC/0YDQsNCy0LvQtdC90L4g0LIg0L/Qu9Cw0LPRltC9Lg==') : 'Sync не вдався.'));
+        }
+
+        return $ok;
+    }
+
+    private function pushPluginStatus(bool $quiet = false): bool
+    {
+        if (! $this->site->url || ! $this->site->api_key) {
+            return false;
+        }
+
+        $statusUrl = $this->pluginEndpoint('status');
+        $payload = [
+            'site' => [
+                'id' => $this->site->id,
+                'name' => $this->site->name,
+                'url' => $this->site->url,
+                'domain' => parse_url((string) $this->site->url, PHP_URL_HOST) ?: $this->site->name,
+                'status' => $this->site->status,
+            ],
+            'version' => 'crm-site-status-' . $this->site->id . '-' . now()->format('YmdHis'),
+        ];
+
+        try {
+            $response = Http::timeout(8)
+                ->acceptJson()
+                ->asJson()
+                ->withHeaders(['X-DataBridge-Key' => $this->site->api_key])
+                ->post($statusUrl, $payload);
+        } catch (\Throwable $e) {
+            ActivityLogService::log('site.status_sync.failed', $this->site, [
+                'endpoint' => $statusUrl,
+                'error' => $e->getMessage(),
+            ], context: 'sync');
+
+            return false;
+        }
+
+        if (! $response->successful() || ! ($response->json('ok') ?? false)) {
+            ActivityLogService::log('site.status_sync.failed', $this->site, [
+                'endpoint' => $statusUrl,
+                'status' => $response->status(),
+                'body' => mb_substr($response->body(), 0, 500),
+            ], context: 'sync');
+
+            return false;
+        }
+
+        ActivityLogService::log('site.status_synced', $this->site, [
+            'endpoint' => $statusUrl,
+            'status' => $this->site->status,
+            'version' => $payload['version'],
+        ], context: 'sync');
+
+        return true;
+    }
+
+    private function pluginEndpoint(string $route): string
+    {
+        $base = rtrim($this->serverReachableSiteUrl(), '/');
+
+        return $base . '/wp-json/databridge/v1/' . ltrim($route, '/');
+    }
+
+    private function serverReachableSiteUrl(): string
+    {
+        $url = trim((string) $this->site->url);
+        $parts = parse_url($url);
+
+        if (! is_array($parts) || empty($parts['host'])) {
+            return $url;
+        }
+
+        $host = strtolower((string) $parts['host']);
+        if (! in_array($host, ['localhost', '127.0.0.1'], true)) {
+            return $url;
+        }
+
+        $scheme = $parts['scheme'] ?? 'http';
+        $port = isset($parts['port']) ? ':' . $parts['port'] : '';
+        $path = rtrim($parts['path'] ?? '', '/');
+
+        return "{$scheme}://host.docker.internal{$port}{$path}";
+    }
+
+    private function refreshPluginSnapshot(): void
+    {
+        try {
+            $snapshot = Http::timeout(8)
+                ->acceptJson()
+                ->withHeaders(['X-DataBridge-Key' => $this->site->api_key])
+                ->get($this->pluginEndpoint('snapshot'));
+        } catch (\Throwable) {
+            $this->site->forceFill(['last_checked_at' => now()])->save();
+            return;
+        }
+
+        $data = $snapshot->json();
+        $this->site->forceFill([
+            'wp_version' => $data['wordpress']['version'] ?? $this->site->wp_version,
+            'php_version' => $data['wordpress']['php_version'] ?? $this->site->php_version,
+            'status' => $snapshot->successful() ? 'active' : $this->site->status,
+            'last_checked_at' => now(),
+        ])->save();
+    }
+
+    private function buildPluginPayload(): array
+    {
+        $entries = $this->site->contactEntries()
+            ->orderBy('type')
+            ->orderBy('order')
+            ->get();
+
+        $phones = $entries->where('type', 'phone')->map(fn (ContactEntry $entry) => $this->entryPayload($entry))->values()->all();
+        $messengers = $entries->where('type', 'messenger')->map(fn (ContactEntry $entry) => $this->entryPayload($entry))->values()->all();
+        $prices = $entries->where('type', 'price')->map(fn (ContactEntry $entry) => $this->entryPayload($entry))->values()->all();
+
+        return [
+            'site' => [
+                'id' => $this->site->id,
+                'name' => $this->site->name,
+                'url' => $this->site->url,
+                'domain' => parse_url((string) $this->site->url, PHP_URL_HOST) ?: $this->site->name,
+                'status' => $this->site->status,
+            ],
+            'workspace' => [
+                'name' => config('app.name', 'DataBridge'),
+            ],
+            'contacts' => [
+                'phones' => $phones,
+                'messengers' => $messengers,
+            ],
+            'prices' => $prices,
+            'settings' => [
+                'geo_tabs' => $this->site->geo_tabs ?? $this->geoTabs,
+                'data_categories' => $this->site->data_categories ?? $this->dataCategories,
+            ],
+            'version' => 'crm-site-' . $this->site->id . '-' . now()->format('YmdHis'),
+        ];
+    }
+
+    private function entryPayload(ContactEntry $entry): array
+    {
+        $geoOwner = $entry->geoOwner();
+        $countries = collect($geoOwner->countries ?? [])
+            ->map(fn ($code) => strtoupper(trim((string) $code)))
+            ->filter()
+            ->values()
+            ->all();
+        if (empty($countries) && $geoOwner->geo_tag) {
+            $countries[] = strtoupper((string) $geoOwner->geo_tag);
+        }
+        $geoMode = $geoOwner->geo_mode ?: 'all';
+
+        $payload = [
+            'id' => $entry->id,
+            'type' => $entry->type,
+            'kind' => $entry->kind,
+            'value' => trim((string) $entry->value),
+            'text' => trim((string) $entry->value),
+            'label' => (string) ($entry->label ?? ''),
+            'role' => $entry->role,
+            'reserve' => $entry->role === 'backup' || $entry->parent_id !== null,
+            'parent_id' => $entry->parent_id,
+            'order' => $entry->order,
+            'visible' => (bool) $entry->visible,
+            'failover_down' => (bool) $entry->failover_down,
+            'geoMode' => $geoMode,
+            'geo_mode' => $geoMode,
+            'countries' => $countries,
+            'geoLabel' => $geoOwner->geo_label,
+        ];
+
+        if ($entry->type === 'messenger') {
+            $payload['link'] = $this->messengerLink($entry);
+        }
+
+        if ($entry->type === 'price') {
+            $priceHtml = PriceHtml::clean((string) $entry->value);
+            $priceText = PriceHtml::text($priceHtml);
+            $payload['value'] = $priceHtml;
+            $payload['text'] = $priceHtml;
+            $payload['plain_text'] = $priceText;
+            $payload['code'] = $entry->sku ?: $entry->label ?: $priceText;
+            $payload['sku'] = $entry->sku ?: $entry->label ?: $priceText;
+            $payload['currency'] = $entry->currency;
+            $payload['amount'] = $entry->price;
+            $payload['old_amount'] = $entry->old_price;
+            $payload['unit'] = $entry->price_unit;
+        }
+
+        return $payload;
+    }
+
+    private function messengerLink(ContactEntry $entry): string
+    {
+        $value = trim((string) $entry->value);
+        if (preg_match('~^https?://~i', $value)) {
+            return $value;
+        }
+
+        return match ($entry->kind) {
+            'telegram' => 'https://t.me/' . ltrim($value, '@'),
+            'whatsapp' => 'https://wa.me/' . preg_replace('/\D+/', '', $value),
+            'viber' => 'viber://chat?number=' . preg_replace('/\D+/', '', $value),
+            'messenger' => str_starts_with($value, 'm.me/') ? 'https://' . $value : 'https://m.me/' . ltrim($value, '@/'),
+            default => $value,
+        };
     }
 
     private function normalizeGeoTabs(?array $tabs): array
@@ -386,6 +617,26 @@ class Show extends Component
         return $entries->filter(fn($e) => $this->entryPreviewTag($e) === $geo)->values();
     }
 
+    private function filterByOverviewBucket(Collection $entries, string $geo): Collection
+    {
+        if ($geo === 'all') {
+            return $entries
+                ->filter(fn($e) => in_array($e->geo_mode, ['all', 'except'], true))
+                ->values();
+        }
+
+        return $entries
+            ->filter(fn($e) => $e->geo_mode === 'only' && $e->visibleForGeo($geo))
+            ->values();
+    }
+
+    private function filterByVisitorGeo(Collection $entries, string $geo): Collection
+    {
+        $visitorGeo = $geo === 'all' ? 'world' : $geo;
+
+        return $entries->filter(fn($e) => $e->visibleForGeo($visitorGeo))->values();
+    }
+
     private function entryPreviewTag(\App\Models\ContactEntry $entry): ?string
     {
         if ($entry->geo_tag) {
@@ -474,6 +725,8 @@ class Show extends Component
             'geo' => $after?->preview_geo_label ?? $head?->preview_geo_label,
             'kind' => $entry->type, 'mode' => $mode, 'cause' => $cause, 'ok' => true,
         ]);
+
+        $this->syncSite(true);
 
         $this->dispatch('phones-updated');
         $this->dispatch('messengers-updated');
@@ -605,6 +858,10 @@ class Show extends Component
         }
 
         $this->validate($rules);
+
+        if ($this->entryType === 'price') {
+            $this->entryValue = PriceHtml::clean($this->entryValue);
+        }
 
         $requiredAction = $this->editEntryId ? 'edit' : 'create';
         if (! $this->canEntryType($this->entryType, $requiredAction)) {
@@ -1085,6 +1342,7 @@ class Show extends Component
         $this->authorize('update', $this->site);
         $this->site->update(['status' => $status]);
         $this->site = $this->site->fresh('client');
+        $this->pushPluginStatus(true);
         $this->dispatch('toast', type: 'success', message: 'Стан сайту оновлено');
     }
 
@@ -1586,8 +1844,8 @@ class Show extends Component
         $overviewByGeo['all']['label'] = "\u{0412}\u{0441}\u{0456}";
         // One column per geoTab — tag-based
         foreach ($this->geoTabs as $geoCode) {
-            $fp = $this->filterByGeoTag($activePhones, $geoCode);
-            $fm = $this->filterByGeoTag($activeMsgs,   $geoCode);
+            $fp = $this->filterByVisitorGeo($activePhones, $geoCode);
+            $fm = $this->filterByVisitorGeo($activeMsgs,   $geoCode);
             $overviewByGeo[$geoCode] = [
                 'label'        => $geoCode,
                 'phones'       => $fp->values(),
@@ -1687,7 +1945,7 @@ class Show extends Component
 
         // Prices
         $allPrices = $canPrices
-            ? $this->site->contactEntries()->where('type', 'price')->where('visible', true)->get()
+            ? $this->site->contactEntries()->where('type', 'price')->get()
             : collect();
         $priceBySku = $allPrices->groupBy('sku');
         $allCustomAll = $canCustom
@@ -1697,10 +1955,10 @@ class Show extends Component
         foreach (array_merge(['all'], $this->geoTabs) as $gk) {
             $overviewExtrasByGeo[$gk] = [
                 'label' => $gk === 'all' ? "\u{0412}\u{0441}\u{0456}" : $gk,
-                'addresses' => $this->filterByPreviewTab($allAddressesAll, $gk)->filter(fn($e) => $e->visible)->values(),
-                'prices' => $this->filterByPreviewTab($allPricesAll, $gk)->filter(fn($e) => $e->visible)->values(),
-                'socials' => $this->filterByPreviewTab($allSocialsAll, $gk)->filter(fn($e) => $e->visible)->values(),
-                'custom' => $this->filterByPreviewTab($allCustomAll, $gk)->filter(fn($e) => $e->visible)->values(),
+                'addresses' => $this->filterByOverviewBucket($allAddressesAll, $gk)->filter(fn($e) => $e->visible)->values(),
+                'prices' => $this->filterByOverviewBucket($allPricesAll, $gk)->values(),
+                'socials' => $this->filterByOverviewBucket($allSocialsAll, $gk)->filter(fn($e) => $e->visible)->values(),
+                'custom' => $this->filterByOverviewBucket($allCustomAll, $gk)->filter(fn($e) => $e->visible)->values(),
             ];
         }
 
@@ -1756,7 +2014,7 @@ class Show extends Component
         // Counts
         $phoneCount = $allPhones->count();
         $msgCount   = $allMsgs->count();
-        $priceCount = $allPrices->count();
+        $priceCount = $priceBySkuAll->count();
 
         $geoTabs = $this->geoTabs;
         $messengerKinds = $this->messengerKinds;

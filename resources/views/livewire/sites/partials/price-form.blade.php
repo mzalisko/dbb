@@ -10,7 +10,8 @@
 
     <div>
         <label class="label">Текст ціни</label>
-        <input class="input mono" wire:model="entryValue" placeholder="напр. 3000, 3000грн, 3000с">
+        <input class="input mono" wire:model="entryValue" placeholder="напр. 3000, 3000грн, 3000 &lt;span class=&quot;price-currency&quot;&gt;EUR&lt;/span&gt;">
+        <p class="field-hint">HTML видно при редагуванні, створенні і на фронтенді. В оглядах CRM показується текст без тегів. Дозволено: span class, b, strong, i, em, small, sup, sub, br.</p>
         @error('entryValue') <div class="field-error">{{ $message }}</div> @enderror
     </div>
 

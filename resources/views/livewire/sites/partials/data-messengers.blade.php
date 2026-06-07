@@ -77,6 +77,7 @@
         <span></span>
         <span>Контакт</span>
         <span>Мітка</span>
+        <span>Приналежність</span>
         <span>Гео</span>
         <span>Роль</span>
         <span></span>
@@ -100,6 +101,7 @@
                     </span>
                     <span class="mono failover-value" style="{{ $isDown ? 'text-decoration:line-through; color:var(--ink-5);' : '' }}">{{ $msg->value }}</span>
                     <span class="failover-label">{{ $msg->label ?: $k['label'] }}</span>
+                    <span class="failover-owner">{{ $msg->preview_geo_label ?: '—' }}</span>
                     <span class="failover-geo">{{ $msg->geo_label }}</span>
                     <span class="failover-role">
                         @if($isDown)
@@ -137,6 +139,7 @@
                             </span>
                             <span class="mono failover-value failover-value--sub" style="{{ $backup->failover_down ? 'text-decoration:line-through;' : '' }}">{{ $backup->value }}</span>
                             <span class="failover-label failover-label--muted">{{ $backup->label ?: 'резерв · ' . $bk['label'] }}</span>
+                            <span class="failover-owner">{{ $backup->preview_geo_label ?: '—' }}</span>
                             <span class="failover-geo">{{ $msg->geo_label }}</span>
                             <span class="failover-role failover-role--muted">Резерв</span>
                             <span class="failover-actions">
@@ -174,6 +177,7 @@
             </span>
             <span class="mono failover-value failover-value--sub">{{ $msg->value }}</span>
             <span class="failover-label failover-label--muted">{{ $msg->label ?: $k['label'] }}</span>
+            <span class="failover-owner">{{ $msg->preview_geo_label ?: '—' }}</span>
             <span class="failover-geo">{{ $msg->geo_label }}</span>
             <span class="failover-role failover-role--muted">Приховано</span>
             <span class="failover-actions">

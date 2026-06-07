@@ -4,6 +4,7 @@
         <span></span>
         <span>Номер</span>
         <span>Мітка</span>
+        <span>Приналежність</span>
         <span>Гео</span>
         <span>Роль</span>
         <span></span>
@@ -20,6 +21,7 @@
                     <span class="failover-dot {{ $isDown ? 'failover-dot--bad' : '' }}"></span>
                     <span class="mono failover-value" style="{{ $isDown ? 'text-decoration:line-through; color:var(--ink-5);' : '' }}">{{ $phone->value }}</span>
                     <span class="failover-label">{{ $phone->label ?: 'Без мітки' }}</span>
+                    <span class="failover-owner">{{ $phone->preview_geo_label ?: '—' }}</span>
                     <span class="failover-geo">{{ $phone->geo_label }}</span>
                     <span class="failover-role">
                         @if($isDown)
@@ -60,6 +62,7 @@
                             </span>
                             <span class="mono failover-value failover-value--sub" style="{{ $backup->failover_down ? 'text-decoration:line-through;' : '' }}">{{ $backup->value }}</span>
                             <span class="failover-label failover-label--muted">{{ $backup->label ?: 'резерв · гео успадковане' }}</span>
+                            <span class="failover-owner">{{ $backup->preview_geo_label ?: '—' }}</span>
                             <span class="failover-geo">{{ $phone->geo_label }}</span>
                             <span class="failover-role failover-role--muted">Резерв</span>
                             <span class="failover-actions">
@@ -90,6 +93,7 @@
             <span class="failover-dot failover-dot--muted"></span>
             <span class="mono failover-value failover-value--sub">{{ $phone->value }}</span>
             <span class="failover-label failover-label--muted">{{ $phone->label ?: 'Без мітки' }}</span>
+            <span class="failover-owner">{{ $phone->preview_geo_label ?: '—' }}</span>
             <span class="failover-geo">{{ $phone->geo_label }}</span>
             <span class="failover-role failover-role--muted">Приховано</span>
             <span class="failover-actions">

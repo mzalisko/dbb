@@ -390,6 +390,7 @@
                             <button type="button" style="{{ $actStyle }}" wire:click="openDuplicate">Дублювати</button>
                             <button type="button" style="{{ $actStyle }}" wire:click="openMove">Перемістити</button>
                             @unless ($mixedType)<button type="button" style="{{ $actStyle }}" wire:click="openAttach">Приєднати резерв</button>@endunless
+                            @if (! $selectAllMatching && count($selected) === 1)<button type="button" style="{{ $actStyle }} color:var(--accent);" wire:click="openAddReserve">+ Додати резерв</button>@endif
                             <button type="button" style="{{ $dangerStyle }}" wire:click="bulkDelete">Видалити</button>
                         @endif
                         <span style="margin-left:auto; display:inline-flex; align-items:center; gap:10px;">

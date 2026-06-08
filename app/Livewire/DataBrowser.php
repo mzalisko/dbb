@@ -1606,19 +1606,6 @@ class DataBrowser extends Component
 
             return;
         }
-
-        // Exactly one primary selected → "add new reserves TO it" (type numbers in).
-        // The other case (make the selected rows reserves OF a chosen primary) keeps
-        // the picker below.
-        if (! $this->selectAllMatching && count($this->selected) === 1) {
-            $only = $this->selectedQuery()->first();
-            if ($only && is_null($only->parent_id) && $only->role !== 'backup') {
-                $this->openAddReserveFor((int) $only->id);
-
-                return;
-            }
-        }
-
         // A reserve lives on its primary's site, so the whole selection must be one site.
         if ($this->selectedSourceQuery()->reorder()->distinct()->pluck('site_id')->count() !== 1) {
             $this->dispatch('toast', type: 'error', message: 'Оберіть записи лише одного сайту');
@@ -1637,6 +1624,25 @@ class DataBrowser extends Component
     }
 
     // ─── Add brand-new reserve numbers to a primary ───────────────────────
+
+    /** Bottom-bar entry: add new reserves to the one selected primary. */
+    public function openAddReserve(): void
+    {
+        if ($this->selectAllMatching || count($this->selected) !== 1) {
+            $this->dispatch('toast', type: 'error', message: 'Оберіть один основний запис');
+
+            return;
+        }
+
+        $only = $this->selectedQuery()->first();
+        if (! $only || ! is_null($only->parent_id) || $only->role === 'backup') {
+            $this->dispatch('toast', type: 'error', message: 'Додавання резервів — лише до основного запису');
+
+            return;
+        }
+
+        $this->openAddReserveFor((int) $only->id);
+    }
 
     /** Open the "type new reserves" drawer for a specific primary (failover panel / single-select). */
     public function openAddReserveFor(int $primaryId): void

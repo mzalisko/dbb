@@ -237,7 +237,7 @@ class DataBrowserFinishTest extends TestCase
         $this->assertContains('+R2', $backups);
     }
 
-    public function test_attach_with_a_single_primary_selected_switches_to_add_reserve(): void
+    public function test_add_reserve_bottom_bar_targets_the_single_selected_primary(): void
     {
         $owner = User::factory()->create(['role' => 'owner']);
         $primary = ContactEntry::factory()->for($this->siteForOwner($owner))->phone()->create(['value' => '+MAIN', 'role' => 'primary']);
@@ -245,8 +245,9 @@ class DataBrowserFinishTest extends TestCase
         Livewire::actingAs($owner)
             ->test(DataBrowser::class, ['typeFilter' => 'phone'])
             ->call('selectPage', [(int) $primary->id])
-            ->call('openAttach')
-            ->assertSet('addingReserve', true) // single primary → "add new reserves to it"
+            ->call('openAddReserve')
+            ->assertSet('addingReserve', true)
+            ->assertSet('reserveParentId', $primary->id)
             ->assertSet('attaching', false);
     }
 

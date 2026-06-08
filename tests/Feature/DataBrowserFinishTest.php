@@ -198,6 +198,72 @@ class DataBrowserFinishTest extends TestCase
         $this->assertSame(0, ActivityLog::where('action', 'entry.reordered')->count());
     }
 
+    // ── Left rail filter + "add reserves to a primary" ──────────────────
+
+    public function test_left_rail_role_filter_narrows_value_groups_to_reserves(): void
+    {
+        $owner = User::factory()->create(['role' => 'owner']);
+        $site = $this->siteForOwner($owner);
+        $primary = ContactEntry::factory()->for($site)->phone()->create(['value' => '+MAIN']);
+        ContactEntry::factory()->backup($primary)->create(['value' => '+RES']);
+
+        $groups = collect(Livewire::actingAs($owner)
+            ->test(DataBrowser::class, ['typeFilter' => 'phone'])
+            ->set('roleFilter', 'backup')
+            ->viewData('valueGroups'));
+
+        $this->assertTrue($groups->contains(fn ($g) => $g->gkey === '+RES'));
+        $this->assertFalse($groups->contains(fn ($g) => $g->gkey === '+MAIN'));
+    }
+
+    public function test_add_reserve_creates_typed_backups_for_a_primary(): void
+    {
+        $owner = User::factory()->create(['role' => 'owner']);
+        $site = $this->siteForOwner($owner);
+        $primary = ContactEntry::factory()->for($site)->phone()->create(['value' => '+MAIN']);
+
+        Livewire::actingAs($owner)
+            ->test(DataBrowser::class, ['typeFilter' => 'phone'])
+            ->call('openAddReserveFor', $primary->id)
+            ->assertSet('addingReserve', true)
+            ->set('reserveNumbers', "+R1\n+R2")
+            ->call('applyAddReserve')
+            ->assertSet('addingReserve', false)
+            ->assertDispatched('toast', fn ($e, $p) => ($p['action'] ?? null) === 'bulkPurgeCreated');
+
+        $backups = ContactEntry::where('parent_id', $primary->id)->where('role', 'backup')->pluck('value')->all();
+        $this->assertCount(2, $backups);
+        $this->assertContains('+R1', $backups);
+        $this->assertContains('+R2', $backups);
+    }
+
+    public function test_attach_with_a_single_primary_selected_switches_to_add_reserve(): void
+    {
+        $owner = User::factory()->create(['role' => 'owner']);
+        $primary = ContactEntry::factory()->for($this->siteForOwner($owner))->phone()->create(['value' => '+MAIN', 'role' => 'primary']);
+
+        Livewire::actingAs($owner)
+            ->test(DataBrowser::class, ['typeFilter' => 'phone'])
+            ->call('selectPage', [(int) $primary->id])
+            ->call('openAttach')
+            ->assertSet('addingReserve', true) // single primary → "add new reserves to it"
+            ->assertSet('attaching', false);
+    }
+
+    public function test_add_reserve_requires_at_least_one_number(): void
+    {
+        $owner = User::factory()->create(['role' => 'owner']);
+        $primary = ContactEntry::factory()->for($this->siteForOwner($owner))->phone()->create();
+
+        Livewire::actingAs($owner)
+            ->test(DataBrowser::class, ['typeFilter' => 'phone'])
+            ->call('openAddReserveFor', $primary->id)
+            ->set('reserveNumbers', "  \n ")
+            ->call('applyAddReserve')
+            ->assertSet('addingReserve', true)
+            ->assertDispatched('toast', fn ($e, $p) => ($p['type'] ?? null) === 'error');
+    }
+
     // ── Stale data: entries on deleted sites must not surface ────────────
 
     public function test_entries_on_deleted_sites_are_hidden(): void

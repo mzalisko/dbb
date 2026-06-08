@@ -106,8 +106,25 @@
 
             {{-- LEFT: finder rail — value axis lists distinct values; site axis lists sites --}}
             <div class="card" style="overflow:hidden; align-self:start;">
-                <div style="padding:12px 16px; border-bottom:1px solid var(--ink-3); background:var(--paper-2);">
+                <div style="padding:12px 14px; border-bottom:1px solid var(--ink-3); background:var(--paper-2);">
                     <span class="eyebrow" style="font-size:10px;">{{ $axis === 'value' ? 'Значення' : 'Сайти' }}</span>
+                    {{-- Narrow the value list to primaries / reserves so you don't hunt through all --}}
+                    @if ($axis === 'value')
+                        @php
+                            $railRoles = $typeFilter === 'price'
+                                ? ['' => 'Усі', 'primary' => 'Основні']
+                                : ['' => 'Усі', 'primary' => 'Основні', 'backup' => 'Резерви'];
+                        @endphp
+                        <div style="display:flex; gap:5px; margin-top:9px; flex-wrap:wrap;">
+                            @foreach ($railRoles as $rk => $rl)
+                                <button type="button" wire:click="$set('roleFilter', '{{ $rk }}')" style="
+                                    height:24px; padding:0 9px; border-radius:999px; font:11px var(--font-sans); cursor:pointer;
+                                    background:{{ $roleFilter === $rk ? 'var(--ink-9)' : 'transparent' }};
+                                    color:{{ $roleFilter === $rk ? 'var(--paper)' : 'var(--ink-6)' }};
+                                    box-shadow:{{ $roleFilter === $rk ? 'none' : 'inset 0 0 0 1px var(--ink-3)' }};">{{ $rl }}</button>
+                            @endforeach
+                        </div>
+                    @endif
                 </div>
                 <div style="max-height:560px; overflow-y:auto;">
                     @if ($axis === 'value')
@@ -430,6 +447,12 @@
                                     </span>
                                 </div>
                             @endforeach
+                            @can('update', $group)
+                                <div style="padding:10px 0 0 26px; margin-top:9px; border-top:1px dashed var(--ink-3);">
+                                    <button type="button" wire:click="openAddReserveFor({{ $group->id }})"
+                                            style="border:0; background:transparent; padding:0; color:var(--accent); font:12px var(--font-sans); cursor:pointer;">+ додати резерв</button>
+                                </div>
+                            @endcan
                         </div>
                     @endforeach
                 </div>
@@ -936,6 +959,32 @@
                 <x-slot:footer>
                     <button class="btn btn-ghost" wire:click="closeAttach">Скасувати</button>
                     <button class="btn btn-primary" wire:click="applyAttach" @disabled($attachCandidates->isEmpty())>Приєднати</button>
+                </x-slot:footer>
+            </x-ui.drawer>
+        </div>
+    @endif
+
+    {{-- Add brand-new reserve numbers to a primary (type them in) --}}
+    @if ($addingReserve)
+        <div wire:key="add-reserve">
+            <x-ui.drawer :open="true" title="Додати резерв" :sub="'до ' . $reserveParentValue"
+                         @drawer-close.window="$wire.closeAddReserve()">
+                <div style="display:flex; flex-direction:column; gap:18px;">
+                    <div style="font:13px var(--font-sans); color:var(--ink-6);">
+                        Нові номери стануть резервами основного
+                        <b class="mono" style="color:var(--ink-9);">{{ $reserveParentValue }}</b>
+                        на його сайті — у порядку черги failover, гео успадкується. Дію можна відмінити.
+                    </div>
+                    <div>
+                        <label style="display:block; font:12px var(--font-mono); color:var(--ink-5); text-transform:uppercase; letter-spacing:.06em;">Резервні номери · по одному на рядок</label>
+                        <textarea wire:model="reserveNumbers" rows="5" x-init="$nextTick(() => $el.focus())"
+                                  placeholder="+48 22 000 11 22&#10;+49 30 000 11 22"
+                                  style="margin-top:8px; width:100%; padding:12px 14px; border-radius:10px; background:var(--card); border:1px solid var(--ink-3); font:14px var(--font-mono); color:var(--ink-9); outline:none; resize:vertical;"></textarea>
+                    </div>
+                </div>
+                <x-slot:footer>
+                    <button class="btn btn-ghost" wire:click="closeAddReserve">Скасувати</button>
+                    <button class="btn btn-primary" wire:click="applyAddReserve">Додати</button>
                 </x-slot:footer>
             </x-ui.drawer>
         </div>

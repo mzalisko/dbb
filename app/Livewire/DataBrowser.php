@@ -746,6 +746,45 @@ class DataBrowser extends Component
         $this->editStep = 1;
     }
 
+    /**
+     * Inline single-cell edit (spreadsheet / Airtable style) — change one row's
+     * value or label in place, no drawer. Authorised + audited like any edit.
+     */
+    public function inlineUpdate(int $id, string $field, string $value): void
+    {
+        if (! in_array($field, ['value', 'label'], true)) {
+            return;
+        }
+
+        $entry = $this->applyVisibility(ContactEntry::query())->find($id);
+        if (! $entry) {
+            return;
+        }
+
+        $user = Auth::user();
+        if (! $user || ! $user->can('update', $entry)) {
+            $this->dispatch('toast', type: 'error', message: 'Немає прав на цей запис');
+
+            return;
+        }
+
+        $new = trim($value);
+        if ($field === 'value' && $new === '') {
+            $this->dispatch('toast', type: 'error', message: 'Значення не може бути порожнім');
+
+            return;
+        }
+
+        $stored = $field === 'label' ? ($new === '' ? null : $new) : $new;
+        if ((string) $entry->{$field} === (string) $stored) {
+            return; // nothing changed — stay quiet
+        }
+
+        $entry->update([$field => $stored]);
+        $this->syncSites([(int) $entry->site_id]);
+        $this->dispatch('toast', type: 'success', message: $field === 'value' ? 'Значення оновлено' : 'Мітку оновлено');
+    }
+
     public function applyEdit(): void
     {
         $field = $this->editField;

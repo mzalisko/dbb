@@ -265,6 +265,59 @@ class DataBrowserFinishTest extends TestCase
             ->assertDispatched('toast', fn ($e, $p) => ($p['type'] ?? null) === 'error');
     }
 
+    // ── Inline cell editing (spreadsheet-style direct edit) ─────────────
+
+    public function test_inline_update_changes_a_single_value(): void
+    {
+        $owner = User::factory()->create(['role' => 'owner']);
+        $e = ContactEntry::factory()->for($this->siteForOwner($owner))->phone()->create(['value' => '+OLD']);
+
+        Livewire::actingAs($owner)
+            ->test(DataBrowser::class, ['typeFilter' => 'phone'])
+            ->call('inlineUpdate', $e->id, 'value', '+NEW')
+            ->assertDispatched('toast', fn ($ev, $p) => ($p['type'] ?? null) === 'success');
+
+        $this->assertSame('+NEW', $e->fresh()->value);
+    }
+
+    public function test_inline_update_label_blank_clears_it(): void
+    {
+        $owner = User::factory()->create(['role' => 'owner']);
+        $e = ContactEntry::factory()->for($this->siteForOwner($owner))->phone()->create(['label' => 'old']);
+
+        Livewire::actingAs($owner)
+            ->test(DataBrowser::class)
+            ->call('inlineUpdate', $e->id, 'label', '   ');
+
+        $this->assertNull($e->fresh()->label);
+    }
+
+    public function test_inline_update_rejects_empty_value(): void
+    {
+        $owner = User::factory()->create(['role' => 'owner']);
+        $e = ContactEntry::factory()->for($this->siteForOwner($owner))->phone()->create(['value' => '+KEEP']);
+
+        Livewire::actingAs($owner)
+            ->test(DataBrowser::class)
+            ->call('inlineUpdate', $e->id, 'value', '  ')
+            ->assertDispatched('toast', fn ($ev, $p) => ($p['type'] ?? null) === 'error');
+
+        $this->assertSame('+KEEP', $e->fresh()->value);
+    }
+
+    public function test_inline_update_silently_denies_an_unowned_entry(): void
+    {
+        $owner = User::factory()->create(['role' => 'owner']);
+        $manager = User::factory()->create(['role' => 'manager', 'access_scope' => 'limited', 'site_access' => []]);
+        $e = ContactEntry::factory()->for($this->siteForOwner($owner))->phone()->create(['value' => '+SECRET']);
+
+        Livewire::actingAs($manager)
+            ->test(DataBrowser::class)
+            ->call('inlineUpdate', $e->id, 'value', '+HACK');
+
+        $this->assertSame('+SECRET', $e->fresh()->value); // out of scope → no-op, no leak
+    }
+
     // ── Stale data: entries on deleted sites must not surface ────────────
 
     public function test_entries_on_deleted_sites_are_hidden(): void

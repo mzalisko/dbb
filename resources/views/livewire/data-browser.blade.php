@@ -295,8 +295,21 @@
                                     @endif
                                 </span>
                             </span>
+                        @elseif ($trashed)
+                            <span class="mono" style="font:13.5px var(--font-mono); color:var(--ink-6);">{{ $entry->value }}</span>
                         @else
-                            <span class="mono" style="font:13.5px var(--font-mono); color:{{ $trashed ? 'var(--ink-6)' : 'var(--ink-9)' }};">{{ $entry->value }}</span>
+                            {{-- Inline edit: click the value → edit in place (Enter/blur save, Esc cancel) --}}
+                            <span x-data="{ e:false, v:@js($entry->value) }" @click.stop style="display:block; min-width:0;">
+                                <span x-show="!e" @click="e=true;$nextTick(()=>{$refs.vi.focus();$refs.vi.select()})"
+                                      class="mono" style="font:13.5px var(--font-mono); color:var(--ink-9); cursor:text; border-bottom:1px dashed transparent;"
+                                      onmouseover="this.style.borderBottomColor='var(--ink-3)'" onmouseout="this.style.borderBottomColor='transparent'"
+                                      title="Клік — редагувати">{{ $entry->value }}</span>
+                                <input x-show="e" x-cloak x-ref="vi" x-model="v" type="text"
+                                       @keydown.enter.stop="$refs.vi.blur()"
+                                       @keydown.escape.stop="v=@js($entry->value);e=false"
+                                       @blur="if(e){ $wire.inlineUpdate({{ $entry->id }},'value',v); e=false }"
+                                       class="mono" style="font:13.5px var(--font-mono); color:var(--ink-9); border:1px solid var(--ink-3); border-radius:6px; padding:2px 6px; outline:none; width:100%;" />
+                            </span>
                         @endif
                         @if($isReserveEntry && $entry->parent)
                             <span class="data-value__parent" title="Резерв для {{ $entry->parent->value }}">
@@ -318,7 +331,21 @@
                         @endif
                     </span>
                     <span class="mono" style="font:12.5px var(--font-mono); color:var(--ink-7);">{{ $entry->site?->name ?? '—' }}</span>
-                    <span style="font:12.5px var(--font-sans); color:var(--ink-7);">{{ $entry->label }}</span>
+                    @if ($trashed)
+                        <span style="font:12.5px var(--font-sans); color:var(--ink-7);">{{ $entry->label }}</span>
+                    @else
+                        {{-- Inline edit: click the label → edit in place --}}
+                        <span x-data="{ e:false, v:@js($entry->label ?? '') }" @click.stop style="display:block; min-width:0;">
+                            <span x-show="!e" @click="e=true;$nextTick(()=>{$refs.li.focus();$refs.li.select()})"
+                                  style="font:12.5px var(--font-sans); color:{{ $entry->label ? 'var(--ink-7)' : 'var(--ink-4)' }}; cursor:text;"
+                                  title="Клік — редагувати мітку">{{ $entry->label ?: '— мітка' }}</span>
+                            <input x-show="e" x-cloak x-ref="li" x-model="v" type="text" placeholder="мітка"
+                                   @keydown.enter.stop="$refs.li.blur()"
+                                   @keydown.escape.stop="v=@js($entry->label ?? '');e=false"
+                                   @blur="if(e){ $wire.inlineUpdate({{ $entry->id }},'label',v); e=false }"
+                                   style="font:12.5px var(--font-sans); color:var(--ink-9); border:1px solid var(--ink-3); border-radius:6px; padding:2px 6px; outline:none; width:100%;" />
+                        </span>
+                    @endif
                     <span style="font:12px var(--font-sans); color:var(--ink-5);">{{ $entry->geo_label }}</span>
                     @if ($trashed)
                         <span style="font:12px var(--font-sans); color:var(--ink-5);">{{ $entry->deleted_at?->diffForHumans() }}</span>

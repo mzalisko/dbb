@@ -301,7 +301,19 @@
                             <span class="data-price-value">
                                 <span class="mono data-price-value__sku">{{ $entry->sku ?: $entry->value }}</span>
                                 <span class="data-price-value__amount">
-                                    <strong>{{ $priceAmount ?? '—' }}</strong>
+                                    @if ($trashed)
+                                        <strong>{{ $priceAmount ?? '—' }}</strong>
+                                    @else
+                                        {{-- Inline edit: click the amount → edit in place --}}
+                                        <strong x-data="{ e:false, v:@js($entry->price !== null ? rtrim(rtrim(number_format((float) $entry->price, 2, '.', ''), '0'), '.') : '') }" @click.stop>
+                                            <span x-show="!e" @click="e=true;$nextTick(()=>{$refs.pi.focus();$refs.pi.select()})" style="cursor:text; border-bottom:1px dashed transparent;" onmouseover="this.style.borderBottomColor='var(--ink-3)'" onmouseout="this.style.borderBottomColor='transparent'" title="Клік — редагувати ціну">{{ $priceAmount ?? '—' }}</span>
+                                            <input x-show="e" x-cloak x-ref="pi" x-model="v" type="text" inputmode="decimal"
+                                                   @keydown.enter.stop="$refs.pi.blur()"
+                                                   @keydown.escape.stop="e=false"
+                                                   @blur="if(e){ $wire.inlineUpdate({{ $entry->id }},'price',v); e=false }"
+                                                   style="width:72px; font:13px var(--font-mono); font-weight:600; color:var(--ink-9); border:1px solid var(--ink-3); border-radius:5px; padding:1px 5px; outline:none;" />
+                                        </strong>
+                                    @endif
                                     @if($entry->currency)
                                         <span>{{ $entry->currency }}</span>
                                     @endif

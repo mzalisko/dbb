@@ -463,6 +463,34 @@ class DataBrowserFinishTest extends TestCase
         $this->assertSame('+A', collect($entries->items())->first()->value); // alpha site sorts first
     }
 
+    // ── Inline price editing ────────────────────────────────────────────
+
+    public function test_inline_update_changes_a_price_amount(): void
+    {
+        $owner = User::factory()->create(['role' => 'owner']);
+        $e = ContactEntry::factory()->for($this->siteForOwner($owner))->price()->create(['price' => 100]);
+
+        Livewire::actingAs($owner)
+            ->test(DataBrowser::class, ['typeFilter' => 'price'])
+            ->call('inlineUpdate', $e->id, 'price', '149.5')
+            ->assertDispatched('toast', fn ($ev, $p) => ($p['type'] ?? null) === 'success');
+
+        $this->assertSame(149.5, (float) $e->fresh()->price);
+    }
+
+    public function test_inline_update_price_rejects_non_numeric(): void
+    {
+        $owner = User::factory()->create(['role' => 'owner']);
+        $e = ContactEntry::factory()->for($this->siteForOwner($owner))->price()->create(['price' => 100]);
+
+        Livewire::actingAs($owner)
+            ->test(DataBrowser::class, ['typeFilter' => 'price'])
+            ->call('inlineUpdate', $e->id, 'price', 'abc')
+            ->assertDispatched('toast', fn ($ev, $p) => ($p['type'] ?? null) === 'error');
+
+        $this->assertSame(100.0, (float) $e->fresh()->price);
+    }
+
     // ── Stale data: entries on deleted sites must not surface ────────────
 
     public function test_entries_on_deleted_sites_are_hidden(): void

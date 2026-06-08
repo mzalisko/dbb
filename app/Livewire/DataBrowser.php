@@ -791,7 +791,7 @@ class DataBrowser extends Component
      */
     public function inlineUpdate(int $id, string $field, string $value): void
     {
-        if (! in_array($field, ['value', 'label'], true)) {
+        if (! in_array($field, ['value', 'label', 'price', 'old_price'], true)) {
             return;
         }
 
@@ -808,20 +808,35 @@ class DataBrowser extends Component
         }
 
         $new = trim($value);
+        $isNumeric = in_array($field, ['price', 'old_price'], true);
+
         if ($field === 'value' && $new === '') {
             $this->dispatch('toast', type: 'error', message: 'Значення не може бути порожнім');
 
             return;
         }
+        if ($isNumeric && $new !== '' && ! is_numeric(str_replace(',', '.', $new))) {
+            $this->dispatch('toast', type: 'error', message: 'Вкажіть число');
 
-        $stored = $field === 'label' ? ($new === '' ? null : $new) : $new;
+            return;
+        }
+
+        $stored = match (true) {
+            $isNumeric          => ($new === '' ? null : (float) str_replace(',', '.', $new)),
+            $field === 'label'  => ($new === '' ? null : $new),
+            default             => $new,
+        };
         if ((string) $entry->{$field} === (string) $stored) {
             return; // nothing changed — stay quiet
         }
 
         $entry->update([$field => $stored]);
         $this->syncSites([(int) $entry->site_id]);
-        $this->dispatch('toast', type: 'success', message: $field === 'value' ? 'Значення оновлено' : 'Мітку оновлено');
+
+        $noun = match ($field) {
+            'value' => 'Значення', 'label' => 'Мітку', 'price' => 'Ціну', 'old_price' => 'Стару ціну',
+        };
+        $this->dispatch('toast', type: 'success', message: "{$noun} оновлено");
     }
 
     // ─── Generic "change ANY field" (set / clear / find-replace) ──────────

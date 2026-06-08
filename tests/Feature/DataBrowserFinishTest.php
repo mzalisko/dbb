@@ -318,6 +318,102 @@ class DataBrowserFinishTest extends TestCase
         $this->assertSame('+SECRET', $e->fresh()->value); // out of scope → no-op, no leak
     }
 
+    // ── Generic "change any field" (set / clear / find-replace) ──────────
+
+    public function test_generic_set_changes_a_field_with_undo(): void
+    {
+        $owner = User::factory()->create(['role' => 'owner']);
+        $ids = ContactEntry::factory()->for($this->siteForOwner($owner))->phone()->count(2)
+            ->create(['label' => 'old'])->pluck('id')->map(fn ($i) => (int) $i)->all();
+
+        Livewire::actingAs($owner)
+            ->test(DataBrowser::class, ['typeFilter' => 'phone'])
+            ->call('selectPage', $ids)
+            ->call('openGeneric')
+            ->assertSet('editingGeneric', true)
+            ->set('genField', 'label')
+            ->set('genOp', 'set')
+            ->set('genValue', 'NEW')
+            ->call('genericConfirm')
+            ->assertSet('genStep', 2)
+            ->call('applyGeneric')
+            ->assertSet('editingGeneric', false)
+            ->assertDispatched('toast', fn ($e, $p) => ($p['action'] ?? null) === 'bulkRestoreField' && ($p['actionData']['field'] ?? null) === 'label');
+
+        $this->assertSame(2, ContactEntry::whereIn('id', $ids)->where('label', 'NEW')->count());
+    }
+
+    public function test_generic_clear_nulls_a_price_field(): void
+    {
+        $owner = User::factory()->create(['role' => 'owner']);
+        $id = (int) ContactEntry::factory()->for($this->siteForOwner($owner))->price()->create(['old_price' => 99])->id;
+
+        Livewire::actingAs($owner)
+            ->test(DataBrowser::class, ['typeFilter' => 'price'])
+            ->call('selectPage', [$id])
+            ->call('openGeneric')
+            ->set('genField', 'old_price')
+            ->set('genOp', 'clear')
+            ->call('genericConfirm')
+            ->call('applyGeneric');
+
+        $this->assertNull(ContactEntry::find($id)->old_price);
+    }
+
+    public function test_generic_replace_changes_only_matching_rows(): void
+    {
+        $owner = User::factory()->create(['role' => 'owner']);
+        $site = $this->siteForOwner($owner);
+        $m = ContactEntry::factory()->for($site)->phone()->create(['value' => '+380501112233']);
+        $o = ContactEntry::factory()->for($site)->phone()->create(['value' => '+48111222333']);
+
+        Livewire::actingAs($owner)
+            ->test(DataBrowser::class, ['typeFilter' => 'phone'])
+            ->call('selectPage', [(int) $m->id, (int) $o->id])
+            ->call('openGeneric')
+            ->set('genField', 'value')
+            ->set('genOp', 'replace')
+            ->set('genFind', '+380')
+            ->set('genValue', '+48')
+            ->call('genericConfirm')
+            ->call('applyGeneric');
+
+        $this->assertSame('+48501112233', $m->fresh()->value);
+        $this->assertSame('+48111222333', $o->fresh()->value); // no +380 → untouched
+    }
+
+    public function test_generic_field_switch_snaps_an_invalid_operation(): void
+    {
+        $owner = User::factory()->create(['role' => 'owner']);
+        $e = ContactEntry::factory()->for($this->siteForOwner($owner))->phone()->create();
+
+        Livewire::actingAs($owner)
+            ->test(DataBrowser::class, ['typeFilter' => 'phone'])
+            ->call('selectPage', [(int) $e->id])
+            ->call('openGeneric')
+            ->set('genField', 'label')
+            ->set('genOp', 'clear')
+            ->set('genField', 'value')   // value has no "clear" → snaps to "set"
+            ->assertSet('genOp', 'set');
+    }
+
+    public function test_generic_set_currency_validates(): void
+    {
+        $owner = User::factory()->create(['role' => 'owner']);
+        $id = (int) ContactEntry::factory()->for($this->siteForOwner($owner))->price()->create(['currency' => 'EUR'])->id;
+
+        Livewire::actingAs($owner)
+            ->test(DataBrowser::class, ['typeFilter' => 'price'])
+            ->call('selectPage', [$id])
+            ->call('openGeneric')
+            ->set('genField', 'currency')
+            ->set('genOp', 'set')
+            ->set('genValue', 'XYZ')
+            ->call('genericConfirm')
+            ->assertSet('genStep', 1)   // blocked on validation
+            ->assertDispatched('toast', fn ($e, $p) => ($p['type'] ?? null) === 'error');
+    }
+
     // ── Stale data: entries on deleted sites must not surface ────────────
 
     public function test_entries_on_deleted_sites_are_hidden(): void

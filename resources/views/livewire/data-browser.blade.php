@@ -408,6 +408,7 @@
                             <button type="button" style="{{ $actStyle }}" wire:click="restoreSelected">Відновити</button>
                             <button type="button" style="{{ $dangerStyle }}" wire:click="purgeSelected" wire:confirm="Видалити обрані записи НАЗАВЖДИ? Це не можна відмінити.">Видалити назавжди</button>
                         @else
+                            <button type="button" style="{{ $actStyle }} font-weight:500;" wire:click="openGeneric" @disabled($mixedType) @if ($mixedType) title="{{ $valueHint }}" @endif>⚙ Змінити поле</button>
                             <button type="button" style="{{ $actStyle }}" wire:click="openEdit('value')" @disabled($mixedType) @if ($mixedType) title="{{ $valueHint }}" @endif>Замінити значення</button>
                             <button type="button" style="{{ $actStyle }}" wire:click="openReplace" @disabled($mixedType) @if ($mixedType) title="{{ $valueHint }}" @endif>Підрядок</button>
                             <button type="button" style="{{ $actStyle }}" wire:click="openEdit('label')">Мітка</button>
@@ -550,6 +551,106 @@
                         <button class="btn btn-primary" wire:click="applyEdit">
                             {{ $editField === 'value' ? 'Замінити' : 'Зберегти' }} {{ $this->selectedCount() }}
                         </button>
+                    @endif
+                </x-slot:footer>
+            </x-ui.drawer>
+        </div>
+    @endif
+
+    {{-- Generic "change ANY field" drawer — field + operation (set/clear/replace) --}}
+    @if ($editingGeneric)
+        @php
+            $genFields = $this->genericFields();
+            $genOps = $this->genericOps($genField);
+            $genLabel = $genFields[$genField] ?? $genField;
+            $pill = 'height:32px; padding:0 12px; border-radius:8px; font:13px var(--font-sans); cursor:pointer; border:1px solid var(--ink-3); background:var(--card); color:var(--ink-7);';
+            $pillOn = 'height:32px; padding:0 12px; border-radius:8px; font:13px var(--font-sans); cursor:pointer; border:1px solid var(--ink-9); background:var(--ink-9); color:var(--paper);';
+            $inp = 'margin-top:8px; width:100%; height:44px; padding:0 14px; border-radius:10px; background:var(--card); border:1px solid var(--ink-3); font:14.5px var(--font-sans); color:var(--ink-9); outline:none;';
+        @endphp
+        <div wire:key="bulk-generic">
+            <x-ui.drawer :open="true" title="Змінити поле" :sub="$this->selectedCount() . ' обрано'"
+                         @drawer-close.window="$wire.closeGeneric()">
+                <div style="display:flex; flex-direction:column; gap:18px;">
+                    <div style="display:flex; gap:6px;">
+                        <span style="flex:1; height:4px; border-radius:999px; background:var(--accent);"></span>
+                        <span style="flex:1; height:4px; border-radius:999px; background:{{ $genStep === 2 ? 'var(--accent)' : 'var(--ink-2)' }};"></span>
+                    </div>
+
+                    @if ($genStep === 1)
+                        <div>
+                            <label style="display:block; font:12px var(--font-mono); color:var(--ink-5); text-transform:uppercase; letter-spacing:.06em;">Поле</label>
+                            <div style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap;">
+                                @foreach ($genFields as $fk => $fl)
+                                    <button type="button" wire:click="$set('genField', '{{ $fk }}')" style="{{ $genField === $fk ? $pillOn : $pill }}">{{ $fl }}</button>
+                                @endforeach
+                            </div>
+                        </div>
+                        <div>
+                            <label style="display:block; font:12px var(--font-mono); color:var(--ink-5); text-transform:uppercase; letter-spacing:.06em;">Операція</label>
+                            <div style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap;">
+                                @foreach ($genOps as $ok => $ol)
+                                    <button type="button" wire:click="$set('genOp', '{{ $ok }}')" style="{{ $genOp === $ok ? $pillOn : $pill }}">{{ $ol }}</button>
+                                @endforeach
+                            </div>
+                        </div>
+
+                        @if ($genOp === 'replace')
+                            <div>
+                                <label style="display:block; font:12px var(--font-mono); color:var(--ink-5); text-transform:uppercase; letter-spacing:.06em;">Знайти</label>
+                                <input type="text" wire:model="genFind" x-init="$nextTick(() => $el.focus())" placeholder="+380" style="{{ $inp }} font-family:var(--font-mono);" />
+                            </div>
+                            <div>
+                                <label style="display:block; font:12px var(--font-mono); color:var(--ink-5); text-transform:uppercase; letter-spacing:.06em;">Замінити на</label>
+                                <input type="text" wire:model="genValue" placeholder="+48" style="{{ $inp }} font-family:var(--font-mono);" />
+                                <div style="margin-top:8px; font:12px var(--font-sans); color:var(--ink-5);">Порожнє — видалити підрядок. Записи без збігу не зміняться.</div>
+                            </div>
+                        @elseif ($genOp === 'clear')
+                            <div style="font:13px var(--font-sans); color:var(--ink-6);">Поле <b>«{{ $genLabel }}»</b> буде <b>очищено</b> в {{ $this->selectedCount() }} обраних. Дію можна відмінити.</div>
+                        @elseif ($genField === 'currency')
+                            <div>
+                                <label style="display:block; font:12px var(--font-mono); color:var(--ink-5); text-transform:uppercase; letter-spacing:.06em;">Валюта</label>
+                                <div style="margin-top:8px; display:flex; gap:8px;">
+                                    @foreach (['EUR', 'USD', 'PLN', 'UAH'] as $cur)
+                                        <button type="button" wire:click="$set('genValue', '{{ $cur }}')" style="flex:1; height:44px; border-radius:10px; font:14px var(--font-mono); cursor:pointer; border:1px solid {{ $genValue === $cur ? 'var(--ink-9)' : 'var(--ink-3)' }}; background:{{ $genValue === $cur ? 'var(--ink-9)' : 'var(--card)' }}; color:{{ $genValue === $cur ? 'var(--paper)' : 'var(--ink-7)' }};">{{ $cur }}</button>
+                                    @endforeach
+                                </div>
+                            </div>
+                        @else
+                            <div>
+                                <label style="display:block; font:12px var(--font-mono); color:var(--ink-5); text-transform:uppercase; letter-spacing:.06em;">Нове значення «{{ $genLabel }}»</label>
+                                <input type="text" wire:model="genValue" x-init="$nextTick(() => $el.focus())"
+                                       placeholder="{{ in_array($genField, ['price','old_price']) ? 'напр. 199' : 'нове значення' }}" style="{{ $inp }}" />
+                                @if (in_array($genField, ['price','old_price','price_unit','label','sku']))
+                                    <div style="margin-top:8px; font:12px var(--font-sans); color:var(--ink-5);">Порожнє — прибрати значення.</div>
+                                @endif
+                            </div>
+                        @endif
+                    @else
+                        <div class="eyebrow" style="font-size:10px;">Крок 2 / 2 · підтвердження</div>
+                        <div style="font:13.5px var(--font-sans); color:var(--ink-7); line-height:1.5;">
+                            @if ($genOp === 'replace')
+                                У полі <b class="mono">«{{ $genLabel }}»</b> замінити
+                                <b class="mono" style="color:var(--ink-9);">{{ $genFind }}</b> →
+                                <b class="mono" style="color:var(--ink-9);">{{ $genValue !== '' ? $genValue : '∅' }}</b>.
+                                Записи без збігу лишаться як є.
+                            @elseif ($genOp === 'clear')
+                                Поле <b class="mono">«{{ $genLabel }}»</b> буде <b>очищено</b>.
+                            @else
+                                Поле <b class="mono">«{{ $genLabel }}»</b> →
+                                <b class="mono" style="color:var(--ink-9);">{{ trim($genValue) !== '' ? $genValue : '∅ (прибрати)' }}</b>.
+                            @endif
+                            <br>Застосується до <b>{{ $this->selectedCount() }}</b> обраних. Дію можна відмінити.
+                        </div>
+                    @endif
+                </div>
+
+                <x-slot:footer>
+                    @if ($genStep === 1)
+                        <button class="btn btn-ghost" wire:click="closeGeneric">Скасувати</button>
+                        <button class="btn btn-primary" wire:click="genericConfirm">Далі →</button>
+                    @else
+                        <button class="btn btn-ghost" wire:click="genericBack">← Назад</button>
+                        <button class="btn btn-primary" wire:click="applyGeneric">Застосувати {{ $this->selectedCount() }}</button>
                     @endif
                 </x-slot:footer>
             </x-ui.drawer>

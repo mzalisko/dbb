@@ -100,6 +100,14 @@ class DataBrowser extends Component
     public string $editValue = '';
     public int $editStep = 1;
 
+    /** Generic "change ANY field" drawer — pick field + operation (set/clear/replace). */
+    public bool $editingGeneric = false;
+    public string $genField = 'value';
+    public string $genOp = 'set';          // set | clear | replace
+    public string $genValue = '';
+    public string $genFind = '';
+    public int $genStep = 1;
+
     /** Selection review drawer (see / trim the cross-site set). */
     public bool $reviewingSelection = false;
 
@@ -785,6 +793,183 @@ class DataBrowser extends Component
         $this->dispatch('toast', type: 'success', message: $field === 'value' ? 'Значення оновлено' : 'Мітку оновлено');
     }
 
+    // ─── Generic "change ANY field" (set / clear / find-replace) ──────────
+
+    /** Editable fields for the current type → label. */
+    public function genericFields(): array
+    {
+        return $this->typeFilter === 'price'
+            ? ['sku' => 'SKU', 'label' => 'Мітка', 'price' => 'Ціна', 'old_price' => 'Стара ціна', 'currency' => 'Валюта', 'price_unit' => 'Одиниця']
+            : ['value' => 'Значення', 'label' => 'Мітка'];
+    }
+
+    /** Operations valid for a field → label. */
+    public function genericOps(string $field): array
+    {
+        return match ($field) {
+            'value'              => ['set' => 'Встановити', 'replace' => 'Знайти→замінити'],
+            'currency'           => ['set' => 'Встановити'],
+            'price', 'old_price' => ['set' => 'Встановити', 'clear' => 'Очистити'],
+            default              => ['set' => 'Встановити', 'clear' => 'Очистити', 'replace' => 'Знайти→замінити'],
+        };
+    }
+
+    public function openGeneric(): void
+    {
+        if (! $this->hasSelection()) {
+            return;
+        }
+        // value/price/sku are type+kind specific — refuse a mixed selection.
+        if (! $this->selectionIsSingleEntity()) {
+            $this->dispatch('toast', type: 'error', message: 'Зміна поля — лише для записів одного виду');
+
+            return;
+        }
+
+        $this->genField = (string) array_key_first($this->genericFields());
+        $this->genOp = (string) array_key_first($this->genericOps($this->genField));
+        $this->genValue = '';
+        $this->genFind = '';
+        $this->genStep = 1;
+        $this->editingGeneric = true;
+    }
+
+    public function closeGeneric(): void
+    {
+        $this->editingGeneric = false;
+        $this->genValue = '';
+        $this->genFind = '';
+        $this->genStep = 1;
+    }
+
+    /** Field changed → snap the operation to one valid for it. */
+    public function updatedGenField(): void
+    {
+        if (! array_key_exists($this->genOp, $this->genericOps($this->genField))) {
+            $this->genOp = (string) array_key_first($this->genericOps($this->genField));
+        }
+    }
+
+    public function genericConfirm(): void
+    {
+        if (($err = $this->validateGeneric()) !== null) {
+            $this->dispatch('toast', type: 'error', message: $err);
+
+            return;
+        }
+        $this->genStep = 2;
+    }
+
+    public function genericBack(): void
+    {
+        $this->genStep = 1;
+    }
+
+    /** @return string|null error message, or null if valid */
+    private function validateGeneric(): ?string
+    {
+        $field = $this->genField;
+        if (! array_key_exists($field, $this->genericFields())) {
+            return 'Невідоме поле';
+        }
+        if (! array_key_exists($this->genOp, $this->genericOps($field))) {
+            return 'Невідома операція';
+        }
+        if ($this->genOp === 'replace') {
+            return $this->genFind === '' ? 'Введіть текст для пошуку' : null;
+        }
+        if ($this->genOp === 'clear') {
+            return null;
+        }
+        // set:
+        $raw = trim($this->genValue);
+        if ($field === 'currency') {
+            return in_array(strtoupper($raw), ['EUR', 'USD', 'PLN', 'UAH'], true) ? null : 'Оберіть валюту';
+        }
+        if (in_array($field, ['price', 'old_price'], true)) {
+            return ($raw === '' || is_numeric(str_replace(',', '.', $raw))) ? null : 'Вкажіть число';
+        }
+        if ($field === 'value' && $raw === '') {
+            return 'Значення не може бути порожнім';
+        }
+
+        return null;
+    }
+
+    public function applyGeneric(): void
+    {
+        if (($err = $this->validateGeneric()) !== null) {
+            $this->dispatch('toast', type: 'error', message: $err);
+
+            return;
+        }
+
+        $field = $this->genField;
+        $op = $this->genOp;
+
+        // Resolve the stored value for set/clear (replace transforms per row).
+        $value = null;
+        if ($op === 'set') {
+            $raw = trim($this->genValue);
+            if ($field === 'currency') {
+                $value = strtoupper($raw);
+            } elseif (in_array($field, ['price', 'old_price'], true)) {
+                $value = $raw === '' ? null : (float) str_replace(',', '.', $raw);
+            } else {
+                $value = $raw === '' ? null : $raw;
+            }
+        }
+
+        $snapshot = [];
+        $touchedSiteIds = [];
+        $find = $this->genFind;
+        $replaceWith = $this->genValue;
+
+        BulkActionService::apply(
+            ContactEntry::class,
+            $this->bulkTargetIds(),
+            'update',
+            function (ContactEntry $e) use (&$snapshot, &$touchedSiteIds, $field, $op, $value, $find, $replaceWith) {
+                if ($op === 'replace') {
+                    $cur = (string) $e->{$field};
+                    if (! str_contains($cur, $find)) {
+                        return; // non-matching rows untouched
+                    }
+                    $snapshot[$e->id] = $e->{$field};
+                    $touchedSiteIds[] = (int) $e->site_id;
+                    $e->update([$field => str_replace($find, $replaceWith, $cur)]);
+
+                    return;
+                }
+                $snapshot[$e->id] = $e->{$field};
+                $touchedSiteIds[] = (int) $e->site_id;
+                $e->update([$field => $value]);
+            },
+            auditAction: 'entry.bulk.updated',
+        );
+
+        $done = count($snapshot); // replace skips non-matching → snapshot is the truth
+        $this->closeGeneric();
+        $this->clearSelected();
+
+        if ($done === 0) {
+            $this->dispatch('toast', type: 'error', message: $op === 'replace' ? 'Жоден запис не містить шуканого' : 'Немає прав на редагування обраних');
+
+            return;
+        }
+
+        $this->syncSites($touchedSiteIds);
+
+        $label = $this->genericFields()[$field] ?? $field;
+        $this->dispatch('toast',
+            type: 'success',
+            message: "«{$label}» змінено: {$done}",
+            action: 'bulkRestoreField',
+            actionLabel: 'Відмінити',
+            actionData: ['snapshot' => $snapshot, 'field' => $field],
+        );
+    }
+
     public function applyEdit(): void
     {
         $field = $this->editField;
@@ -835,7 +1020,7 @@ class DataBrowser extends Component
     #[On('bulkRestoreField')]
     public function bulkRestoreField(array $snapshot, string $field): void
     {
-        if (! in_array($field, ['value', 'label', 'currency', 'price', 'old_price', 'price_unit'], true) || empty($snapshot)) {
+        if (! in_array($field, ['value', 'label', 'currency', 'price', 'old_price', 'price_unit', 'sku'], true) || empty($snapshot)) {
             return;
         }
 

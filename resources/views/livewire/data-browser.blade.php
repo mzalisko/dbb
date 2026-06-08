@@ -259,8 +259,26 @@
                                 wire:click="selectPage(@js($pageIds))" title="Обрати сторінку">
                             @if ($pageAllSelected) <x-icon.check width="11" height="11" /> @endif
                         </button>
-                        @foreach (['Значення', 'Сайт', 'Мітка', 'Гео', $trashed ? 'Видалено' : 'Роль'] as $h)
-                            <span class="eyebrow" style="font-size:10px;">{{ $h }}</span>
+                        @php
+                            $sortCols = [
+                                ['key' => 'value', 'label' => 'Значення'],
+                                ['key' => 'site',  'label' => 'Сайт'],
+                                ['key' => 'label', 'label' => 'Мітка'],
+                                ['key' => null,    'label' => 'Гео'],
+                                ['key' => $trashed ? null : 'role', 'label' => $trashed ? 'Видалено' : 'Роль'],
+                            ];
+                        @endphp
+                        @foreach ($sortCols as $c)
+                            @if ($c['key'])
+                                <button type="button" wire:click.stop="sortBy('{{ $c['key'] }}')"
+                                        class="eyebrow" style="font-size:10px; border:0; background:transparent; padding:0; cursor:pointer; display:inline-flex; align-items:center; gap:3px; color:{{ $sortField === $c['key'] ? 'var(--ink-8)' : 'var(--ink-5)' }};"
+                                        title="Сортувати">
+                                    {{ $c['label'] }}
+                                    @if ($sortField === $c['key'])<span style="font:10px var(--font-mono);">{{ $sortDir === 'asc' ? '↑' : '↓' }}</span>@endif
+                                </button>
+                            @else
+                                <span class="eyebrow" style="font-size:10px;">{{ $c['label'] }}</span>
+                            @endif
                         @endforeach
                     </div>
 

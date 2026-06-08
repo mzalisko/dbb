@@ -53,6 +53,12 @@ class DataBrowser extends Component
     #[Url]
     public string $siteFilter = '';
 
+    /** Occurrence sort — '' = newest first; else value|label|site|role + direction. */
+    #[Url]
+    public string $sortField = '';
+    #[Url]
+    public string $sortDir = 'asc';
+
     /** Trash mode — browse & manage soft-deleted entries (restore / purge). */
     #[Url]
     public bool $trashed = false;
@@ -350,6 +356,35 @@ class DataBrowser extends Component
         if ($this->typeFilter === 'price' && $this->roleFilter === 'backup') {
             $this->roleFilter = '';
         }
+    }
+
+    /** Click a column header to sort the occurrences; same field toggles direction. */
+    public function sortBy(string $field): void
+    {
+        if (! in_array($field, ['value', 'label', 'site', 'role'], true)) {
+            return;
+        }
+        if ($this->sortField === $field) {
+            $this->sortDir = $this->sortDir === 'asc' ? 'desc' : 'asc';
+        } else {
+            $this->sortField = $field;
+            $this->sortDir = 'asc';
+        }
+        $this->resetPage();
+    }
+
+    /** Apply the chosen sort to the occurrences query (default = newest first). */
+    private function applySort(Builder $query): Builder
+    {
+        $dir = $this->sortDir === 'desc' ? 'desc' : 'asc';
+
+        return match ($this->sortField) {
+            'value' => $query->orderBy('value', $dir),
+            'label' => $query->orderBy('label', $dir),
+            'role'  => $query->orderBy('role', $dir),
+            'site'  => $query->orderBy(Site::select('name')->whereColumn('sites.id', 'contact_entries.site_id'), $dir),
+            default => $query->orderBy('created_at', 'desc'),
+        };
     }
 
     /** Filtered, un-paginated base query — shared by render() and bulk selection. */
@@ -2144,10 +2179,9 @@ class DataBrowser extends Component
         $this->normalizeTypeFilterForEnabledTypes();
         $this->normalizeRoleFilterForType();
 
-        $entries = $this->bulkQuery()
-            ->with(['site', 'parent:id,value,label,type,kind'])
-            ->orderBy('created_at', 'desc')
-            ->paginate(15);
+        $entries = $this->applySort(
+            $this->bulkQuery()->with(['site', 'parent:id,value,label,type,kind'])
+        )->paginate(15);
 
         // Small preview for the edit/replace drawers (explicit picks survive
         // filters, so resolve them directly; "all matching" = current filter).

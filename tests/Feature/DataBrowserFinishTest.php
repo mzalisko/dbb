@@ -414,6 +414,55 @@ class DataBrowserFinishTest extends TestCase
             ->assertDispatched('toast', fn ($e, $p) => ($p['type'] ?? null) === 'error');
     }
 
+    // ── Column sorting (click a header) ─────────────────────────────────
+
+    public function test_sort_by_value_orders_occurrences(): void
+    {
+        $owner = User::factory()->create(['role' => 'owner']);
+        $site = $this->siteForOwner($owner);
+        ContactEntry::factory()->for($site)->phone()->create(['value' => '+BBB']);
+        ContactEntry::factory()->for($site)->phone()->create(['value' => '+AAA']);
+        ContactEntry::factory()->for($site)->phone()->create(['value' => '+CCC']);
+
+        $entries = Livewire::actingAs($owner)
+            ->test(DataBrowser::class, ['typeFilter' => 'phone'])
+            ->call('sortBy', 'value')
+            ->assertSet('sortField', 'value')
+            ->assertSet('sortDir', 'asc')
+            ->viewData('entries');
+
+        $this->assertSame(['+AAA', '+BBB', '+CCC'], collect($entries->items())->pluck('value')->all());
+    }
+
+    public function test_sort_same_column_toggles_direction(): void
+    {
+        $owner = User::factory()->create(['role' => 'owner']);
+        ContactEntry::factory()->for($this->siteForOwner($owner))->phone()->create();
+
+        Livewire::actingAs($owner)
+            ->test(DataBrowser::class, ['typeFilter' => 'phone'])
+            ->call('sortBy', 'value')->assertSet('sortDir', 'asc')
+            ->call('sortBy', 'value')->assertSet('sortDir', 'desc')
+            ->call('sortBy', 'label')->assertSet('sortField', 'label')->assertSet('sortDir', 'asc');
+    }
+
+    public function test_sort_by_site_orders_by_site_name(): void
+    {
+        $owner = User::factory()->create(['role' => 'owner']);
+        $client = Client::factory()->for($owner)->create();
+        $zeta = Site::factory()->for($client)->create(['name' => 'zeta']);
+        $alpha = Site::factory()->for($client)->create(['name' => 'alpha']);
+        ContactEntry::factory()->for($zeta)->phone()->create(['value' => '+Z']);
+        ContactEntry::factory()->for($alpha)->phone()->create(['value' => '+A']);
+
+        $entries = Livewire::actingAs($owner)
+            ->test(DataBrowser::class, ['typeFilter' => 'phone'])
+            ->call('sortBy', 'site')
+            ->viewData('entries');
+
+        $this->assertSame('+A', collect($entries->items())->first()->value); // alpha site sorts first
+    }
+
     // ── Stale data: entries on deleted sites must not surface ────────────
 
     public function test_entries_on_deleted_sites_are_hidden(): void

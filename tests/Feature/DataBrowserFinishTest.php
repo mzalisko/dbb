@@ -274,10 +274,10 @@ class DataBrowserFinishTest extends TestCase
 
         Livewire::actingAs($owner)
             ->test(DataBrowser::class, ['mode' => 'browse', 'typeFilter' => 'phone'])
-            ->call('inlineUpdate', $e->id, 'value', '+NEW')
+            ->call('inlineUpdate', $e->id, 'value', '+380700')
             ->assertDispatched('toast', fn ($ev, $p) => ($p['type'] ?? null) === 'success');
 
-        $this->assertSame('+NEW', $e->fresh()->value);
+        $this->assertSame('+380700', $e->fresh()->value);
     }
 
     public function test_inline_update_label_blank_clears_it(): void
@@ -498,11 +498,11 @@ class DataBrowserFinishTest extends TestCase
 
         $component = Livewire::actingAs($owner)
             ->test(DataBrowser::class, ['mode' => 'browse', 'typeFilter' => 'phone'])
-            ->call('inlineUpdate', $e->id, 'value', '+NEW')
+            ->call('inlineUpdate', $e->id, 'value', '+380700')
             ->assertDispatched('toast', fn ($ev, $p) => ($p['action'] ?? null) === 'bulkRestoreField'
                 && ($p['actionData']['field'] ?? null) === 'value');
 
-        $this->assertSame('+NEW', $e->fresh()->value);
+        $this->assertSame('+380700', $e->fresh()->value);
 
         $component->call('bulkRestoreField', [$e->id => '+OLD'], 'value');
         $this->assertSame('+OLD', $e->fresh()->value); // undo restores

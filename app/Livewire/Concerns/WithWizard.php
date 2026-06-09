@@ -288,6 +288,10 @@ trait WithWizard
             if (empty($this->createSites)) {
                 $this->wizErr('Оберіть хоча б один сайт'); return;
             }
+            if (! $this->valueValidForType($this->typeFilter, trim($this->createValue))) {
+                $this->wizStep = $this->wizIndexOf('data');
+                $this->wizErr('Телефон має містити лише цифри (без тексту)'); return;
+            }
             $this->createKind = $this->kindFilter;
             $this->applyCreate();
             $this->wizFinish();
@@ -361,6 +365,11 @@ trait WithWizard
 
         if ($values->isEmpty()) {
             $this->wizErr('Введіть хоча б один резервний номер'); return;
+        }
+        foreach ($values as $v) {
+            if (! $this->valueValidForType($this->typeFilter, (string) $v)) {
+                $this->wizErr("«{$v}» — телефон має містити лише цифри (без тексту)"); return;
+            }
         }
 
         $user = Auth::user();

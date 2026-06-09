@@ -59,11 +59,11 @@ class DataBrowserValueAxisTest extends TestCase
             ->call('toggleSelected', $a)
             ->call('toggleSelected', $b)
             ->call('openEdit', 'value')
-            ->set('editValue', '+NEW')
+            ->set('editValue', '+380700')
             ->call('applyEdit');
 
         // Only the two ticked occurrences change; the other three keep +SAME.
-        $this->assertSame(2, ContactEntry::where('value', '+NEW')->count());
+        $this->assertSame(2, ContactEntry::where('value', '+380700')->count());
         $this->assertSame(3, ContactEntry::where('value', '+SAME')->count());
     }
 

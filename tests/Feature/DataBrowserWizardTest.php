@@ -84,13 +84,13 @@ class DataBrowserWizardTest extends TestCase
             ->call('toggleSelected', $b)
             ->call('wizNext')->assertSet('wizStep', 5)        // action
             ->call('setWizAction', 'replace')
-            ->set('editValue', '+NEW')
+            ->set('editValue', '+380700')
             ->call('wizNext')->assertSet('wizStep', 6)        // confirm
             ->call('wizConfirm')
             ->assertSet('wizStep', 1)
             ->assertSet('wizAction', '');
 
-        $this->assertSame(2, ContactEntry::where('value', '+NEW')->count());
+        $this->assertSame(2, ContactEntry::where('value', '+380700')->count());
         $this->assertSame(2, ContactEntry::where('value', '+SAME')->count());
     }
 
@@ -105,7 +105,7 @@ class DataBrowserWizardTest extends TestCase
             ->call('wizNext')->assertSet('wizStep', 2)        // intent
             ->call('setWizIntent', 'create')->assertSet('wizIntent', 'create')
             ->call('wizNext')->assertSet('wizStep', 3)        // data
-            ->set('createValue', '+380 NEW')
+            ->set('createValue', '+380 63 111 22 33')
             ->call('wizNext')->assertSet('wizStep', 4)        // sites
             ->call('toggleCreateSite', $s1->id)
             ->call('toggleCreateSite', $s2->id)
@@ -114,9 +114,9 @@ class DataBrowserWizardTest extends TestCase
             ->assertSet('wizStep', 1)
             ->assertSet('wizIntent', 'edit');
 
-        $this->assertSame(2, ContactEntry::where('value', '+380 NEW')->count());
-        $this->assertDatabaseHas('contact_entries', ['site_id' => $s1->id, 'value' => '+380 NEW']);
-        $this->assertDatabaseHas('contact_entries', ['site_id' => $s2->id, 'value' => '+380 NEW']);
+        $this->assertSame(2, ContactEntry::where('value', '+380 63 111 22 33')->count());
+        $this->assertDatabaseHas('contact_entries', ['site_id' => $s1->id, 'value' => '+380 63 111 22 33']);
+        $this->assertDatabaseHas('contact_entries', ['site_id' => $s2->id, 'value' => '+380 63 111 22 33']);
     }
 
     public function test_reserve_flow_attaches_new_reserves_to_each_selected_primary(): void
@@ -136,7 +136,7 @@ class DataBrowserWizardTest extends TestCase
             ->call('wizNext')->assertSet('wizStep', 4)        // which primaries
             ->call('selectAllFiltered')
             ->call('wizNext')->assertSet('wizStep', 5)        // reserve numbers
-            ->set('reserveNumbers', "+RES1\n+RES2")
+            ->set('reserveNumbers', "+380701\n+380702")
             ->call('wizNext')->assertSet('wizStep', 6)        // confirm
             ->call('wizConfirm')
             ->assertSet('wizStep', 7)                         // lands on "order"
@@ -146,7 +146,7 @@ class DataBrowserWizardTest extends TestCase
         // Two new reserves under each of the two primaries = 4 backups.
         $this->assertSame(2, ContactEntry::where('parent_id', $p1->id)->where('role', 'backup')->count());
         $this->assertSame(2, ContactEntry::where('parent_id', $p2->id)->where('role', 'backup')->count());
-        $this->assertSame(2, ContactEntry::where('value', '+RES1')->count());
+        $this->assertSame(2, ContactEntry::where('value', '+380701')->count());
     }
 
     public function test_reserve_and_create_steps_render(): void
@@ -270,7 +270,7 @@ class DataBrowserWizardTest extends TestCase
             ->assertSet('selectAllMatching', true);            // #1 pre-selected
 
         $c->call('wizNext')                                    // resnums
-            ->set('reserveNumbers', '+RES')
+            ->set('reserveNumbers', '+380700')
             ->call('wizNext')                                  // confirm
             ->call('wizConfirm')                               // apply → order; sync staged
             ->assertSet('wizStep', 7);
@@ -295,7 +295,7 @@ class DataBrowserWizardTest extends TestCase
             ->call('pickValue', '+MAIN', '')
             ->call('wizNext')                                  // sites (auto-selected)
             ->call('wizNext')                                  // resnums
-            ->set('reserveNumbers', '+RES')
+            ->set('reserveNumbers', '+380700')
             ->call('wizNext')
             ->call('wizConfirm')->assertSet('wizStep', 7);     // staged
 
@@ -304,5 +304,49 @@ class DataBrowserWizardTest extends TestCase
             ->assertSet('wizIntent', 'edit')
             ->assertSet('wizValues', []);
         $this->assertEmpty($c->get('wizPendingSites'), 'staged sync dropped on cancel');
+    }
+
+    public function test_phone_value_cannot_be_text_on_create(): void
+    {
+        $owner = User::factory()->create(['role' => 'owner']);
+        $s1 = $this->siteForOwner($owner);
+
+        Livewire::actingAs($owner)
+            ->test(DataBrowser::class, ['typeFilter' => 'phone'])
+            ->call('wizNext')
+            ->call('setWizIntent', 'create')
+            ->call('wizNext')                                  // data
+            ->set('createValue', 'привіт текст')
+            ->call('wizNext')->assertSet('wizStep', 4)         // csites
+            ->call('toggleCreateSite', $s1->id)
+            ->call('wizNext')->assertSet('wizStep', 5)         // confirm
+            ->call('wizConfirm')
+            ->assertSet('wizStep', 3)                          // bounced back to "Дані"
+            ->assertDispatched('toast', fn ($e, $p) => ($p['type'] ?? null) === 'error');
+
+        $this->assertSame(0, ContactEntry::where('value', 'привіт текст')->count());
+    }
+
+    public function test_phone_reserve_numbers_cannot_be_text(): void
+    {
+        $owner = User::factory()->create(['role' => 'owner']);
+        $site = $this->siteForOwner($owner);
+        $p = ContactEntry::factory()->for($site)->phone()->create(['value' => '+MAIN', 'role' => 'primary']);
+
+        Livewire::actingAs($owner)
+            ->test(DataBrowser::class, ['typeFilter' => 'phone'])
+            ->call('wizNext')
+            ->call('setWizIntent', 'reserve')
+            ->call('wizNext')
+            ->call('pickValue', '+MAIN', '')
+            ->call('wizNext')                                  // sites (auto-selected)
+            ->call('wizNext')                                  // resnums
+            ->set('reserveNumbers', "+380701\nне номер")
+            ->call('wizNext')                                  // confirm
+            ->call('wizConfirm')
+            ->assertDispatched('toast', fn ($e, $p) => ($p['type'] ?? null) === 'error');
+
+        // One line is text → all-or-nothing, no reserves created.
+        $this->assertSame(0, ContactEntry::where('parent_id', $p->id)->count());
     }
 }

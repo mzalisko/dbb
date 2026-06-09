@@ -263,7 +263,7 @@ class DataBrowserBulkTest extends TestCase
             ->call('selectPage', $ids)
             ->call('openEdit', 'value')
             ->assertSet('editStep', 1)
-            ->set('editValue', '+NEW')
+            ->set('editValue', '+380700')
             ->call('editConfirm')
             ->assertSet('editStep', 2)   // confirmation step
             ->call('editBack')
@@ -272,7 +272,7 @@ class DataBrowserBulkTest extends TestCase
             ->call('applyEdit')
             ->assertSet('editingField', false);
 
-        $this->assertSame(2, ContactEntry::whereIn('id', $ids)->where('value', '+NEW')->count());
+        $this->assertSame(2, ContactEntry::whereIn('id', $ids)->where('value', '+380700')->count());
     }
 
     public function test_value_edit_confirm_step_requires_a_value(): void
@@ -650,7 +650,7 @@ class DataBrowserBulkTest extends TestCase
             ->create()->pluck('id')->map(fn ($i) => (int) $i)->all();
 
         Livewire::actingAs($owner)
-            ->test(DataBrowser::class, ['mode' => 'browse'])
+            ->test(DataBrowser::class, ['mode' => 'browse', 'typeFilter' => 'messenger'])
             ->call('selectPage', $ids)
             ->call('openEdit', 'value')
             ->assertSet('editingField', true) // same kind → allowed
@@ -1036,14 +1036,14 @@ class DataBrowserBulkTest extends TestCase
             ->test(DataBrowser::class, ['mode' => 'browse', 'typeFilter' => 'phone'])
             ->call('openCreate')
             ->assertSet('creating', true)
-            ->set('createValue', '+NEW')
+            ->set('createValue', '+380700')
             ->call('toggleCreateSite', $siteA->id)
             ->call('toggleCreateSite', $siteB->id)
             ->call('applyCreate')
             ->assertSet('creating', false);
 
-        $this->assertSame(1, ContactEntry::where('site_id', $siteA->id)->where('value', '+NEW')->count());
-        $this->assertSame(1, ContactEntry::where('site_id', $siteB->id)->where('value', '+NEW')->count());
+        $this->assertSame(1, ContactEntry::where('site_id', $siteA->id)->where('value', '+380700')->count());
+        $this->assertSame(1, ContactEntry::where('site_id', $siteB->id)->where('value', '+380700')->count());
     }
 
     public function test_bulk_attach_makes_selection_reserves_of_a_primary(): void

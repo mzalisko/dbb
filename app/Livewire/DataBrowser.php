@@ -841,6 +841,11 @@ class DataBrowser extends Component
 
             return;
         }
+        if ($field === 'value' && ! $this->valueValidForType($entry->type, $new)) {
+            $this->dispatch('toast', type: 'error', message: 'Телефон має містити лише цифри та + ( ) - (без тексту)');
+
+            return;
+        }
         if ($isNumeric && $new !== '' && ! is_numeric(str_replace(',', '.', $new))) {
             $this->dispatch('toast', type: 'error', message: 'Вкажіть число');
 
@@ -871,6 +876,22 @@ class DataBrowser extends Component
             actionLabel: 'Відмінити',
             actionData: ['snapshot' => [$entry->id => $old], 'field' => $field],
         );
+    }
+
+    /**
+     * Phone values must look like a number — digits with + ( ) - . and spaces,
+     * never free text. Other types (messengers, etc.) accept any non-empty value.
+     */
+    public function valueValidForType(string $type, string $value): bool
+    {
+        if ($type !== 'phone') {
+            return true;
+        }
+        $v = trim($value);
+
+        return $v !== ''
+            && preg_match('/\d/', $v) === 1                     // at least one digit
+            && preg_match('/^[+\d][\d\s()\-.]*$/', $v) === 1;   // only phone chars — no letters
     }
 
     // ─── Generic "change ANY field" (set / clear / find-replace) ──────────
@@ -1090,6 +1111,11 @@ class DataBrowser extends Component
         }
         if ($field === 'value' && $new === '') {
             $this->dispatch('toast', type: 'error', message: 'Введіть нове значення');
+
+            return;
+        }
+        if ($field === 'value' && ! $this->valueValidForType($this->typeFilter, $new)) {
+            $this->dispatch('toast', type: 'error', message: 'Телефон має містити лише цифри (без тексту)');
 
             return;
         }
@@ -1425,6 +1451,11 @@ class DataBrowser extends Component
         }
 
         $replace = $this->replaceText;
+        if ($this->typeFilter === 'phone' && preg_match('/\p{L}/u', $replace)) {
+            $this->dispatch('toast', type: 'error', message: 'Заміна для телефону не може містити текст');
+
+            return;
+        }
         $snapshot = [];
         $changed = 0;
 
@@ -1867,6 +1898,11 @@ class DataBrowser extends Component
         $value = trim($this->createValue);
         if ($value === '') {
             $this->dispatch('toast', type: 'error', message: 'Введіть значення');
+
+            return;
+        }
+        if (! $this->valueValidForType($type, $value)) {
+            $this->dispatch('toast', type: 'error', message: 'Телефон має містити лише цифри (без тексту)');
 
             return;
         }

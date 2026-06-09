@@ -413,4 +413,50 @@ class DataBrowserWizardTest extends TestCase
 
         $this->assertTrue((bool) $primary->fresh()->failover_down, 'primary marked down → reserve serves');
     }
+
+    public function test_multi_action_changes_value_and_state_in_one_pass(): void
+    {
+        $owner = User::factory()->create(['role' => 'owner']);
+        $site = $this->siteForOwner($owner);
+        ContactEntry::factory()->for($site)->phone()->count(2)
+            ->create(['value' => '+SAME', 'role' => 'primary', 'visible' => true]);
+
+        Livewire::actingAs($owner)
+            ->test(DataBrowser::class, ['typeFilter' => 'phone'])
+            ->call('wizNext')                                  // intent (edit)
+            ->call('wizNext')->assertSet('wizStep', 3)         // value
+            ->call('toggleWizValue', '+SAME')
+            ->call('wizNext')->assertSet('wizStep', 4)         // sites
+            ->call('selectAllFiltered')
+            ->call('wizNext')->assertSet('wizStep', 5)         // action
+            ->call('setWizAction', 'changes')
+            ->call('toggleChg', 'value')
+            ->call('toggleChg', 'state')
+            ->set('editValue', '+380999')
+            ->set('roleValue', 'hidden')
+            ->call('wizNext')->assertSet('wizStep', 6)         // confirm
+            ->call('wizConfirm');
+
+        // value AND state changed together, in one pass.
+        $this->assertSame(2, ContactEntry::where('value', '+380999')
+            ->where('role', 'hidden')->where('visible', false)->count());
+    }
+
+    public function test_multi_action_requires_at_least_one_field(): void
+    {
+        $owner = User::factory()->create(['role' => 'owner']);
+        $site = $this->siteForOwner($owner);
+        $id = (int) ContactEntry::factory()->for($site)->phone()->create(['value' => '+SAME'])->id;
+
+        Livewire::actingAs($owner)
+            ->test(DataBrowser::class, ['typeFilter' => 'phone'])
+            ->call('toggleWizValue', '+SAME')
+            ->call('toggleSelected', $id)
+            ->set('wizStep', 5)
+            ->call('setWizAction', 'changes')
+            ->call('wizConfirm')   // no field toggled
+            ->assertDispatched('toast', fn ($e, $p) => ($p['type'] ?? null) === 'error');
+
+        $this->assertSame('+SAME', ContactEntry::find($id)->value, 'nothing changed');
+    }
 }

@@ -939,7 +939,7 @@
                     <div>
                         <label style="display:block; font:12px var(--font-mono); color:var(--ink-5); text-transform:uppercase; letter-spacing:.06em;">Новий стан</label>
                         <div style="margin-top:8px; display:flex; gap:8px;">
-                            @php $rstates = ['primary' => ['Активний', 'check'], 'hidden' => ['Прихований', 'eye-off'], 'down' => ['Збій → резерв', 'bolt']]; @endphp
+                            @php $rstates = ['primary' => ['Активний', 'check'], 'hidden' => ['Прихований', 'eye-off'], 'down' => ['На резерв', 'bolt']]; @endphp
                             @foreach ($rstates as $val => $rs)
                                 <button type="button" wire:click="$set('roleValue', '{{ $val }}')"
                                         style="flex:1; height:44px; border-radius:10px; font:13px var(--font-sans); cursor:pointer;
@@ -952,7 +952,7 @@
                             @endforeach
                         </div>
                         <div style="margin-top:8px; font:12px var(--font-sans); color:var(--ink-5);">
-                            «Прихований» ховає основний <b>разом із резервами</b>. «Збій → резерв» позначає основний як збій — починає віддаватися його резерв. «Активний» розкриває набір і знімає збій (резерв від'єднується в окремий основний). Дію можна відмінити.
+                            «Прихований» ховає основний <b>разом із резервами</b>. «На резерв» — замість основного починає віддаватися його резерв. «Активний» розкриває набір (резерв від'єднується в окремий основний). Дію можна відмінити.
                         </div>
                     </div>
                 </div>

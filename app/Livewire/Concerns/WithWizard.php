@@ -4,6 +4,7 @@ namespace App\Livewire\Concerns;
 
 use App\Models\ContactEntry;
 use App\Services\ActivityLogService;
+use App\Services\BulkActionService;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Url;
 
@@ -39,6 +40,10 @@ trait WithWizard
 
     /** Sites touched during the wizard — pushed to the plugin only on "Готово". */
     public array $wizPendingSites = [];
+
+    /** Multi-action change-set — fields to change at once: value|label|state|geo. */
+    public array $chg = [];
+    public string $chgLabel = '';   // new label (value→editValue, state→roleValue, geo→geoMode/geoCountries)
 
     /** Step labels per intent (drives the progress rail). */
     public function wizSteps(): array
@@ -85,6 +90,7 @@ trait WithWizard
     public function wizActionLabels(): array
     {
         return [
+            'changes'   => 'Кілька змін одразу',
             'replace'   => 'Замінити значення',
             'substr'    => 'Замінити підрядок',
             'label'     => 'Змінити мітку',
@@ -260,6 +266,14 @@ trait WithWizard
         $this->wizAction = $action;
 
         switch ($action) {
+            case 'changes':
+                $this->chg = [];
+                $this->editValue = '';
+                $this->chgLabel = '';
+                $this->geoMode = 'all';
+                $this->geoCountries = '';
+                $this->roleValue = 'primary';
+                break;
             case 'replace':
                 $this->editField = 'value';
                 $this->editValue = '';
@@ -342,6 +356,7 @@ trait WithWizard
         }
 
         switch ($this->wizAction) {
+            case 'changes':   $this->applyChanges(); break;
             case 'replace':   $this->editField = 'value'; $this->applyEdit(); break;
             case 'label':     $this->editField = 'label'; $this->applyEdit(); break;
             case 'substr':    $this->applyReplace(); break;
@@ -359,6 +374,139 @@ trait WithWizard
         } else {
             $this->wizFinish();
         }
+    }
+
+    /** Toggle a field in the multi-action change-set (value|label|state|geo). */
+    public function toggleChg(string $field): void
+    {
+        if (! in_array($field, ['value', 'label', 'state', 'geo'], true)) {
+            return;
+        }
+        $this->chg = in_array($field, $this->chg, true)
+            ? array_values(array_diff($this->chg, [$field]))
+            : array_merge($this->chg, [$field]);
+    }
+
+    /**
+     * Multi-action: apply SEVERAL field changes (value + label + state + geo) to
+     * the whole selection in one pass — one audit, one undo, one push. State
+     * keeps the three-way model (active / hidden→whole set / down→reserve).
+     */
+    public function applyChanges(): void
+    {
+        if (empty($this->chg)) {
+            $this->wizErr('Позначте хоча б одну зміну'); return;
+        }
+
+        $nv = trim($this->editValue);
+        if (in_array('value', $this->chg, true)) {
+            if ($nv === '') {
+                $this->wizErr('Введіть нове значення'); return;
+            }
+            if (! $this->valueValidForType($this->typeFilter, $nv)) {
+                $this->wizErr('Телефон має містити лише цифри (без тексту)'); return;
+            }
+        }
+        $geoCountries = [];
+        if (in_array('geo', $this->chg, true)) {
+            if (! in_array($this->geoMode, ['all', 'only', 'except'], true)) {
+                $this->wizErr('Оберіть гео-режим'); return;
+            }
+            $geoCountries = $this->geoMode === 'all' ? [] : $this->parsedCountries();
+            if ($this->geoMode !== 'all' && empty($geoCountries)) {
+                $this->wizErr('Вкажіть хоча б одну країну'); return;
+            }
+        }
+        if (in_array('state', $this->chg, true) && ! in_array($this->roleValue, ['primary', 'hidden', 'down'], true)) {
+            $this->wizErr('Оберіть стан'); return;
+        }
+
+        $chg = $this->chg;
+        $nl = trim($this->chgLabel);
+        $gMode = $this->geoMode;
+        $gTag = ($gMode === 'only' && count($geoCountries) === 1) ? $geoCountries[0] : null;
+        $rv = $this->roleValue;
+
+        $snapshot = [];
+        $capture = function (ContactEntry $e) use (&$snapshot) {
+            $snapshot[$e->id] ??= [
+                'value'         => $e->value,
+                'label'         => $e->label,
+                'role'          => $e->role,
+                'visible'       => $e->visible,
+                'parent_id'     => $e->parent_id,
+                'geo_tag'       => $e->geo_tag,
+                'geo_mode'      => $e->geo_mode,
+                'countries'     => $e->countries,
+                'failover_down' => $e->failover_down,
+            ];
+        };
+
+        $result = BulkActionService::apply(
+            ContactEntry::class,
+            $this->bulkTargetIds(),
+            'update',
+            function (ContactEntry $e) use (&$snapshot, $chg, $nv, $nl, $gMode, $geoCountries, $gTag, $rv, $capture) {
+                $capture($e);
+                $data = [];
+                if (in_array('value', $chg, true)) {
+                    $data['value'] = $nv;
+                }
+                if (in_array('label', $chg, true)) {
+                    $data['label'] = $nl !== '' ? $nl : null;
+                }
+                if (in_array('geo', $chg, true)) {
+                    $data['geo_mode'] = $gMode;
+                    $data['countries'] = $geoCountries ?: null;
+                    $data['geo_tag'] = $gTag;
+                }
+                if (in_array('state', $chg, true)) {
+                    if ($rv === 'down') {
+                        $e->forceFill(['failover_down' => true]);
+                    } elseif ($rv === 'hidden') {
+                        $data['role'] = 'hidden';
+                        $data['visible'] = false;
+                    } else { // active
+                        $data['role'] = 'primary';
+                        $data['visible'] = true;
+                        $e->forceFill(['failover_down' => false]);
+                        if ($e->parent_id && ! in_array('geo', $chg, true)) {
+                            $parent = $e->parent;
+                            $data['parent_id'] = null;
+                            $data['geo_tag'] = $parent?->geo_tag;
+                            $data['geo_mode'] = $parent?->geo_mode ?? 'all';
+                            $data['countries'] = $parent?->countries;
+                        } elseif ($e->parent_id) {
+                            $data['parent_id'] = null;
+                        }
+                    }
+                }
+                $e->update($data);
+
+                // State cascade: hiding/activating a primary carries its reserves.
+                if (in_array('state', $chg, true) && is_null($e->parent_id) && in_array($rv, ['hidden', 'primary'], true)) {
+                    foreach ($e->backups as $b) {
+                        $capture($b);
+                        $b->update(['visible' => $rv !== 'hidden']);
+                    }
+                }
+            },
+            auditAction: 'entry.bulk.updated',
+            syncTouchedSites: true,
+        );
+
+        if ($result['done'] === 0) {
+            $this->wizErr('Немає прав на редагування обраних'); return;
+        }
+
+        $this->clearSelected();
+        $this->dispatch('toast',
+            type: 'success',
+            message: $this->withSkipped('Змінено: '.$result['done'], $result['skipped']),
+            action: 'bulkRestoreRole',
+            actionLabel: 'Відмінити',
+            actionData: ['snapshot' => $snapshot],
+        );
     }
 
     /**

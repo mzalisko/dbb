@@ -231,9 +231,10 @@
     @if ($key === 'action')
         @php
             $actMeta = [
+                'changes' => ['layers', 'значення + мітка + стан + гео за один раз'],
                 'replace' => ['edit', 'нове значення на всіх обраних'], 'substr' => ['refresh', 'напр. код 63 → 67'],
                 'label' => ['tag', 'підпис біля значення'], 'geo' => ['globe', 'усім / тільки / крім'],
-                'state' => ['bolt', 'активний / прихований / збій'], 'move' => ['arrow-right', 'на інший сайт'],
+                'state' => ['bolt', 'активний / прихований / на резерв'], 'move' => ['arrow-right', 'на інший сайт'],
                 'duplicate' => ['copy', 'копії на сайти'], 'delete' => ['trash', 'у кошик, оборотно'],
             ];
         @endphp
@@ -258,7 +259,44 @@
 
                 @if ($wizAction !== '')
                     <div style="margin-top:16px; padding:16px; border:1px solid var(--ink-2); border-radius:10px; background:var(--paper-2);">
-                        @if ($wizAction === 'replace')
+                        @if ($wizAction === 'changes')
+                            @php $chgFields = ['value' => 'Значення', 'label' => 'Мітка', 'state' => 'Стан', 'geo' => 'Гео']; @endphp
+                            <div style="font:12px var(--font-sans); color:var(--ink-6); margin-bottom:10px;">Познач, що змінити — застосується разом, одним підтвердженням (одне «Відмінити»):</div>
+                            <div style="display:flex; flex-direction:column; gap:9px;">
+                                @foreach ($chgFields as $fk => $fl)
+                                    @php $fon = in_array($fk, $chg ?? [], true); @endphp
+                                    <div style="border:1px solid {{ $fon ? 'var(--accent)' : 'var(--ink-3)' }}; border-radius:10px; padding:10px 12px; background:{{ $fon ? 'var(--accent-soft)' : 'var(--card)' }};">
+                                        <button type="button" wire:click="toggleChg('{{ $fk }}')" style="display:flex; align-items:center; gap:9px; width:100%; border:0; background:transparent; cursor:pointer; text-align:left; padding:0;">
+                                            <span class="row-check {{ $fon ? 'is-checked' : '' }}">@if($fon)<x-icon.check width="11" height="11" />@endif</span>
+                                            <span style="font:13px var(--font-sans); color:var(--ink-9);">{{ $fl }}</span>
+                                        </button>
+                                        @if ($fon)
+                                            <div style="margin-top:10px; padding-left:27px;">
+                                                @if ($fk === 'value')
+                                                    <input wire:model="editValue" type="text" placeholder="нове значення" style="{{ $inp }} width:100%; font-family:var(--font-mono);" />
+                                                @elseif ($fk === 'label')
+                                                    <input wire:model="chgLabel" type="text" placeholder="нова мітка (порожнє — прибрати)" style="{{ $inp }} width:100%;" />
+                                                @elseif ($fk === 'state')
+                                                    @php $sts = ['primary' => ['Активний', 'check'], 'hidden' => ['Прихований (весь набір)', 'eye-off'], 'down' => ['На резерв', 'bolt']]; @endphp
+                                                    <div style="display:flex; gap:7px; flex-wrap:wrap;">
+                                                        @foreach ($sts as $rk => $rs)
+                                                            <button type="button" wire:click="$set('roleValue', '{{ $rk }}')" style="height:32px; padding:0 12px; border-radius:8px; cursor:pointer; font:12.5px var(--font-sans); display:inline-flex; align-items:center; gap:6px; background:{{ $roleValue === $rk ? 'var(--ink-9)' : 'var(--card)' }}; color:{{ $roleValue === $rk ? 'var(--paper)' : 'var(--ink-7)' }}; border:1px solid {{ $roleValue === $rk ? 'var(--ink-9)' : 'var(--ink-3)' }};"><x-dynamic-component :component="'icon.'.$rs[1]" width="12" height="12" /> {{ $rs[0] }}</button>
+                                                        @endforeach
+                                                    </div>
+                                                @elseif ($fk === 'geo')
+                                                    <div style="display:flex; gap:7px; margin-bottom:8px;">
+                                                        @foreach (['all' => 'Усім', 'only' => 'Тільки', 'except' => 'Крім'] as $mk => $ml)
+                                                            <button type="button" wire:click="$set('geoMode', '{{ $mk }}')" style="height:30px; padding:0 12px; border-radius:8px; cursor:pointer; font:12px var(--font-sans); background:{{ $geoMode === $mk ? 'var(--ink-9)' : 'var(--card)' }}; color:{{ $geoMode === $mk ? 'var(--paper)' : 'var(--ink-7)' }}; border:1px solid {{ $geoMode === $mk ? 'var(--ink-9)' : 'var(--ink-3)' }};">{{ $ml }}</button>
+                                                        @endforeach
+                                                    </div>
+                                                    @if ($geoMode !== 'all')<input wire:model="geoCountries" type="text" placeholder="UA, PL, DE" style="{{ $inp }} width:100%; font-family:var(--font-mono);" />@endif
+                                                @endif
+                                            </div>
+                                        @endif
+                                    </div>
+                                @endforeach
+                            </div>
+                        @elseif ($wizAction === 'replace')
                             <label style="display:block; font:12px var(--font-sans); color:var(--ink-6); margin-bottom:6px;">Нове значення для {{ $this->selectedCount() }} обраних:</label>
                             <input wire:model="editValue" type="text" placeholder="нове значення" style="{{ $inp }} width:100%; font-family:var(--font-mono);" />
                         @elseif ($wizAction === 'label')
@@ -278,14 +316,14 @@
                         @elseif ($wizAction === 'state')
                             <label style="display:block; font:12px var(--font-sans); color:var(--ink-6); margin-bottom:8px;">Новий стан обраних:</label>
                             <div style="display:flex; gap:8px; flex-wrap:wrap;">
-                                @php $states = ['primary' => ['Активний', 'check'], 'hidden' => ['Прихований (весь набір)', 'eye-off'], 'down' => ['Збій → резерв', 'bolt']]; @endphp
+                                @php $states = ['primary' => ['Активний', 'check'], 'hidden' => ['Прихований (весь набір)', 'eye-off'], 'down' => ['На резерв', 'bolt']]; @endphp
                                 @foreach ($states as $rk => $rs)
                                     <button type="button" wire:click="$set('roleValue', '{{ $rk }}')" style="height:34px; padding:0 14px; border-radius:8px; cursor:pointer; font:13px var(--font-sans); display:inline-flex; align-items:center; gap:7px; background:{{ $roleValue === $rk ? 'var(--ink-9)' : 'var(--card)' }}; color:{{ $roleValue === $rk ? 'var(--paper)' : 'var(--ink-7)' }}; border:1px solid {{ $roleValue === $rk ? 'var(--ink-9)' : 'var(--ink-3)' }};"><x-dynamic-component :component="'icon.'.$rs[1]" width="13" height="13" /> {{ $rs[0] }}</button>
                                 @endforeach
                             </div>
                             <div style="margin-top:8px; font:11.5px var(--font-sans); color:var(--ink-5);">
                                 @if ($roleValue === 'hidden')Приховає основний разом з його резервами.
-                                @elseif ($roleValue === 'down')Основний позначиться як «збій» — почне віддаватися його резерв.
+                                @elseif ($roleValue === 'down')Замість основного почне віддаватися його резерв.
                                 @else Розкриє набір і зніме позначку збою.@endif
                             </div>
                         @elseif ($wizAction === 'move')
@@ -381,11 +419,12 @@
                 $summary = 'Додати резерв(и) «'.$resList.'» до '.$n.' основних «'.$pickedValue.'».';
             } else {
                 $summary = match ($wizAction) {
+                    'changes'   => 'Кілька змін на '.$n.' входженнях: '.collect($chg ?? [])->map(fn ($f) => ['value' => 'значення', 'label' => 'мітка', 'state' => 'стан', 'geo' => 'гео'][$f] ?? $f)->implode(', ').'.',
                     'replace'   => 'Встановити значення «'.trim($editValue).'» на '.$n.' входженнях.',
                     'label'     => 'Змінити мітку на '.$n.' входженнях на «'.trim($editValue).'».',
                     'substr'    => 'У '.$n.' входженнях замінити підрядок «'.$findText.'» → «'.$replaceText.'».',
                     'geo'       => 'Змінити гео на '.$n.' входженнях ('.($geoMode === 'all' ? 'усім' : ($geoMode === 'only' ? 'тільки: '.$geoCountries : 'крім: '.$geoCountries)).').',
-                    'state'     => 'Змінити стан на '.$n.' входженнях: «'.(['primary' => 'Активний', 'hidden' => 'Прихований (весь набір)', 'down' => 'Збій → резерв'][$roleValue] ?? 'Активний').'».',
+                    'state'     => 'Змінити стан на '.$n.' входженнях: «'.(['primary' => 'Активний', 'hidden' => 'Прихований (весь набір)', 'down' => 'На резерв'][$roleValue] ?? 'Активний').'».',
                     'move'      => 'Перемістити '.$n.' входжень на обраний сайт (з резервами).',
                     'duplicate' => 'Скопіювати '.$n.' входжень на '.count($dupSites).' сайтів.',
                     'delete'    => 'Видалити '.$n.' входжень у кошик.',

@@ -102,6 +102,13 @@ trait WithReserves
 
             return;
         }
+        foreach ($values as $v) {
+            if (! $this->valueValidForType($primary->type, (string) $v)) {
+                $this->dispatch('toast', type: 'error', message: "«{$v}» — телефон має містити лише цифри (без тексту)");
+
+                return;
+            }
+        }
 
         $order = (int) ContactEntry::where('parent_id', $primary->id)->where('site_id', $primary->site_id)->max('order');
         $created = [];

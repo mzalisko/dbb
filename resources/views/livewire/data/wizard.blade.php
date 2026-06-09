@@ -107,15 +107,20 @@
         </div>
     @endif
 
-    {{-- ════ VALUE (edit: «Яке значення», reserve: «Основний номер») ════ --}}
+    {{-- ════ VALUE — multi-select for text types; single for price & reserve ════ --}}
     @if ($key === 'value')
-        @php $isReserve = $wizIntent === 'reserve'; @endphp
+        @php
+            $isReserve = $wizIntent === 'reserve';
+            $single = ! $this->wizMultiValue();
+            $vHead = $isReserve ? 'Який основний запис?' : ($single ? 'Яке значення?' : 'Які значення?');
+            $vHint = $isReserve ? 'один основний, до якого додати резерв' : ($single ? 'оберіть одне значення' : 'можна кілька — дія охопить усі їхні входження');
+        @endphp
         <div class="card" style="overflow:hidden;">
-            <div style="{{ $panelHead }}"><span style="{{ $kKey }}">Крок 3</span><h2 style="{{ $h2 }}">{{ $isReserve ? 'Який основний номер?' : 'Які значення?' }}</h2><span style="{{ $hint }}">{{ $isReserve ? 'один основний, до якого додати резерв' : 'можна кілька — дія охопить усі їхні входження' }}</span></div>
+            <div style="{{ $panelHead }}"><span style="{{ $kKey }}">Крок 3</span><h2 style="{{ $h2 }}">{{ $vHead }}</h2><span style="{{ $hint }}">{{ $vHint }}</span></div>
             <div style="padding:18px 20px;">
                 <div style="display:flex; align-items:center; gap:10px; height:42px; padding:0 14px; border-radius:10px; background:var(--paper-2); margin-bottom:14px;">
                     <x-icon.search width="16" height="16" style="color:var(--ink-5);" />
-                    <input wire:model.live.debounce.300ms="search" type="text" placeholder="Пошук номера або мітки…"
+                    <input wire:model.live.debounce.300ms="search" type="text" placeholder="Пошук значення або мітки…"
                            style="flex:1; border:0; outline:none; background:transparent; font:14.5px var(--font-sans); color:var(--ink-7);" />
                 </div>
                 <div style="border:1px solid var(--ink-2); border-radius:10px; overflow:hidden; max-height:440px; overflow-y:auto;">
@@ -123,16 +128,16 @@
                         @php
                             $gcur = $g->currency ?? '';
                             $gdisp = $typeFilter === 'price' ? rtrim(rtrim(number_format((float) $g->gkey, 2, '.', ' '), '0'), '.') : $g->gkey;
-                            $on = $isReserve
+                            $on = $single
                                 ? ($pickedValue !== '' && (string) $pickedValue === (string) $g->gkey && (string) $pickedCurrency === (string) $gcur)
                                 : in_array((string) $g->gkey, $wizValues, true);
                             $prim = (int) ($g->prim ?? 0); $res = (int) ($g->res ?? 0);
                         @endphp
                         <button type="button" wire:key="wv-{{ md5($g->gkey.'|'.$gcur) }}"
-                                @if ($isReserve) wire:click="pickValue('{{ addslashes($g->gkey) }}', '{{ addslashes($gcur) }}')" @else wire:click="toggleWizValue('{{ addslashes($g->gkey) }}')" @endif
+                                @if ($single) wire:click="pickValue('{{ addslashes($g->gkey) }}', '{{ addslashes($gcur) }}')" @else wire:click="toggleWizValue('{{ addslashes($g->gkey) }}')" @endif
                                 style="display:flex; align-items:center; gap:12px; width:100%; text-align:left; padding:13px 15px; border:0; border-bottom:1px solid var(--ink-2); cursor:pointer;
                                        background:{{ $on ? 'var(--accent-soft)' : 'transparent' }}; box-shadow:{{ $on ? 'inset 3px 0 0 var(--accent)' : 'none' }};">
-                            @unless ($isReserve)
+                            @unless ($single)
                                 <span class="row-check {{ $on ? 'is-checked' : '' }}">@if($on)<x-icon.check width="11" height="11" />@endif</span>
                             @endunless
                             <span class="mono" style="flex:1; min-width:0; font:14px var(--font-mono); color:var(--ink-9); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ $gdisp }}{{ $gcur ? ' '.$gcur : '' }}</span>
@@ -141,24 +146,24 @@
                                 @if ($res > 0)<span style="display:inline-flex; align-items:center; gap:5px; font:11.5px var(--font-sans); color:var(--info);"><span class="dot dot-info"></span>{{ $res }} рез.</span>@endif
                                 <span style="font:11px var(--font-sans); color:var(--ink-4);">{{ $g->sites }}&nbsp;сайтів</span>
                             </span>
-                            @if ($isReserve)<span style="color:{{ $on ? 'var(--accent)' : 'var(--ink-4)' }}; font-size:14px;">{{ $on ? '✓' : '›' }}</span>@endif
+                            @if ($single)<span style="display:inline-flex; color:{{ $on ? 'var(--accent)' : 'var(--ink-4)' }};">@if ($on)<x-icon.check width="13" height="13" />@else<x-icon.chev-r width="14" height="14" />@endif</span>@endif
                         </button>
                     @empty
-                        <div style="padding:40px; text-align:center; color:var(--ink-5); font:13px var(--font-sans);">{{ $isReserve ? 'Немає основних номерів цього типу.' : 'Немає значень для цього типу.' }}</div>
+                        <div style="padding:40px; text-align:center; color:var(--ink-5); font:13px var(--font-sans);">{{ $isReserve ? 'Немає основних записів цього типу.' : 'Немає значень для цього типу.' }}</div>
                     @endforelse
                 </div>
             </div>
             <div style="{{ $pf }}">
                 <button class="btn btn-ghost" wire:click="wizBack">← Назад</button>
                 <span style="color:var(--ink-6); font:12.5px var(--font-sans);">
-                    @if ($isReserve)
-                        @if ($pickedValue !== '')Обрано: <b class="mono">{{ $pickedValue }}{{ $pickedCurrency ? ' '.$pickedCurrency : '' }}</b>@else Оберіть основний @endif
+                    @if ($single)
+                        @if ($pickedValue !== '')Обрано: <b class="mono">{{ $pickedValue }}{{ $pickedCurrency ? ' '.$pickedCurrency : '' }}</b>@else {{ $isReserve ? 'Оберіть основний' : 'Оберіть значення' }} @endif
                     @else
                         Обрано значень: <b>{{ count($wizValues) }}</b>
                     @endif
                 </span>
                 <span style="flex:1;"></span>
-                <button class="btn btn-primary" wire:click="wizNext" @disabled($isReserve ? $pickedValue === '' : empty($wizValues))>Далі → Сайти</button>
+                <button class="btn btn-primary" wire:click="wizNext" @disabled($single ? $pickedValue === '' : empty($wizValues))>Далі → Сайти</button>
             </div>
         </div>
     @endif
@@ -416,7 +421,15 @@
                     </div>
                 @endif
             </div>
-            <div style="{{ $pf }}"><button class="btn btn-ghost" wire:click="wizBack">← Назад</button><span style="flex:1;"></span><span style="color:var(--ink-5); font:12px var(--font-sans); margin-right:8px;">Можна скасувати після виконання</span><button class="btn btn-primary" wire:click="wizConfirm" style="background:var(--accent); border-color:var(--accent);">✓ Підтвердити та застосувати</button></div>
+            <div style="{{ $pf }}">
+                <button class="btn btn-ghost" wire:click="wizBack">← Назад</button>
+                <span style="flex:1;"></span>
+                @if ($wizIntent !== 'create')
+                    <button class="btn btn-ghost" wire:click="wizExport" title="Завантажити обрані у CSV"><x-icon.download width="14" height="14" /> Завантажити</button>
+                @endif
+                <span style="color:var(--ink-5); font:12px var(--font-sans); margin:0 4px;">з відміною</span>
+                <button class="btn btn-primary" wire:click="wizConfirm" style="background:var(--accent); border-color:var(--accent);">Підтвердити та застосувати</button>
+            </div>
         </div>
     @endif
 

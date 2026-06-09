@@ -195,6 +195,7 @@ class DataBrowser extends Component
         // The picked value belongs to the old entity — drop it with the selection.
         $this->pickedValue = '';
         $this->pickedCurrency = '';
+        $this->wizValues = [];
         $this->resetPage();
         $this->clearSelected();
     }
@@ -205,6 +206,7 @@ class DataBrowser extends Component
         // switching it drops the selection too — you re-pick within the new kind.
         $this->pickedValue = '';
         $this->pickedCurrency = '';
+        $this->wizValues = [];
         $this->resetPage();
         $this->clearSelected();
     }
@@ -1007,7 +1009,14 @@ class DataBrowser extends Component
             return 'Невідома операція';
         }
         if ($this->genOp === 'replace') {
-            return $this->genFind === '' ? 'Введіть текст для пошуку' : null;
+            if ($this->genFind === '') {
+                return 'Введіть текст для пошуку';
+            }
+            if ($field === 'value' && $this->typeFilter === 'phone' && preg_match('/\p{L}/u', $this->genValue)) {
+                return 'Заміна для телефону не може містити текст';
+            }
+
+            return null;
         }
         if ($this->genOp === 'clear') {
             return null;
@@ -1022,6 +1031,9 @@ class DataBrowser extends Component
         }
         if ($field === 'value' && $raw === '') {
             return 'Значення не може бути порожнім';
+        }
+        if ($field === 'value' && ! $this->valueValidForType($this->typeFilter, $raw)) {
+            return 'Телефон має містити лише цифри (без тексту)';
         }
 
         return null;
@@ -2134,6 +2146,30 @@ class DataBrowser extends Component
                     }
                 });
 
+            fclose($out);
+        }, $filename, ['Content-Type' => 'text/csv; charset=UTF-8']);
+    }
+
+    /** Download the wizard's current scope (the selected occurrences) as CSV — "плану". */
+    public function wizExport()
+    {
+        if (! $this->hasSelection()) {
+            $this->dispatch('toast', type: 'error', message: 'Немає обраних записів для завантаження');
+
+            return null;
+        }
+
+        $filename = 'data-plan-'.now()->format('Y-m-d-His').'.csv';
+
+        return response()->streamDownload(function () {
+            $out = fopen('php://output', 'w');
+            fwrite($out, "\xEF\xBB\xBF");
+            fputcsv($out, ['Тип', 'Значення', 'Мітка', 'Сайт', 'Гео', 'Роль']);
+            $this->selectedSourceQuery()->with('site')->chunk(500, function ($rows) use ($out) {
+                foreach ($rows as $e) {
+                    fputcsv($out, [$e->type, $e->value, $e->label, $e->site?->name ?? '', $e->geo_label, $e->role]);
+                }
+            });
             fclose($out);
         }, $filename, ['Content-Type' => 'text/csv; charset=UTF-8']);
     }

@@ -226,15 +226,15 @@ class DataBrowserFinishTest extends TestCase
             ->test(DataBrowser::class, ['mode' => 'browse', 'typeFilter' => 'phone'])
             ->call('openAddReserveFor', $primary->id)
             ->assertSet('addingReserve', true)
-            ->set('reserveNumbers', "+R1\n+R2")
+            ->set('reserveNumbers', "+380701\n+380702")
             ->call('applyAddReserve')
             ->assertSet('addingReserve', false)
             ->assertDispatched('toast', fn ($e, $p) => ($p['action'] ?? null) === 'bulkPurgeCreated');
 
         $backups = ContactEntry::where('parent_id', $primary->id)->where('role', 'backup')->pluck('value')->all();
         $this->assertCount(2, $backups);
-        $this->assertContains('+R1', $backups);
-        $this->assertContains('+R2', $backups);
+        $this->assertContains('+380701', $backups);
+        $this->assertContains('+380702', $backups);
     }
 
     public function test_add_reserve_bottom_bar_targets_the_single_selected_primary(): void

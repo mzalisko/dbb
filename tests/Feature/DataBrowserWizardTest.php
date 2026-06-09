@@ -162,7 +162,7 @@ class DataBrowserWizardTest extends TestCase
         $c->set('createValue', '+X')->set('wizStep', 4)->assertSee('На яких сайтах');
 
         $c->call('setWizIntent', 'reserve');
-        $c->set('wizStep', 3)->assertSee('Який основний номер');
+        $c->set('wizStep', 3)->assertSee('Який основний запис');
         $c->call('pickValue', '+MAIN', '')->set('wizStep', 4)->assertSee('До яких основних');
         $c->set('wizStep', 5)->assertSee('Резервні номери');
     }
@@ -348,5 +348,36 @@ class DataBrowserWizardTest extends TestCase
 
         // One line is text → all-or-nothing, no reserves created.
         $this->assertSame(0, ContactEntry::where('parent_id', $p->id)->count());
+    }
+
+    public function test_edit_price_is_single_select_and_finds_its_occurrences(): void
+    {
+        $owner = User::factory()->create(['role' => 'owner']);
+        $site = $this->siteForOwner($owner);
+        ContactEntry::factory()->for($site)->price()->count(2)->create(['price' => 1000, 'currency' => 'UAH']);
+        ContactEntry::factory()->for($site)->price()->create(['price' => 500, 'currency' => 'UAH']);
+
+        Livewire::actingAs($owner)
+            ->test(DataBrowser::class, ['typeFilter' => 'price'])
+            ->call('wizNext')                                  // intent (edit)
+            ->call('wizNext')->assertSet('wizStep', 3)         // value
+            ->call('pickValue', '1000', 'UAH')                 // single-select price
+            ->call('wizNext')->assertSet('wizStep', 4)         // sites
+            ->assertViewHas('entries', fn ($e) => $e->total() === 2); // the two 1000 UAH found
+    }
+
+    public function test_wiz_export_downloads_the_selected_scope(): void
+    {
+        $owner = User::factory()->create(['role' => 'owner']);
+        $site = $this->siteForOwner($owner);
+        $ids = ContactEntry::factory()->for($site)->phone()->count(2)->create(['value' => '+SAME'])
+            ->pluck('id')->map(fn ($i) => (int) $i)->all();
+
+        Livewire::actingAs($owner)
+            ->test(DataBrowser::class, ['typeFilter' => 'phone'])
+            ->call('toggleWizValue', '+SAME')
+            ->call('selectPage', $ids)
+            ->call('wizExport')
+            ->assertFileDownloaded();
     }
 }

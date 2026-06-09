@@ -65,6 +65,16 @@ trait WithWizard
         return $this->wizStepKeys()[$this->wizStep - 1] ?? 'type';
     }
 
+    /**
+     * Whether the value step is multi-select. Multi works on text values; prices
+     * group by amount+currency (and reserves attach to one primary), so those
+     * stay single-select.
+     */
+    public function wizMultiValue(): bool
+    {
+        return $this->wizIntent === 'edit' && $this->typeFilter !== 'price';
+    }
+
     public function wizIndexOf(string $key): int
     {
         $i = array_search($key, $this->wizStepKeys(), true);
@@ -202,7 +212,7 @@ trait WithWizard
     {
         switch ($this->wizKey()) {
             case 'value':
-                if ($this->wizIntent === 'reserve' ? $this->pickedValue === '' : empty($this->wizValues)) {
+                if ($this->wizMultiValue() ? empty($this->wizValues) : $this->pickedValue === '') {
                     $this->wizErr('Оберіть хоча б одне значення зі списку'); return;
                 }
                 break;

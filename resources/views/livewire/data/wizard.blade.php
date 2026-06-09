@@ -40,7 +40,7 @@
         $h2 = 'font:600 16px var(--font-sans); margin:0;';
         $hint = 'margin-left:auto; color:var(--ink-5); font:12px var(--font-sans);';
         $pf = 'display:flex; align-items:center; gap:10px; padding:14px 20px; border-top:1px solid var(--ink-2); background:#fbfaf6;';
-        $typeIcons = ['phone' => '📞', 'messenger' => '💬', 'price' => '🏷️', 'social' => '🔗', 'address' => '📍', 'custom' => '⚙️'];
+        $typeIcons = ['phone' => 'phone', 'messenger' => 'chat', 'price' => 'tag', 'social' => 'link', 'address' => 'map', 'custom' => 'settings'];
         $inp = 'height:38px; padding:0 12px; border-radius:9px; border:1px solid var(--ink-3); background:var(--card); color:var(--ink-9); outline:none;';
         $valLabel = ! empty($wizValues) ? (count($wizValues).' значень') : ($pickedValue !== '' ? $pickedValue.($pickedCurrency ? ' '.$pickedCurrency : '') : '');
     @endphp
@@ -56,7 +56,7 @@
                         <button type="button" wire:click="$set('typeFilter', '{{ $tkey }}')"
                                 style="display:flex; flex-direction:column; gap:5px; padding:16px; border-radius:12px; cursor:pointer; text-align:left;
                                        border:1.5px solid {{ $on ? 'var(--accent)' : 'var(--ink-3)' }}; background:{{ $on ? 'var(--accent-soft)' : 'var(--card)' }};">
-                            <span style="font-size:24px;">{{ $typeIcons[$tkey] ?? '🗂️' }}</span>
+                            <span style="display:inline-flex; color:{{ $on ? 'var(--accent)' : 'var(--ink-7)' }};"><x-dynamic-component :component="'icon.'.($typeIcons[$tkey] ?? 'list')" width="22" height="22" /></span>
                             <span style="font:600 14px var(--font-sans); color:var(--ink-9);">{{ $label }}</span>
                         </button>
                     @endforeach
@@ -74,7 +74,7 @@
                     </div>
                 @endif
             </div>
-            <div style="{{ $pf }}"><span style="color:var(--ink-6); font:12.5px var(--font-sans);">Обрано: <b>{{ $typeIcons[$typeFilter] ?? '' }} {{ $types[$typeFilter] ?? $typeFilter }}</b></span><span style="flex:1;"></span><button class="btn btn-primary" wire:click="wizNext">Далі → Намір</button></div>
+            <div style="{{ $pf }}"><span style="color:var(--ink-6); font:12.5px var(--font-sans);">Обрано: <b>{{ $types[$typeFilter] ?? $typeFilter }}</b></span><span style="flex:1;"></span><button class="btn btn-primary" wire:click="wizNext">Далі → Намір</button></div>
         </div>
     @endif
 
@@ -82,9 +82,9 @@
     @if ($key === 'intent')
         @php
             $intentMeta = [
-                'edit'    => ['✏️', 'Замінити / гео / стан / перемістити / видалити наявні записи'],
-                'create'  => ['➕', 'Створити нові номери на одному чи кількох сайтах'],
-                'reserve' => ['🔗', 'Додати новий резерв до основних номерів одразу на N сайтах'],
+                'edit'    => ['edit', 'Замінити / гео / стан / перемістити / видалити наявні записи'],
+                'create'  => ['plus', 'Створити нові записи на одному чи кількох сайтах'],
+                'reserve' => ['link', 'Додати новий резерв до основних одразу на N сайтах'],
             ];
         @endphp
         <div class="card" style="overflow:hidden;">
@@ -95,7 +95,7 @@
                     <button type="button" wire:click="setWizIntent('{{ $ikey }}')"
                             style="display:flex; align-items:center; gap:13px; padding:14px 16px; border-radius:11px; cursor:pointer; text-align:left;
                                    border:1.5px solid {{ $on ? 'var(--accent)' : 'var(--ink-3)' }}; background:{{ $on ? 'var(--accent-soft)' : 'var(--card)' }};">
-                        <span style="width:34px; height:34px; border-radius:9px; background:var(--ink-2); display:inline-flex; align-items:center; justify-content:center; font-size:17px;">{{ $intentMeta[$ikey][0] }}</span>
+                        <span style="width:34px; height:34px; border-radius:9px; background:var(--ink-2); display:inline-flex; align-items:center; justify-content:center; color:{{ $on ? 'var(--accent)' : 'var(--ink-7)' }};"><x-dynamic-component :component="'icon.'.$intentMeta[$ikey][0]" width="17" height="17" /></span>
                         <span style="min-width:0;">
                             <span style="display:block; font:600 14px var(--font-sans); color:var(--ink-9);">{{ $ilabel }}</span>
                             <span style="display:block; font:12px var(--font-sans); color:var(--ink-5);">{{ $intentMeta[$ikey][1] }}</span>
@@ -231,10 +231,10 @@
     @if ($key === 'action')
         @php
             $actMeta = [
-                'replace' => ['✎', 'новий номер на всіх обраних'], 'substr' => ['⇆', 'напр. код 63 → 67'],
-                'label' => ['🏷️', 'підпис біля номера'], 'geo' => ['🌐', 'усім / тільки / крім'],
-                'state' => ['⚡', 'активний / прихований'], 'move' => ['↗', 'на інший сайт'],
-                'duplicate' => ['⧉', 'копії на сайти'], 'delete' => ['🗑', 'у кошик, оборотно'],
+                'replace' => ['edit', 'нове значення на всіх обраних'], 'substr' => ['refresh', 'напр. код 63 → 67'],
+                'label' => ['tag', 'підпис біля значення'], 'geo' => ['globe', 'усім / тільки / крім'],
+                'state' => ['bolt', 'активний / прихований / збій'], 'move' => ['arrow-right', 'на інший сайт'],
+                'duplicate' => ['copy', 'копії на сайти'], 'delete' => ['trash', 'у кошик, оборотно'],
             ];
         @endphp
         <div class="card" style="overflow:hidden;">
@@ -247,7 +247,7 @@
                                 style="display:flex; align-items:center; gap:11px; padding:12px 13px; border-radius:10px; cursor:pointer; text-align:left;
                                        border:1.5px solid {{ $on ? ($bad ? 'var(--bad)' : 'var(--accent)') : 'var(--ink-3)' }};
                                        background:{{ $on ? ($bad ? 'var(--bad-soft)' : 'var(--accent-soft)') : 'var(--card)' }};">
-                            <span style="width:30px; height:30px; border-radius:8px; background:var(--ink-2); display:inline-flex; align-items:center; justify-content:center; font-size:15px;">{{ $actMeta[$akey][0] ?? '•' }}</span>
+                            <span style="width:30px; height:30px; border-radius:8px; background:var(--ink-2); display:inline-flex; align-items:center; justify-content:center; color:{{ $on ? ($bad ? 'var(--bad)' : 'var(--accent)') : 'var(--ink-7)' }};"><x-dynamic-component :component="'icon.'.($actMeta[$akey][0] ?? 'list')" width="15" height="15" /></span>
                             <span style="min-width:0;">
                                 <span style="display:block; font:13px var(--font-sans); color:var(--ink-9);">{{ $alabel }}</span>
                                 <span style="display:block; font:11.5px var(--font-sans); color:var(--ink-5);">{{ $actMeta[$akey][1] ?? '' }}</span>

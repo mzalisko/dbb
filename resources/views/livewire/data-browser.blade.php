@@ -4,7 +4,7 @@
             <x-icon.trash width="13" height="13" /> {{ $trashed ? 'До активних' : 'Кошик' }}
         </x-ui.button>
         @unless ($trashed)
-            @if(count($types) > 0)
+            @if (count($types) > 0 && $mode !== 'wizard')
             <x-ui.button variant="primary" size="sm" wire:click="openCreate">
                 <x-icon.plus width="13" height="13" /> Додати
             </x-ui.button>
@@ -15,16 +15,9 @@
         @endunless
     </x-ui.topbar>
 
-    {{-- Mode switch: guided wizard (default) vs the classic browse / reserve list --}}
+    {{-- The wizard IS the page. The classic browse list stays only for the trash
+         (Кошик) and tests; it's no longer a visible tab. --}}
     @php $wizardOn = $mode === 'wizard' && ! $trashed; @endphp
-    <div style="padding:16px 40px 0; display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
-        <div style="display:inline-flex; background:var(--ink-2); border-radius:999px; padding:3px;">
-            @php $mstyle = 'border:0; padding:7px 16px; border-radius:999px; font:13px var(--font-sans); cursor:pointer; display:inline-flex; align-items:center; gap:7px;'; @endphp
-            <button wire:click="toWizard" style="{{ $mstyle }} background:{{ $wizardOn ? 'var(--card)' : 'transparent' }}; color:{{ $wizardOn ? 'var(--ink-9)' : 'var(--ink-6)' }}; box-shadow:{{ $wizardOn ? '0 1px 2px rgba(0,0,0,.08)' : 'none' }};">✨ Майстер дій</button>
-            <button wire:click="toBrowse" style="{{ $mstyle }} background:{{ ! $wizardOn ? 'var(--card)' : 'transparent' }}; color:{{ ! $wizardOn ? 'var(--ink-9)' : 'var(--ink-6)' }}; box-shadow:{{ ! $wizardOn ? '0 1px 2px rgba(0,0,0,.08)' : 'none' }};">📋 Огляд / резерви</button>
-        </div>
-        <span style="font:12px var(--font-sans); color:var(--ink-5);">{{ $wizardOn ? 'Покрокова зміна телефонів і месенджерів — з відміною' : 'Класичний список усіх даних і черги резервів' }}</span>
-    </div>
 
     @if ($wizardOn)
         @include('livewire.data.wizard')

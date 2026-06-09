@@ -1241,8 +1241,9 @@ class DataBrowser extends Component
                 }
 
                 // Hidden hides the WHOLE set — a primary drags its reserves along.
+                // (canonical: hidden is a role; reserves keep role=backup, just go invisible)
                 if ($new === 'hidden') {
-                    $e->update(['visible' => false]);
+                    $e->update(['role' => 'hidden', 'visible' => false]);
                     if (is_null($e->parent_id)) {
                         foreach ($e->backups as $b) {
                             $capture($b);

@@ -42,8 +42,8 @@ class DataBrowserWizardTest extends TestCase
             ->assertSee('Що міняємо');
 
         $c->set('wizStep', 2)->assertSee('Що зробити');
-        $c->set('wizStep', 3)->assertSee('Яке значення');
-        $c->call('pickValue', '+SAME', '')->set('wizStep', 4)->assertSee('Де саме');
+        $c->set('wizStep', 3)->assertSee('Які значення');
+        $c->call('toggleWizValue', '+SAME')->set('wizStep', 4)->assertSee('Де саме');
         $c->call('toggleSelected', $id)->set('wizStep', 5)->assertSee('Яка дія');
         $c->call('setWizAction', 'replace')->set('wizStep', 6)->assertSee('останній перегляд');
     }
@@ -57,7 +57,7 @@ class DataBrowserWizardTest extends TestCase
 
         $c = Livewire::actingAs($owner)
             ->test(DataBrowser::class, ['typeFilter' => 'phone'])
-            ->call('pickValue', '+SAME', '')
+            ->call('toggleWizValue', '+SAME')
             ->call('toggleSelected', $id)
             ->set('wizStep', 5);
 
@@ -78,7 +78,7 @@ class DataBrowserWizardTest extends TestCase
             ->test(DataBrowser::class, ['typeFilter' => 'phone'])
             ->call('wizNext')->assertSet('wizStep', 2)        // intent (default edit)
             ->call('wizNext')->assertSet('wizStep', 3)        // value
-            ->call('pickValue', '+SAME', '')
+            ->call('toggleWizValue', '+SAME')
             ->call('wizNext')->assertSet('wizStep', 4)        // sites
             ->call('toggleSelected', $a)
             ->call('toggleSelected', $b)
@@ -196,7 +196,7 @@ class DataBrowserWizardTest extends TestCase
             ->call('wizNext')->assertSet('wizStep', 3)        // no pick → stays
             ->assertDispatched('toast', fn ($e, $p) => ($p['type'] ?? null) === 'error');
 
-        $c->call('pickValue', '+SAME', '')
+        $c->call('toggleWizValue', '+SAME')
             ->call('wizNext')->assertSet('wizStep', 4)        // sites
             ->call('wizNext')->assertSet('wizStep', 4);       // no selection → stays
     }
@@ -222,5 +222,87 @@ class DataBrowserWizardTest extends TestCase
             ->test(DataBrowser::class, ['typeFilter' => 'phone'])
             ->call('toBrowse')->assertSet('mode', 'browse')
             ->call('toWizard')->assertSet('mode', 'wizard')->assertSet('wizStep', 1)->assertSet('wizIntent', 'edit');
+    }
+
+    public function test_edit_can_act_on_several_values_at_once(): void
+    {
+        $owner = User::factory()->create(['role' => 'owner']);
+        $site = $this->siteForOwner($owner);
+        ContactEntry::factory()->for($site)->phone()->count(2)->create(['value' => '+A']);
+        ContactEntry::factory()->for($site)->phone()->count(2)->create(['value' => '+B']);
+        ContactEntry::factory()->for($site)->phone()->create(['value' => '+C']);
+
+        Livewire::actingAs($owner)
+            ->test(DataBrowser::class, ['typeFilter' => 'phone'])
+            ->call('wizNext')                                  // intent (edit)
+            ->call('wizNext')->assertSet('wizStep', 3)         // value
+            ->call('toggleWizValue', '+A')
+            ->call('toggleWizValue', '+B')
+            ->call('wizNext')->assertSet('wizStep', 4)         // sites
+            ->assertViewHas('entries', fn ($e) => $e->total() === 4)  // A+B, not C
+            ->call('selectAllFiltered')
+            ->call('wizNext')->assertSet('wizStep', 5)         // action
+            ->call('setWizAction', 'delete')
+            ->call('wizNext')->assertSet('wizStep', 6)         // confirm
+            ->call('wizConfirm');
+
+        $this->assertSame(0, ContactEntry::where('value', '+A')->count());
+        $this->assertSame(0, ContactEntry::where('value', '+B')->count());
+        $this->assertSame(1, ContactEntry::where('value', '+C')->count(), '+C untouched');
+    }
+
+    public function test_reserve_presets_sites_and_defers_sync_until_finish(): void
+    {
+        $owner = User::factory()->create(['role' => 'owner']);
+        $s1 = $this->siteForOwner($owner);
+        $s2 = $this->siteForOwner($owner);
+        ContactEntry::factory()->for($s1)->phone()->create(['value' => '+MAIN', 'role' => 'primary']);
+        ContactEntry::factory()->for($s2)->phone()->create(['value' => '+MAIN', 'role' => 'primary']);
+
+        $c = Livewire::actingAs($owner)
+            ->test(DataBrowser::class, ['typeFilter' => 'phone'])
+            ->call('wizNext')
+            ->call('setWizIntent', 'reserve')
+            ->call('wizNext')                                  // value
+            ->call('pickValue', '+MAIN', '')
+            ->call('wizNext')                                  // → sites (auto-select all)
+            ->assertSet('wizStep', 4)
+            ->assertSet('selectAllMatching', true);            // #1 pre-selected
+
+        $c->call('wizNext')                                    // resnums
+            ->set('reserveNumbers', '+RES')
+            ->call('wizNext')                                  // confirm
+            ->call('wizConfirm')                               // apply → order; sync staged
+            ->assertSet('wizStep', 7);
+
+        $this->assertNotEmpty($c->get('wizPendingSites'), 'sync staged, not pushed yet');
+
+        $c->call('wizFinish')->assertSet('wizStep', 1);
+        $this->assertEmpty($c->get('wizPendingSites'), 'sync flushed on Готово');
+    }
+
+    public function test_cancel_all_drops_staged_sync_and_resets(): void
+    {
+        $owner = User::factory()->create(['role' => 'owner']);
+        $site = $this->siteForOwner($owner);
+        ContactEntry::factory()->for($site)->phone()->create(['value' => '+MAIN', 'role' => 'primary']);
+
+        $c = Livewire::actingAs($owner)
+            ->test(DataBrowser::class, ['typeFilter' => 'phone'])
+            ->call('wizNext')
+            ->call('setWizIntent', 'reserve')
+            ->call('wizNext')
+            ->call('pickValue', '+MAIN', '')
+            ->call('wizNext')                                  // sites (auto-selected)
+            ->call('wizNext')                                  // resnums
+            ->set('reserveNumbers', '+RES')
+            ->call('wizNext')
+            ->call('wizConfirm')->assertSet('wizStep', 7);     // staged
+
+        $c->call('wizCancel')
+            ->assertSet('wizStep', 1)
+            ->assertSet('wizIntent', 'edit')
+            ->assertSet('wizValues', []);
+        $this->assertEmpty($c->get('wizPendingSites'), 'staged sync dropped on cancel');
     }
 }

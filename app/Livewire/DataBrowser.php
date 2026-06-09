@@ -415,7 +415,16 @@ class DataBrowser extends Component
             // Value axis: a picked group narrows every read AND bulk action to just
             // that value's occurrences — this is what makes "replace selectively
             // where it occurs" safe (pickedValue='' = whole filter, unchanged).
-            ->when($this->axis === 'value' && $this->pickedValue !== '', function ($q) {
+            // Wizard multi-value: narrow to occurrences across several picked values
+            // at once (e.g. delete three different reserve numbers in one pass).
+            ->when(! empty($this->wizValues), function ($q) {
+                $q->where(function ($w) {
+                    foreach ($this->wizValues as $v) {
+                        $w->orWhereRaw('TRIM(`value`) = ?', [(string) $v]);
+                    }
+                });
+            })
+            ->when(empty($this->wizValues) && $this->axis === 'value' && $this->pickedValue !== '', function ($q) {
                 $this->typeFilter === 'price'
                     ? $q->where('price', $this->pickedValue)
                         ->when($this->pickedCurrency !== '', fn ($q2) => $q2->where('currency', $this->pickedCurrency))
@@ -2099,6 +2108,22 @@ class DataBrowser extends Component
     }
 
     private function syncSites(array $siteIds): void
+    {
+        // In the wizard, hold the push back — nothing goes to the live sites or
+        // the plugin until the manager hits "Готово" (then wizFlushSync runs).
+        if ($this->mode === 'wizard') {
+            $this->wizPendingSites = array_values(array_unique(array_merge(
+                $this->wizPendingSites, array_map('intval', $siteIds)
+            )));
+
+            return;
+        }
+
+        $this->pushSites($siteIds);
+    }
+
+    /** Actually push the given sites to the WP plugin (immediate). */
+    private function pushSites(array $siteIds): void
     {
         $user = Auth::user();
         $siteIds = array_values(array_unique(array_filter(array_map('intval', $siteIds))));

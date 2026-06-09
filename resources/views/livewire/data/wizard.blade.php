@@ -2,9 +2,14 @@
      branches (edit / create / reserve). Steps render by $this->wizKey(). --}}
 <div style="padding:8px 40px 72px; flex:1; overflow-y:auto;">
 
-    <div style="margin-bottom:16px;">
-        <h1 style="font:600 22px var(--font-sans); color:var(--ink-9); margin:0 0 3px;">Дії над даними</h1>
-        <div style="font:13px var(--font-sans); color:var(--ink-5);">Зміни, додавай і приєднуй резерви для телефонів та месенджерів — крок за кроком, з відміною.</div>
+    <div style="display:flex; align-items:flex-start; gap:14px; margin-bottom:16px;">
+        <div style="flex:1; min-width:0;">
+            <h1 style="font:600 22px var(--font-sans); color:var(--ink-9); margin:0 0 3px;">Дії над даними</h1>
+            <div style="font:13px var(--font-sans); color:var(--ink-5);">Зміни, додавай і приєднуй резерви для телефонів та месенджерів — крок за кроком. На сайти відправляється лише після «Готово».</div>
+        </div>
+        @if ($wizStep > 1)
+            <button type="button" wire:click="wizCancel" style="height:32px; padding:0 14px; border-radius:8px; border:1px solid var(--bad-soft); background:var(--card); color:var(--bad); font:12.5px var(--font-sans); cursor:pointer; white-space:nowrap;">✕ Скасувати все</button>
+        @endif
     </div>
 
     {{-- ── STEP RAIL (dynamic per intent) ──────────────────────── --}}
@@ -37,6 +42,7 @@
         $pf = 'display:flex; align-items:center; gap:10px; padding:14px 20px; border-top:1px solid var(--ink-2); background:#fbfaf6;';
         $typeIcons = ['phone' => '📞', 'messenger' => '💬', 'price' => '🏷️', 'social' => '🔗', 'address' => '📍', 'custom' => '⚙️'];
         $inp = 'height:38px; padding:0 12px; border-radius:9px; border:1px solid var(--ink-3); background:var(--card); color:var(--ink-9); outline:none;';
+        $valLabel = ! empty($wizValues) ? (count($wizValues).' значень') : ($pickedValue !== '' ? $pickedValue.($pickedCurrency ? ' '.$pickedCurrency : '') : '');
     @endphp
 
     {{-- ════ TYPE ════ --}}
@@ -105,7 +111,7 @@
     @if ($key === 'value')
         @php $isReserve = $wizIntent === 'reserve'; @endphp
         <div class="card" style="overflow:hidden;">
-            <div style="{{ $panelHead }}"><span style="{{ $kKey }}">Крок 3</span><h2 style="{{ $h2 }}">{{ $isReserve ? 'Який основний номер?' : 'Яке значення?' }}</h2><span style="{{ $hint }}">{{ $isReserve ? 'оберіть основний, до якого додати резерв' : 'оберіть для роботи' }}</span></div>
+            <div style="{{ $panelHead }}"><span style="{{ $kKey }}">Крок 3</span><h2 style="{{ $h2 }}">{{ $isReserve ? 'Який основний номер?' : 'Які значення?' }}</h2><span style="{{ $hint }}">{{ $isReserve ? 'один основний, до якого додати резерв' : 'можна кілька — дія охопить усі їхні входження' }}</span></div>
             <div style="padding:18px 20px;">
                 <div style="display:flex; align-items:center; gap:10px; height:42px; padding:0 14px; border-radius:10px; background:var(--paper-2); margin-bottom:14px;">
                     <x-icon.search width="16" height="16" style="color:var(--ink-5);" />
@@ -117,20 +123,25 @@
                         @php
                             $gcur = $g->currency ?? '';
                             $gdisp = $typeFilter === 'price' ? rtrim(rtrim(number_format((float) $g->gkey, 2, '.', ' '), '0'), '.') : $g->gkey;
-                            $on = $pickedValue !== '' && (string) $pickedValue === (string) $g->gkey && (string) $pickedCurrency === (string) $gcur;
+                            $on = $isReserve
+                                ? ($pickedValue !== '' && (string) $pickedValue === (string) $g->gkey && (string) $pickedCurrency === (string) $gcur)
+                                : in_array((string) $g->gkey, $wizValues, true);
                             $prim = (int) ($g->prim ?? 0); $res = (int) ($g->res ?? 0);
                         @endphp
                         <button type="button" wire:key="wv-{{ md5($g->gkey.'|'.$gcur) }}"
-                                wire:click="pickValue('{{ addslashes($g->gkey) }}', '{{ addslashes($gcur) }}')"
+                                @if ($isReserve) wire:click="pickValue('{{ addslashes($g->gkey) }}', '{{ addslashes($gcur) }}')" @else wire:click="toggleWizValue('{{ addslashes($g->gkey) }}')" @endif
                                 style="display:flex; align-items:center; gap:12px; width:100%; text-align:left; padding:13px 15px; border:0; border-bottom:1px solid var(--ink-2); cursor:pointer;
                                        background:{{ $on ? 'var(--accent-soft)' : 'transparent' }}; box-shadow:{{ $on ? 'inset 3px 0 0 var(--accent)' : 'none' }};">
+                            @unless ($isReserve)
+                                <span class="row-check {{ $on ? 'is-checked' : '' }}">@if($on)<x-icon.check width="11" height="11" />@endif</span>
+                            @endunless
                             <span class="mono" style="flex:1; min-width:0; font:14px var(--font-mono); color:var(--ink-9); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ $gdisp }}{{ $gcur ? ' '.$gcur : '' }}</span>
                             <span style="display:inline-flex; align-items:center; gap:9px; white-space:nowrap;">
                                 @if ($prim > 0)<span style="display:inline-flex; align-items:center; gap:5px; font:11.5px var(--font-sans); color:var(--ink-6);"><span class="dot dot-ok"></span>{{ $prim }} осн.</span>@endif
                                 @if ($res > 0)<span style="display:inline-flex; align-items:center; gap:5px; font:11.5px var(--font-sans); color:var(--info);"><span class="dot dot-info"></span>{{ $res }} рез.</span>@endif
                                 <span style="font:11px var(--font-sans); color:var(--ink-4);">{{ $g->sites }}&nbsp;сайтів</span>
                             </span>
-                            <span style="color:{{ $on ? 'var(--accent)' : 'var(--ink-4)' }}; font-size:14px;">{{ $on ? '✓' : '›' }}</span>
+                            @if ($isReserve)<span style="color:{{ $on ? 'var(--accent)' : 'var(--ink-4)' }}; font-size:14px;">{{ $on ? '✓' : '›' }}</span>@endif
                         </button>
                     @empty
                         <div style="padding:40px; text-align:center; color:var(--ink-5); font:13px var(--font-sans);">{{ $isReserve ? 'Немає основних номерів цього типу.' : 'Немає значень для цього типу.' }}</div>
@@ -139,9 +150,15 @@
             </div>
             <div style="{{ $pf }}">
                 <button class="btn btn-ghost" wire:click="wizBack">← Назад</button>
-                <span style="color:var(--ink-6); font:12.5px var(--font-sans);">@if ($pickedValue !== '')Обрано: <b class="mono">{{ $pickedValue }}{{ $pickedCurrency ? ' '.$pickedCurrency : '' }}</b>@else Оберіть зі списку @endif</span>
+                <span style="color:var(--ink-6); font:12.5px var(--font-sans);">
+                    @if ($isReserve)
+                        @if ($pickedValue !== '')Обрано: <b class="mono">{{ $pickedValue }}{{ $pickedCurrency ? ' '.$pickedCurrency : '' }}</b>@else Оберіть основний @endif
+                    @else
+                        Обрано значень: <b>{{ count($wizValues) }}</b>
+                    @endif
+                </span>
                 <span style="flex:1;"></span>
-                <button class="btn btn-primary" wire:click="wizNext" @disabled($pickedValue === '')>Далі → Сайти</button>
+                <button class="btn btn-primary" wire:click="wizNext" @disabled($isReserve ? $pickedValue === '' : empty($wizValues))>Далі → Сайти</button>
             </div>
         </div>
     @endif
@@ -153,7 +170,7 @@
             <div style="{{ $panelHead }}"><span style="{{ $kKey }}">Крок 4</span><h2 style="{{ $h2 }}">{{ $isReserve ? 'До яких основних додати резерв?' : 'Де саме застосувати?' }}</h2><span style="{{ $hint }}">{{ $this->selectedCount() }} з {{ $entries->total() }} обрано</span></div>
             <div style="padding:18px 20px;">
                 <div style="font:13px var(--font-sans); color:var(--ink-6); margin-bottom:14px;">
-                    <b class="mono">{{ $pickedValue }}{{ $pickedCurrency ? ' '.$pickedCurrency : '' }}</b> — <b>{{ $entries->total() }} {{ $isReserve ? 'основних' : 'входжень' }}</b>. {{ $isReserve ? 'Познач сайти, де додати резерв.' : 'Познач, де саме застосувати дію — резерви видно під своїм основним.' }}
+                    <b class="mono">{{ $valLabel }}</b> — <b>{{ $entries->total() }} {{ $isReserve ? 'основних' : 'входжень' }}</b>. {{ $isReserve ? 'Познач сайти, де додати резерв.' : 'Познач, де саме застосувати дію — резерви видно під своїм основним.' }}
                 </div>
                 <div style="display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap;">
                     <button class="btn btn-ghost" wire:click="selectAllFiltered">☑ Обрати всі {{ $entries->total() }}</button>
@@ -237,8 +254,8 @@
                 @if ($wizAction !== '')
                     <div style="margin-top:16px; padding:16px; border:1px solid var(--ink-2); border-radius:10px; background:var(--paper-2);">
                         @if ($wizAction === 'replace')
-                            <label style="display:block; font:12px var(--font-sans); color:var(--ink-6); margin-bottom:6px;">Замінити «<span class="mono">{{ $pickedValue }}</span>» на новий номер:</label>
-                            <div style="display:flex; align-items:center; gap:12px;"><span class="mono" style="color:var(--ink-5);">{{ $pickedValue }}</span><span style="color:var(--ink-4); font-size:16px;">→</span><input wire:model="editValue" type="text" placeholder="новий номер" style="{{ $inp }} flex:1; font-family:var(--font-mono);" /></div>
+                            <label style="display:block; font:12px var(--font-sans); color:var(--ink-6); margin-bottom:6px;">Нове значення для {{ $this->selectedCount() }} обраних:</label>
+                            <input wire:model="editValue" type="text" placeholder="нове значення" style="{{ $inp }} width:100%; font-family:var(--font-mono);" />
                         @elseif ($wizAction === 'label')
                             <label style="display:block; font:12px var(--font-sans); color:var(--ink-6); margin-bottom:6px;">Нова мітка для обраних:</label>
                             <input wire:model="editValue" type="text" placeholder="напр. Менеджер з продажу" style="{{ $inp }} width:100%;" />
@@ -353,7 +370,7 @@
                 $summary = 'Додати резерв(и) «'.$resList.'» до '.$n.' основних «'.$pickedValue.'».';
             } else {
                 $summary = match ($wizAction) {
-                    'replace'   => 'Замінити значення на '.$n.' входженнях: «'.$pickedValue.'» → «'.trim($editValue).'».',
+                    'replace'   => 'Встановити значення «'.trim($editValue).'» на '.$n.' входженнях.',
                     'label'     => 'Змінити мітку на '.$n.' входженнях на «'.trim($editValue).'».',
                     'substr'    => 'У '.$n.' входженнях замінити підрядок «'.$findText.'» → «'.$replaceText.'».',
                     'geo'       => 'Змінити гео на '.$n.' входженнях ('.($geoMode === 'all' ? 'усім' : ($geoMode === 'only' ? 'тільки: '.$geoCountries : 'крім: '.$geoCountries)).').',

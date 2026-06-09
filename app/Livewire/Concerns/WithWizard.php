@@ -34,6 +34,12 @@ trait WithWizard
     /** The edit action chosen on the 'action' step. */
     public string $wizAction = '';
 
+    /** Multi-value filter (edit intent) — operate on several values at once. */
+    public array $wizValues = [];
+
+    /** Sites touched during the wizard — pushed to the plugin only on "Готово". */
+    public array $wizPendingSites = [];
+
     /** Step labels per intent (drives the progress rail). */
     public function wizSteps(): array
     {
@@ -107,13 +113,47 @@ trait WithWizard
         $this->wizIntent = 'edit';
         $this->wizAction = '';
         $this->roleFilter = '';
+        $this->wizValues = [];
+        $this->pickedValue = '';
+        $this->pickedCurrency = '';
+        $this->reserveNumbers = '';
         $this->clearSelected();
     }
 
-    /** Leave the post-reserve "order" step and start fresh. */
+    /** Toggle a value in the multi-value filter (edit intent — act on several at once). */
+    public function toggleWizValue(string $value): void
+    {
+        $this->pickedValue = '';
+        $this->pickedCurrency = '';
+        $this->wizValues = in_array($value, $this->wizValues, true)
+            ? array_values(array_diff($this->wizValues, [$value]))
+            : array_merge($this->wizValues, [$value]);
+        $this->resetPage();
+        $this->clearSelected();
+    }
+
+    /** Push everything the wizard touched to the sites/plugin — runs on "Готово". */
+    public function wizFlushSync(): void
+    {
+        if (! empty($this->wizPendingSites)) {
+            $this->pushSites($this->wizPendingSites);
+            $this->wizPendingSites = [];
+        }
+    }
+
+    /** Finish: push the staged changes to the sites/plugin, then start fresh. */
     public function wizFinish(): void
     {
+        $this->wizFlushSync();
         $this->wizReset();
+    }
+
+    /** Abort the whole wizard: drop the staged push (nothing more is sent) + reset. */
+    public function wizCancel(): void
+    {
+        $this->wizPendingSites = [];
+        $this->wizReset();
+        $this->dispatch('toast', type: 'info', message: 'Скасовано — на сайти нічого не відправлено');
     }
 
     /** Pick the intent on step 2 and seed the right defaults. */
@@ -126,6 +166,7 @@ trait WithWizard
         $this->wizAction = '';
         $this->pickedValue = '';
         $this->pickedCurrency = '';
+        $this->wizValues = [];
         $this->clearSelected();
 
         // Attaching reserves only makes sense for primaries — focus the value
@@ -161,8 +202,8 @@ trait WithWizard
     {
         switch ($this->wizKey()) {
             case 'value':
-                if ($this->pickedValue === '') {
-                    $this->wizErr('Оберіть значення зі списку'); return;
+                if ($this->wizIntent === 'reserve' ? $this->pickedValue === '' : empty($this->wizValues)) {
+                    $this->wizErr('Оберіть хоча б одне значення зі списку'); return;
                 }
                 break;
             case 'sites':
@@ -192,6 +233,12 @@ trait WithWizard
                 break;
         }
         $this->wizStep = min(count($this->wizSteps()), $this->wizStep + 1);
+
+        // Reserve: default to all sites where this number is primary — the common
+        // "add to every site" case; the manager deselects to narrow it.
+        if ($this->wizKey() === 'sites' && $this->wizIntent === 'reserve' && ! $this->hasSelection()) {
+            $this->selectAllFiltered();
+        }
     }
 
     /** Pick the edit action on the 'action' step and seed its detail inputs. */
@@ -243,7 +290,7 @@ trait WithWizard
             }
             $this->createKind = $this->kindFilter;
             $this->applyCreate();
-            $this->wizReset();
+            $this->wizFinish();
 
             return;
         }
@@ -296,7 +343,7 @@ trait WithWizard
         if ($this->hasSelection()) {
             $this->wizStep = $this->wizIndexOf('action');
         } else {
-            $this->wizReset();
+            $this->wizFinish();
         }
     }
 

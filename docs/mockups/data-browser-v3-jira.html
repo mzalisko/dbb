@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="uk">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Браузер даних · v3 (Jira-style, bulk-first)</title>
+<style>
+  :root{
+    --paper:#faf9f6; --paper-2:#f4f2ec; --card:#fff;
+    --ink-9:#1a1814; --ink-8:#2c2922; --ink-7:#4a463c; --ink-6:#68635a;
+    --ink-5:#807a6c; --ink-4:#a39d8c; --ink-3:#d8d3c4; --ink-2:#ece8db;
+    --accent:#c2552c; --accent-soft:#f7e8df;
+    --ok:#5a8a3c; --info:#3a6a8a; --warn:#b87a1c; --bad:#b03a1c; --bad-soft:#f5dcd2;
+    --sans:-apple-system,"Segoe UI",Roboto,sans-serif;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--paper-2);color:var(--ink-9);font:13.5px/1.4 var(--sans);}
+  .mono{font-family:var(--mono);}
+  .draft{background:#e7eef6;color:#274560;font:12px var(--sans);padding:7px 16px;border-bottom:1px solid var(--ink-3);text-align:center;}
+  .app{max-width:1280px;margin:0 auto;padding:16px 20px 80px;}
+
+  /* topbar */
+  .top{display:flex;align-items:center;gap:12px;margin-bottom:12px;}
+  .top h1{font:600 18px var(--sans);margin:0;}
+  .spacer{flex:1;}
+  .btn{height:32px;padding:0 12px;border-radius:7px;border:1px solid var(--ink-3);background:var(--card);color:var(--ink-8);font:12.5px var(--sans);cursor:pointer;display:inline-flex;align-items:center;gap:6px;}
+  .btn.primary{background:var(--ink-9);color:var(--paper);border-color:var(--ink-9);}
+
+  /* filter bar (Jira-like) */
+  .filters{display:flex;align-items:center;gap:8px;background:var(--card);border:1px solid var(--ink-3);border-radius:10px;padding:8px 10px;flex-wrap:wrap;}
+  .ftab{height:28px;padding:0 11px;border-radius:7px;border:1px solid transparent;background:transparent;color:var(--ink-7);font:12.5px var(--sans);cursor:pointer;}
+  .ftab.on{background:var(--ink-9);color:var(--paper);}
+  .fsep{width:1px;height:20px;background:var(--ink-3);margin:0 2px;}
+  .fsearch{display:flex;align-items:center;gap:7px;height:28px;padding:0 10px;background:var(--paper-2);border-radius:7px;min-width:180px;flex:1;max-width:280px;}
+  .fsearch input{flex:1;border:0;outline:none;background:transparent;font:12.5px var(--sans);}
+  .fdrop{height:28px;padding:0 10px;border-radius:7px;border:1px solid var(--ink-3);background:var(--card);color:var(--ink-7);font:12.5px var(--sans);cursor:pointer;}
+  .fdrop.set{background:var(--ink-9);color:var(--paper);border-color:var(--ink-9);}
+
+  /* context header — ЗАВЖДИ ясно з чим працюєш */
+  .ctx{display:flex;align-items:center;gap:10px;padding:11px 4px;flex-wrap:wrap;}
+  .ctx .count{font:600 16px var(--sans);}
+  .ctx .of{color:var(--ink-5);}
+  .ctx .chip{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 8px 0 10px;border-radius:999px;background:var(--accent-soft);color:#7a3217;font:12px var(--sans);}
+  .ctx .chip b{color:var(--ink-9);}
+  .ctx .chip .x{cursor:pointer;opacity:.6;}
+  .ctx .group{margin-left:auto;display:inline-flex;align-items:center;gap:6px;font:12px var(--sans);color:var(--ink-6);}
+  .ctx .group b{color:var(--ink-9);background:var(--card);border:1px solid var(--ink-3);border-radius:7px;padding:3px 9px;cursor:pointer;}
+
+  /* bulk toolbar — з'являється при виділенні, ЦЕНТРАЛЬНЕ */
+  .bulk{display:flex;align-items:center;gap:8px;background:var(--ink-9);color:var(--paper);border-radius:10px;padding:9px 12px;margin-bottom:10px;position:sticky;top:8px;z-index:5;box-shadow:0 8px 24px -12px rgba(0,0,0,.4);}
+  .bulk .n{font:600 13px var(--mono);}
+  .bulk .all{background:none;border:0;color:var(--paper);text-decoration:underline;text-underline-offset:2px;font:12px var(--sans);cursor:pointer;}
+  .bulk .sep{width:1px;height:16px;background:rgba(255,255,255,.22);}
+  .ba{height:28px;padding:0 11px;border-radius:7px;border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.08);color:var(--paper);font:12.5px var(--sans);cursor:pointer;display:inline-flex;align-items:center;gap:5px;}
+  .ba.go{background:var(--accent);border-color:var(--accent);font-weight:500;}
+  .ba.dgr{color:#ffb9a3;}
+  .bulk .right{margin-left:auto;display:inline-flex;align-items:center;gap:10px;}
+  .bulk .clr{background:none;border:0;color:rgba(255,255,255,.7);font:12px var(--sans);cursor:pointer;}
+
+  /* table */
+  .grid{background:var(--card);border:1px solid var(--ink-3);border-radius:10px;overflow:hidden;}
+  table{width:100%;border-collapse:collapse;}
+  thead th{position:sticky;top:0;background:var(--paper-2);text-align:left;font:10px var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--ink-5);padding:8px 12px;border-bottom:1px solid var(--ink-3);cursor:pointer;white-space:nowrap;}
+  thead th.on{color:var(--ink-8);}
+  .grouphdr td{background:#fbfaf6;font:600 12px var(--sans);color:var(--ink-7);padding:7px 12px;border-bottom:1px solid var(--ink-2);}
+  .grouphdr .gc{color:var(--ink-5);font-weight:400;margin-left:6px;}
+  .grouphdr .gcb{width:15px;height:15px;border-radius:4px;border:1.5px solid var(--ink-4);display:inline-flex;align-items:center;justify-content:center;color:#fff;vertical-align:middle;margin-right:8px;cursor:pointer;}
+  tbody td{padding:0 12px;height:40px;border-bottom:1px solid var(--ink-2);font:13px var(--sans);color:var(--ink-7);vertical-align:middle;}
+  tbody tr:hover{background:var(--paper-2);}
+  tbody tr.sel{background:var(--accent-soft);}
+  .cb{width:16px;height:16px;border-radius:4px;border:1.5px solid var(--ink-4);display:inline-flex;align-items:center;justify-content:center;color:#fff;cursor:pointer;}
+  .cb.on{background:var(--accent);border-color:var(--accent);}
+  .val{font:13px var(--mono);color:var(--ink-9);}
+  .res{font:11.5px var(--sans);color:var(--info);}
+  .dot{width:7px;height:7px;border-radius:50%;display:inline-block;}
+  .dot-ok{background:var(--ok);} .dot-info{background:var(--info);}
+  .st{display:inline-flex;align-items:center;gap:6px;font:12px var(--sans);}
+  .muted{color:var(--ink-4);}
+  .editable{border-bottom:1px dashed transparent;border-radius:3px;padding:1px 3px;margin:-1px -3px;cursor:text;}
+  tr:hover .editable{border-bottom-color:var(--ink-3);}
+
+  /* bulk-change wizard (Jira signature) */
+  .wiz{margin-top:22px;max-width:560px;background:var(--card);border:1px solid var(--ink-3);border-radius:12px;box-shadow:0 18px 44px -18px rgba(0,0,0,.22);overflow:hidden;}
+  .wiz__h{padding:14px 18px;border-bottom:1px solid var(--ink-2);}
+  .steps{display:flex;gap:18px;font:11px var(--sans);color:var(--ink-4);}
+  .steps .s{display:flex;align-items:center;gap:7px;}
+  .steps .s b{width:20px;height:20px;border-radius:50%;background:var(--ink-2);color:var(--ink-6);display:inline-flex;align-items:center;justify-content:center;font:11px var(--mono);}
+  .steps .s.on{color:var(--ink-9);} .steps .s.on b{background:var(--accent);color:#fff;}
+  .steps .s.done b{background:var(--ok);color:#fff;}
+  .wiz__b{padding:18px;}
+  .wiz__b h3{margin:0 0 12px;font:600 14px var(--sans);}
+  .opt{display:flex;align-items:center;gap:10px;padding:11px 12px;border:1px solid var(--ink-3);border-radius:9px;margin-bottom:8px;cursor:pointer;}
+  .opt.on{border-color:var(--ink-9);background:var(--paper-2);}
+  .opt .ic{width:26px;height:26px;border-radius:7px;background:var(--ink-2);display:inline-flex;align-items:center;justify-content:center;}
+  .opt .t{font:13px var(--sans);color:var(--ink-9);} .opt .d{font:11.5px var(--sans);color:var(--ink-5);}
+  .wiz__f{padding:14px 18px;border-top:1px solid var(--ink-2);display:flex;gap:10px;justify-content:flex-end;}
+</style>
+</head>
+<body>
+  <div class="draft">v3 · Jira-style, bulk-first · макет-чернетка · нічого в застосунку не змінює — оборотно</div>
+
+  <div class="app">
+    <div class="top">
+      <h1>Браузер даних</h1>
+      <div class="spacer"></div>
+      <button class="btn">🗑 Кошик</button>
+      <button class="btn">⤓ Експорт</button>
+      <button class="btn primary">+ Додати</button>
+    </div>
+
+    <!-- FILTER BAR -->
+    <div class="filters">
+      <button class="ftab">Телефони</button>
+      <button class="ftab">Месенджери</button>
+      <button class="ftab on">Ціни</button>
+      <span class="fsep"></span>
+      <div class="fsearch">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--ink-5)" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+        <input placeholder="Пошук значення / мітки…" value="1000" />
+      </div>
+      <button class="fdrop">Сайт ▾</button>
+      <button class="fdrop">Стан ▾</button>
+      <button class="fdrop set">Значення: 1000 UAH ▾</button>
+    </div>
+
+    <!-- CONTEXT HEADER — завжди ясно з чим працюєш -->
+    <div class="ctx">
+      <span class="count">12</span><span class="of">записів</span>
+      <span class="chip">Ціни <span class="x">✕</span></span>
+      <span class="chip">значення <b>1000 UAH</b> <span class="x">✕</span></span>
+      <span class="chip">5 сайтів</span>
+      <span class="group">Групувати: <b>Сайт ▾</b></span>
+    </div>
+
+    <!-- BULK TOOLBAR — центральне, з'являється при виділенні -->
+    <div class="bulk">
+      <span class="n">3 обрано</span>
+      <button class="all">обрати всі 12</button>
+      <span class="sep"></span>
+      <button class="ba go">⚙ Змінити поле</button>
+      <button class="ba">Гео</button>
+      <button class="ba">Стан</button>
+      <button class="ba">Перемістити</button>
+      <button class="ba dgr">Видалити</button>
+      <button class="ba">···</button>
+      <span class="right">
+        <span style="font:12px var(--sans);color:rgba(255,255,255,.7)">діє лише на 3 · з відміною</span>
+        <button class="clr">Зняти</button>
+      </span>
+    </div>
+
+    <!-- TABLE (grouped by site) -->
+    <div class="grid">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:34px;"><span class="cb"></span></th>
+            <th>Значення</th>
+            <th class="on">Сайт ↑</th>
+            <th>Мітка</th>
+            <th>Гео</th>
+            <th>Стан</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="grouphdr"><td colspan="6"><span class="gcb on">✓</span>aurora-shop <span class="gc">· 2 записи</span></td></tr>
+          <tr class="sel"><td><span class="cb on">✓</span></td><td><span class="val editable">1000</span></td><td class="mono">aurora-shop</td><td><span class="editable">Тариф Старт</span></td><td>Тільки UA</td><td><span class="st"><span class="dot dot-ok"></span> Активна</span></td></tr>
+          <tr><td><span class="cb"></span></td><td><span class="val">1000</span></td><td class="mono">aurora-shop</td><td><span class="res">↳ резерв · 1000→1200</span></td><td class="muted">успадк.</td><td><span class="res"><span class="dot dot-info"></span> Резерв</span></td></tr>
+
+          <tr class="grouphdr"><td colspan="6"><span class="gcb"></span>brightway <span class="gc">· 2 записи</span></td></tr>
+          <tr class="sel"><td><span class="cb on">✓</span></td><td><span class="val editable">1000</span></td><td class="mono">brightway</td><td><span class="editable">Місяць</span></td><td>Крім RU</td><td><span class="st"><span class="dot dot-ok"></span> Активна</span></td></tr>
+          <tr><td><span class="cb"></span></td><td><span class="val">1000</span></td><td class="mono">brightway</td><td><span class="editable">Промо</span></td><td>Усім</td><td><span class="st muted">◌ Прихована</span></td></tr>
+
+          <tr class="grouphdr"><td colspan="6"><span class="gcb"></span>medhurst <span class="gc">· 1 запис</span></td></tr>
+          <tr class="sel"><td><span class="cb on">✓</span></td><td><span class="val editable">1000</span></td><td class="mono">medhurst</td><td><span class="editable">Підписка Pro</span></td><td>Усім</td><td><span class="st"><span class="dot dot-ok"></span> Активна</span></td></tr>
+
+          <tr class="grouphdr"><td colspan="6"><span class="gcb"></span>nordic-care <span class="gc">· 2 записи</span></td></tr>
+          <tr><td><span class="cb"></span></td><td><span class="val">1000</span></td><td class="mono">nordic-care</td><td><span class="editable">Базовий</span></td><td>Тільки PL</td><td><span class="st"><span class="dot dot-ok"></span> Активна</span></td></tr>
+          <tr><td><span class="cb"></span></td><td><span class="val">1000</span></td><td class="mono">nordic-care</td><td><span class="editable">Базовий</span></td><td>Усім</td><td><span class="st"><span class="dot dot-ok"></span> Активна</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- BULK-CHANGE WIZARD (Jira signature) -->
+    <div class="wiz">
+      <div class="wiz__h">
+        <div class="steps">
+          <span class="s done"><b>✓</b> Обрано 3</span>
+          <span class="s on"><b>2</b> Операція</span>
+          <span class="s"><b>3</b> Деталі</span>
+          <span class="s"><b>4</b> Підтвердити</span>
+        </div>
+      </div>
+      <div class="wiz__b">
+        <h3>Що зробити з 3 обраними?</h3>
+        <div class="opt on"><span class="ic">⚙</span><span><div class="t">Змінити поле</div><div class="d">Встановити / очистити / знайти-замінити будь-яке поле</div></span></div>
+        <div class="opt"><span class="ic">🌐</span><span><div class="t">Гео-видимість</div><div class="d">Усім / тільки / крім — країни</div></span></div>
+        <div class="opt"><span class="ic">⚡</span><span><div class="t">Стан</div><div class="d">Активний / прихований</div></span></div>
+        <div class="opt"><span class="ic">↗</span><span><div class="t">Перемістити на сайт</div></span></div>
+        <div class="opt"><span class="ic">🗑</span><span><div class="t">Видалити</div><div class="d">У кошик, з можливістю відновити</div></span></div>
+      </div>
+      <div class="wiz__f">
+        <button class="btn">Скасувати</button>
+        <button class="btn primary">Далі →</button>
+      </div>
+    </div>
+
+    <p style="max-width:760px;color:var(--ink-5);font:12.5px var(--sans);margin-top:18px;line-height:1.6;">
+      <b>Ідея v3 (Jira-style):</b> один список, де «знайти 1000» — просто <b>фільтр</b> (видно в шапці контексту). Завжди ясно <b>з чим працюєш</b> (лічильник + чипи фільтрів). <b>Масові дії — центральні</b>: виділив (рядки / цілу групу-сайт / усі 12) → темна bulk-смуга → <b>майстер</b> веде «операція → деталі → підтвердження → відмінити». Групування по сайту/значенню/стану. Інлайн-правка комірки лишається для одного запису.
+    </p>
+  </div>
+</body>
+</html>

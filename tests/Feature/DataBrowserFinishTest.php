@@ -508,6 +508,19 @@ class DataBrowserFinishTest extends TestCase
         $this->assertSame('+OLD', $e->fresh()->value); // undo restores
     }
 
+    public function test_context_header_shows_count_and_picked_value(): void
+    {
+        $owner = User::factory()->create(['role' => 'owner']);
+        ContactEntry::factory()->for($this->siteForOwner($owner))->phone()->count(3)->create(['value' => '+SAME']);
+
+        Livewire::actingAs($owner)
+            ->test(DataBrowser::class, ['typeFilter' => 'phone'])
+            ->assertSee('записів')          // count label in the context header
+            ->call('pickValue', '+SAME', '')
+            ->assertSee('значення')         // picked-value chip
+            ->assertSee('+SAME');
+    }
+
     // ── Stale data: entries on deleted sites must not surface ────────────
 
     public function test_entries_on_deleted_sites_are_hidden(): void

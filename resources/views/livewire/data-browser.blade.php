@@ -101,7 +101,43 @@
 
     {{-- Bulk actions live in a clean bar at the BOTTOM of the working set (right pane). --}}
 
-    <div style="padding:20px 40px 64px; flex:1; overflow-y:auto;">
+    {{-- Context header (v3): always make clear WHAT data the manager is working with --}}
+    <div style="padding:14px 40px 2px; display:flex; align-items:center; gap:9px; flex-wrap:wrap;">
+        @php
+            $ctxCount = (($axis === 'value' && $pickedValue !== '') || ($axis === 'site' && $siteFilter !== '')) ? $entries->total() : $totalCount;
+            $ctxSite = $siteFilter !== '' ? (optional($sites->firstWhere('id', (int) $siteFilter))->name ?? '') : '';
+            $ctxRoles = ['primary' => 'Основні', 'backup' => 'Резерви', 'hidden' => 'Приховані'];
+            $chip = 'display:inline-flex; align-items:center; gap:7px; height:25px; padding:0 9px 0 11px; border-radius:999px; background:var(--accent-soft); color:#7a3217; font:12px var(--font-sans); white-space:nowrap;';
+            $chipX = 'border:0; background:transparent; color:#7a3217; cursor:pointer; opacity:.6; padding:0; font:12px var(--font-sans);';
+        @endphp
+        <span style="font:600 16px var(--font-sans); color:var(--ink-9);">{{ $ctxCount }}</span>
+        <span style="color:var(--ink-5); font:13px var(--font-sans); margin-right:2px;">{{ $trashed ? 'у кошику' : 'записів' }}</span>
+
+        <span style="{{ $chip }} padding:0 11px;">{{ $types[$typeFilter] ?? $typeFilter }}</span>
+
+        @if ($axis === 'value' && $pickedValue !== '')
+            <span style="{{ $chip }}">значення <b class="mono" style="color:var(--ink-9);">{{ $pickedValue }}{{ $pickedCurrency ? ' '.$pickedCurrency : '' }}</b>
+                <button type="button" wire:click="clearPick" style="{{ $chipX }}" title="Прибрати фільтр">✕</button>
+            </span>
+        @endif
+        @if ($ctxSite !== '')
+            <span style="{{ $chip }}">сайт <b style="color:var(--ink-9);">{{ $ctxSite }}</b>
+                @if ($axis === 'value')<button type="button" wire:click="$set('siteFilter', '')" style="{{ $chipX }}" title="Прибрати фільтр">✕</button>@endif
+            </span>
+        @endif
+        @if ($roleFilter !== '' && isset($ctxRoles[$roleFilter]))
+            <span style="{{ $chip }}">{{ $ctxRoles[$roleFilter] }}
+                <button type="button" wire:click="$set('roleFilter', '')" style="{{ $chipX }}" title="Прибрати фільтр">✕</button>
+            </span>
+        @endif
+        @if ($search !== '')
+            <span style="{{ $chip }}">пошук <b style="color:var(--ink-9);">{{ $search }}</b>
+                <button type="button" wire:click="$set('search', '')" style="{{ $chipX }}" title="Прибрати">✕</button>
+            </span>
+        @endif
+    </div>
+
+    <div style="padding:14px 40px 64px; flex:1; overflow-y:auto;">
         <div style="display:grid; grid-template-columns:300px 1fr; gap:18px; align-items:start;">
 
             {{-- LEFT: finder rail — value axis lists distinct values; site axis lists sites --}}

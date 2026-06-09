@@ -40,7 +40,7 @@ class DataBrowserFinishTest extends TestCase
             ->create(['currency' => 'EUR'])->pluck('id')->map(fn ($i) => (int) $i)->all();
 
         Livewire::actingAs($owner)
-            ->test(DataBrowser::class, ['typeFilter' => 'price'])
+            ->test(DataBrowser::class, ['mode' => 'browse', 'typeFilter' => 'price'])
             ->call('selectPage', $ids)
             ->call('openPriceEdit')
             ->assertSet('priceStep', 1)
@@ -63,7 +63,7 @@ class DataBrowserFinishTest extends TestCase
         $id = (int) ContactEntry::factory()->for($this->siteForOwner($owner))->price()->create(['currency' => 'EUR'])->id;
 
         Livewire::actingAs($owner)
-            ->test(DataBrowser::class, ['typeFilter' => 'price'])
+            ->test(DataBrowser::class, ['mode' => 'browse', 'typeFilter' => 'price'])
             ->call('selectPage', [$id])
             ->call('openPriceEdit')
             ->set('priceField', 'currency')
@@ -79,7 +79,7 @@ class DataBrowserFinishTest extends TestCase
         $m = ContactEntry::factory()->for($this->siteForOwner($owner))->phone()->create(['value' => '+380501112233']);
 
         Livewire::actingAs($owner)
-            ->test(DataBrowser::class)
+            ->test(DataBrowser::class, ['mode' => 'browse'])
             ->call('selectPage', [(int) $m->id])
             ->call('openReplace')
             ->assertSet('replaceStep', 1)
@@ -99,7 +99,7 @@ class DataBrowserFinishTest extends TestCase
         $e = ContactEntry::factory()->for($this->siteForOwner($owner))->phone()->create();
 
         Livewire::actingAs($owner)
-            ->test(DataBrowser::class)
+            ->test(DataBrowser::class, ['mode' => 'browse'])
             ->call('selectPage', [(int) $e->id])
             ->call('openReplace')
             ->set('findText', '')
@@ -119,7 +119,7 @@ class DataBrowserFinishTest extends TestCase
         ContactEntry::factory()->backup($p)->create(['value' => '+R2', 'order' => 2]);
 
         Livewire::actingAs($owner)
-            ->test(DataBrowser::class, ['typeFilter' => 'phone'])
+            ->test(DataBrowser::class, ['mode' => 'browse', 'typeFilter' => 'phone'])
             ->set('axis', 'site')
             ->set('siteFilter', (string) $site->id)
             ->assertSee('+MAIN')
@@ -135,7 +135,7 @@ class DataBrowserFinishTest extends TestCase
         ContactEntry::factory()->for($site)->phone()->create(['value' => '+MAIN']);
 
         Livewire::actingAs($owner)
-            ->test(DataBrowser::class, ['typeFilter' => 'phone'])
+            ->test(DataBrowser::class, ['mode' => 'browse', 'typeFilter' => 'phone'])
             ->assertSet('siteFilter', '')
             ->set('axis', 'site')
             ->assertSet('siteFilter', (string) $site->id) // auto-picked — no extra click
@@ -151,7 +151,7 @@ class DataBrowserFinishTest extends TestCase
         $r2 = ContactEntry::factory()->backup($p)->create(['order' => 2]);
 
         Livewire::actingAs($owner)
-            ->test(DataBrowser::class, ['typeFilter' => 'phone'])
+            ->test(DataBrowser::class, ['mode' => 'browse', 'typeFilter' => 'phone'])
             ->set('axis', 'site')
             ->set('siteFilter', (string) $site->id)
             ->call('reorderReserve', $r2->id, 'up');
@@ -173,7 +173,7 @@ class DataBrowserFinishTest extends TestCase
         ContactEntry::factory()->backup($p)->create(['order' => 2]);
 
         Livewire::actingAs($owner)
-            ->test(DataBrowser::class)
+            ->test(DataBrowser::class, ['mode' => 'browse'])
             ->call('reorderReserve', $r1->id, 'up'); // already first
 
         $this->assertSame(1, $r1->fresh()->order);
@@ -190,7 +190,7 @@ class DataBrowserFinishTest extends TestCase
         $r2 = ContactEntry::factory()->backup($p)->create(['order' => 2]);
 
         Livewire::actingAs($manager)
-            ->test(DataBrowser::class)
+            ->test(DataBrowser::class, ['mode' => 'browse'])
             ->call('reorderReserve', $r2->id, 'up')
             ->assertDispatched('toast', fn ($e, $pp) => ($pp['type'] ?? null) === 'error');
 
@@ -208,7 +208,7 @@ class DataBrowserFinishTest extends TestCase
         ContactEntry::factory()->backup($primary)->create(['value' => '+RES']);
 
         $groups = collect(Livewire::actingAs($owner)
-            ->test(DataBrowser::class, ['typeFilter' => 'phone'])
+            ->test(DataBrowser::class, ['mode' => 'browse', 'typeFilter' => 'phone'])
             ->set('roleFilter', 'backup')
             ->viewData('valueGroups'));
 
@@ -223,7 +223,7 @@ class DataBrowserFinishTest extends TestCase
         $primary = ContactEntry::factory()->for($site)->phone()->create(['value' => '+MAIN']);
 
         Livewire::actingAs($owner)
-            ->test(DataBrowser::class, ['typeFilter' => 'phone'])
+            ->test(DataBrowser::class, ['mode' => 'browse', 'typeFilter' => 'phone'])
             ->call('openAddReserveFor', $primary->id)
             ->assertSet('addingReserve', true)
             ->set('reserveNumbers', "+R1\n+R2")
@@ -243,7 +243,7 @@ class DataBrowserFinishTest extends TestCase
         $primary = ContactEntry::factory()->for($this->siteForOwner($owner))->phone()->create(['value' => '+MAIN', 'role' => 'primary']);
 
         Livewire::actingAs($owner)
-            ->test(DataBrowser::class, ['typeFilter' => 'phone'])
+            ->test(DataBrowser::class, ['mode' => 'browse', 'typeFilter' => 'phone'])
             ->call('selectPage', [(int) $primary->id])
             ->call('openAddReserve')
             ->assertSet('addingReserve', true)
@@ -257,7 +257,7 @@ class DataBrowserFinishTest extends TestCase
         $primary = ContactEntry::factory()->for($this->siteForOwner($owner))->phone()->create();
 
         Livewire::actingAs($owner)
-            ->test(DataBrowser::class, ['typeFilter' => 'phone'])
+            ->test(DataBrowser::class, ['mode' => 'browse', 'typeFilter' => 'phone'])
             ->call('openAddReserveFor', $primary->id)
             ->set('reserveNumbers', "  \n ")
             ->call('applyAddReserve')
@@ -273,7 +273,7 @@ class DataBrowserFinishTest extends TestCase
         $e = ContactEntry::factory()->for($this->siteForOwner($owner))->phone()->create(['value' => '+OLD']);
 
         Livewire::actingAs($owner)
-            ->test(DataBrowser::class, ['typeFilter' => 'phone'])
+            ->test(DataBrowser::class, ['mode' => 'browse', 'typeFilter' => 'phone'])
             ->call('inlineUpdate', $e->id, 'value', '+NEW')
             ->assertDispatched('toast', fn ($ev, $p) => ($p['type'] ?? null) === 'success');
 
@@ -286,7 +286,7 @@ class DataBrowserFinishTest extends TestCase
         $e = ContactEntry::factory()->for($this->siteForOwner($owner))->phone()->create(['label' => 'old']);
 
         Livewire::actingAs($owner)
-            ->test(DataBrowser::class)
+            ->test(DataBrowser::class, ['mode' => 'browse'])
             ->call('inlineUpdate', $e->id, 'label', '   ');
 
         $this->assertNull($e->fresh()->label);
@@ -298,7 +298,7 @@ class DataBrowserFinishTest extends TestCase
         $e = ContactEntry::factory()->for($this->siteForOwner($owner))->phone()->create(['value' => '+KEEP']);
 
         Livewire::actingAs($owner)
-            ->test(DataBrowser::class)
+            ->test(DataBrowser::class, ['mode' => 'browse'])
             ->call('inlineUpdate', $e->id, 'value', '  ')
             ->assertDispatched('toast', fn ($ev, $p) => ($p['type'] ?? null) === 'error');
 
@@ -312,7 +312,7 @@ class DataBrowserFinishTest extends TestCase
         $e = ContactEntry::factory()->for($this->siteForOwner($owner))->phone()->create(['value' => '+SECRET']);
 
         Livewire::actingAs($manager)
-            ->test(DataBrowser::class)
+            ->test(DataBrowser::class, ['mode' => 'browse'])
             ->call('inlineUpdate', $e->id, 'value', '+HACK');
 
         $this->assertSame('+SECRET', $e->fresh()->value); // out of scope → no-op, no leak
@@ -327,7 +327,7 @@ class DataBrowserFinishTest extends TestCase
             ->create(['label' => 'old'])->pluck('id')->map(fn ($i) => (int) $i)->all();
 
         Livewire::actingAs($owner)
-            ->test(DataBrowser::class, ['typeFilter' => 'phone'])
+            ->test(DataBrowser::class, ['mode' => 'browse', 'typeFilter' => 'phone'])
             ->call('selectPage', $ids)
             ->call('openGeneric')
             ->assertSet('editingGeneric', true)
@@ -349,7 +349,7 @@ class DataBrowserFinishTest extends TestCase
         $id = (int) ContactEntry::factory()->for($this->siteForOwner($owner))->price()->create(['old_price' => 99])->id;
 
         Livewire::actingAs($owner)
-            ->test(DataBrowser::class, ['typeFilter' => 'price'])
+            ->test(DataBrowser::class, ['mode' => 'browse', 'typeFilter' => 'price'])
             ->call('selectPage', [$id])
             ->call('openGeneric')
             ->set('genField', 'old_price')
@@ -368,7 +368,7 @@ class DataBrowserFinishTest extends TestCase
         $o = ContactEntry::factory()->for($site)->phone()->create(['value' => '+48111222333']);
 
         Livewire::actingAs($owner)
-            ->test(DataBrowser::class, ['typeFilter' => 'phone'])
+            ->test(DataBrowser::class, ['mode' => 'browse', 'typeFilter' => 'phone'])
             ->call('selectPage', [(int) $m->id, (int) $o->id])
             ->call('openGeneric')
             ->set('genField', 'value')
@@ -388,7 +388,7 @@ class DataBrowserFinishTest extends TestCase
         $e = ContactEntry::factory()->for($this->siteForOwner($owner))->phone()->create();
 
         Livewire::actingAs($owner)
-            ->test(DataBrowser::class, ['typeFilter' => 'phone'])
+            ->test(DataBrowser::class, ['mode' => 'browse', 'typeFilter' => 'phone'])
             ->call('selectPage', [(int) $e->id])
             ->call('openGeneric')
             ->set('genField', 'label')
@@ -403,7 +403,7 @@ class DataBrowserFinishTest extends TestCase
         $id = (int) ContactEntry::factory()->for($this->siteForOwner($owner))->price()->create(['currency' => 'EUR'])->id;
 
         Livewire::actingAs($owner)
-            ->test(DataBrowser::class, ['typeFilter' => 'price'])
+            ->test(DataBrowser::class, ['mode' => 'browse', 'typeFilter' => 'price'])
             ->call('selectPage', [$id])
             ->call('openGeneric')
             ->set('genField', 'currency')
@@ -425,7 +425,7 @@ class DataBrowserFinishTest extends TestCase
         ContactEntry::factory()->for($site)->phone()->create(['value' => '+CCC']);
 
         $entries = Livewire::actingAs($owner)
-            ->test(DataBrowser::class, ['typeFilter' => 'phone'])
+            ->test(DataBrowser::class, ['mode' => 'browse', 'typeFilter' => 'phone'])
             ->call('sortBy', 'value')
             ->assertSet('sortField', 'value')
             ->assertSet('sortDir', 'asc')
@@ -440,7 +440,7 @@ class DataBrowserFinishTest extends TestCase
         ContactEntry::factory()->for($this->siteForOwner($owner))->phone()->create();
 
         Livewire::actingAs($owner)
-            ->test(DataBrowser::class, ['typeFilter' => 'phone'])
+            ->test(DataBrowser::class, ['mode' => 'browse', 'typeFilter' => 'phone'])
             ->call('sortBy', 'value')->assertSet('sortDir', 'asc')
             ->call('sortBy', 'value')->assertSet('sortDir', 'desc')
             ->call('sortBy', 'label')->assertSet('sortField', 'label')->assertSet('sortDir', 'asc');
@@ -456,7 +456,7 @@ class DataBrowserFinishTest extends TestCase
         ContactEntry::factory()->for($alpha)->phone()->create(['value' => '+A']);
 
         $entries = Livewire::actingAs($owner)
-            ->test(DataBrowser::class, ['typeFilter' => 'phone'])
+            ->test(DataBrowser::class, ['mode' => 'browse', 'typeFilter' => 'phone'])
             ->call('sortBy', 'site')
             ->viewData('entries');
 
@@ -471,7 +471,7 @@ class DataBrowserFinishTest extends TestCase
         $e = ContactEntry::factory()->for($this->siteForOwner($owner))->price()->create(['price' => 100]);
 
         Livewire::actingAs($owner)
-            ->test(DataBrowser::class, ['typeFilter' => 'price'])
+            ->test(DataBrowser::class, ['mode' => 'browse', 'typeFilter' => 'price'])
             ->call('inlineUpdate', $e->id, 'price', '149.5')
             ->assertDispatched('toast', fn ($ev, $p) => ($p['type'] ?? null) === 'success');
 
@@ -484,7 +484,7 @@ class DataBrowserFinishTest extends TestCase
         $e = ContactEntry::factory()->for($this->siteForOwner($owner))->price()->create(['price' => 100]);
 
         Livewire::actingAs($owner)
-            ->test(DataBrowser::class, ['typeFilter' => 'price'])
+            ->test(DataBrowser::class, ['mode' => 'browse', 'typeFilter' => 'price'])
             ->call('inlineUpdate', $e->id, 'price', 'abc')
             ->assertDispatched('toast', fn ($ev, $p) => ($p['type'] ?? null) === 'error');
 
@@ -497,7 +497,7 @@ class DataBrowserFinishTest extends TestCase
         $e = ContactEntry::factory()->for($this->siteForOwner($owner))->phone()->create(['value' => '+OLD']);
 
         $component = Livewire::actingAs($owner)
-            ->test(DataBrowser::class, ['typeFilter' => 'phone'])
+            ->test(DataBrowser::class, ['mode' => 'browse', 'typeFilter' => 'phone'])
             ->call('inlineUpdate', $e->id, 'value', '+NEW')
             ->assertDispatched('toast', fn ($ev, $p) => ($p['action'] ?? null) === 'bulkRestoreField'
                 && ($p['actionData']['field'] ?? null) === 'value');
@@ -514,7 +514,7 @@ class DataBrowserFinishTest extends TestCase
         ContactEntry::factory()->for($this->siteForOwner($owner))->phone()->count(3)->create(['value' => '+SAME']);
 
         Livewire::actingAs($owner)
-            ->test(DataBrowser::class, ['typeFilter' => 'phone'])
+            ->test(DataBrowser::class, ['mode' => 'browse', 'typeFilter' => 'phone'])
             ->assertSee('записів')          // count label in the context header
             ->call('pickValue', '+SAME', '')
             ->assertSee('значення')         // picked-value chip
@@ -531,7 +531,7 @@ class DataBrowserFinishTest extends TestCase
         ContactEntry::factory()->for($alpha)->phone()->create(['value' => '+SAME']);
 
         $component = Livewire::actingAs($owner)
-            ->test(DataBrowser::class, ['typeFilter' => 'phone'])
+            ->test(DataBrowser::class, ['mode' => 'browse', 'typeFilter' => 'phone'])
             ->assertSet('groupBySite', true)
             ->call('pickValue', '+SAME', '');
 
@@ -550,7 +550,7 @@ class DataBrowserFinishTest extends TestCase
             ->create()->pluck('id')->map(fn ($i) => (int) $i)->all();
 
         Livewire::actingAs($owner)
-            ->test(DataBrowser::class, ['typeFilter' => 'phone'])
+            ->test(DataBrowser::class, ['mode' => 'browse', 'typeFilter' => 'phone'])
             ->call('selectPage', $ids)
             ->call('openBulkWizard')
             ->assertSet('bulkWizard', true)
@@ -566,7 +566,7 @@ class DataBrowserFinishTest extends TestCase
             ->create()->pluck('id')->map(fn ($i) => (int) $i)->all();
 
         Livewire::actingAs($owner)
-            ->test(DataBrowser::class)
+            ->test(DataBrowser::class, ['mode' => 'browse'])
             ->call('selectPage', $ids)
             ->call('wizardTo', 'delete')
             ->assertSet('bulkWizard', false);
@@ -589,7 +589,7 @@ class DataBrowserFinishTest extends TestCase
         $dead->delete(); // soft-delete the site — its entries stay in the table
 
         Livewire::actingAs($owner)
-            ->test(DataBrowser::class, ['typeFilter' => 'phone'])
+            ->test(DataBrowser::class, ['mode' => 'browse', 'typeFilter' => 'phone'])
             ->assertViewHas('totalCount', 1)   // only the live site's entry counts
             ->assertSee('+LIVE')
             ->assertDontSee('+DEADSITE');
@@ -604,7 +604,7 @@ class DataBrowserFinishTest extends TestCase
         ContactEntry::factory()->for($site)->social('instagram')->create(['value' => 'https://insta/acme']);
 
         Livewire::actingAs($owner)
-            ->test(DataBrowser::class, ['typeFilter' => 'social'])
+            ->test(DataBrowser::class, ['mode' => 'browse', 'typeFilter' => 'social'])
             ->assertSet('typeFilter', 'social')
             ->assertSee('https://insta/acme');
     }
@@ -616,7 +616,7 @@ class DataBrowserFinishTest extends TestCase
         ContactEntry::factory()->for($site)->address()->create(['value' => 'Kyiv, Khreshchatyk 1']);
 
         Livewire::actingAs($owner)
-            ->test(DataBrowser::class, ['typeFilter' => 'address'])
+            ->test(DataBrowser::class, ['mode' => 'browse', 'typeFilter' => 'address'])
             ->assertSet('typeFilter', 'address')
             ->assertSee('Kyiv, Khreshchatyk 1');
     }

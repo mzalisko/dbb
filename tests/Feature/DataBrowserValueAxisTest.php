@@ -35,7 +35,7 @@ class DataBrowserValueAxisTest extends TestCase
         ContactEntry::factory()->for($site)->phone()->create(['value' => '+OTHER']);
 
         $groups = collect(Livewire::actingAs($owner)
-            ->test(DataBrowser::class, ['typeFilter' => 'phone'])
+            ->test(DataBrowser::class, ['mode' => 'browse', 'typeFilter' => 'phone'])
             ->viewData('valueGroups'));
 
         $same = $groups->firstWhere('gkey', '+SAME');
@@ -54,7 +54,7 @@ class DataBrowserValueAxisTest extends TestCase
         $b = (int) $rows[1]->id;
 
         Livewire::actingAs($owner)
-            ->test(DataBrowser::class, ['typeFilter' => 'phone'])
+            ->test(DataBrowser::class, ['mode' => 'browse', 'typeFilter' => 'phone'])
             ->call('pickValue', '+SAME', '')
             ->call('toggleSelected', $a)
             ->call('toggleSelected', $b)
@@ -75,7 +75,7 @@ class DataBrowserValueAxisTest extends TestCase
         ContactEntry::factory()->for($site)->phone()->count(3)->create(['value' => '+B']);
 
         Livewire::actingAs($owner)
-            ->test(DataBrowser::class, ['typeFilter' => 'phone'])
+            ->test(DataBrowser::class, ['mode' => 'browse', 'typeFilter' => 'phone'])
             ->call('pickValue', '+A', '')
             ->call('selectAllMatching')
             ->call('bulkDelete');
@@ -91,7 +91,7 @@ class DataBrowserValueAxisTest extends TestCase
         ContactEntry::factory()->for($site)->phone()->create(['value' => '+X']);
 
         Livewire::actingAs($owner)
-            ->test(DataBrowser::class, ['typeFilter' => 'phone'])
+            ->test(DataBrowser::class, ['mode' => 'browse', 'typeFilter' => 'phone'])
             ->call('pickValue', '+X', '')
             ->assertSet('pickedValue', '+X')
             ->set('axis', 'site')
@@ -107,7 +107,7 @@ class DataBrowserValueAxisTest extends TestCase
         ContactEntry::factory()->for($site)->price()->create(['price' => 500, 'currency' => 'UAH']);
 
         $component = Livewire::actingAs($owner)
-            ->test(DataBrowser::class, ['typeFilter' => 'price']);
+            ->test(DataBrowser::class, ['mode' => 'browse', 'typeFilter' => 'price']);
 
         $groups = collect($component->viewData('valueGroups'));
         $uah1000 = $groups->first(fn ($g) => (int) $g->gkey === 1000 && $g->currency === 'UAH');
@@ -131,7 +131,7 @@ class DataBrowserValueAxisTest extends TestCase
         ]);
 
         Livewire::actingAs($owner)
-            ->test(DataBrowser::class, ['typeFilter' => 'phone'])
+            ->test(DataBrowser::class, ['mode' => 'browse', 'typeFilter' => 'phone'])
             ->call('makePrimary', $reserve->id);
 
         $reserve->refresh();
@@ -159,7 +159,7 @@ class DataBrowserValueAxisTest extends TestCase
         $reserve = ContactEntry::factory()->backup($primary)->create();
 
         Livewire::actingAs($manager)
-            ->test(DataBrowser::class, ['typeFilter' => 'phone'])
+            ->test(DataBrowser::class, ['mode' => 'browse', 'typeFilter' => 'phone'])
             ->call('makePrimary', $reserve->id)
             ->assertDispatched('toast', fn ($e, $p) => ($p['type'] ?? null) === 'error');
 
@@ -173,7 +173,7 @@ class DataBrowserValueAxisTest extends TestCase
         ContactEntry::factory()->for($site)->phone()->create(['value' => '+HIDDENUNTILPICKED']);
 
         Livewire::actingAs($owner)
-            ->test(DataBrowser::class, ['typeFilter' => 'phone'])
+            ->test(DataBrowser::class, ['mode' => 'browse', 'typeFilter' => 'phone'])
             ->assertSee('Оберіть значення у фільтрі')   // prompt shown before a pick
             ->assertSee('+HIDDENUNTILPICKED');          // value is listed in the «Значення ▾» dropdown
     }

@@ -4,6 +4,7 @@ namespace App\Livewire;
 
 use App\Livewire\Concerns\WithBulkSelection;
 use App\Livewire\Concerns\WithReserves;
+use App\Livewire\Concerns\WithWizard;
 use App\Models\ContactEntry;
 use App\Models\Site;
 use App\Services\ActivityLogService;
@@ -25,6 +26,7 @@ class DataBrowser extends Component
 {
     use WithBulkSelection;
     use WithReserves;
+    use WithWizard;
     use WithPagination;
 
     private const REQUIRED_CATEGORIES = ['phones', 'messengers'];

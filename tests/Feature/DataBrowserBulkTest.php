@@ -29,7 +29,7 @@ class DataBrowserBulkTest extends TestCase
             ->create()->pluck('id')->map(fn ($i) => (int) $i)->all();
 
         Livewire::actingAs($owner)
-            ->test(DataBrowser::class)
+            ->test(DataBrowser::class, ['mode' => 'browse'])
             ->call('selectPage', $ids)
             ->assertSet('selected', $ids)
             ->call('clearSelected')
@@ -45,7 +45,7 @@ class DataBrowserBulkTest extends TestCase
         $phoneA = ContactEntry::factory()->for($siteA)->phone()->create();
 
         Livewire::actingAs($owner)
-            ->test(DataBrowser::class)
+            ->test(DataBrowser::class, ['mode' => 'browse'])
             ->call('toggleSelected', $phoneA->id)
             ->assertSet('selected', [$phoneA->id])
             ->call('selectAllMatching')
@@ -70,7 +70,7 @@ class DataBrowserBulkTest extends TestCase
         $ids = ContactEntry::where('type', 'messenger')->limit(2)->pluck('id')->all();
 
         Livewire::actingAs($owner)
-            ->test(DataBrowser::class, ['typeFilter' => 'messenger'])
+            ->test(DataBrowser::class, ['mode' => 'browse', 'typeFilter' => 'messenger'])
             ->call('selectPage', $ids)
             ->assertSet('selectAllMatching', false)
             ->call('selectAllFiltered')
@@ -86,7 +86,7 @@ class DataBrowserBulkTest extends TestCase
         ContactEntry::factory()->for($site)->messenger('telegram')->create(['value' => '@telegram_support']);
 
         Livewire::actingAs($owner)
-            ->test(DataBrowser::class, ['typeFilter' => 'messenger'])
+            ->test(DataBrowser::class, ['mode' => 'browse', 'typeFilter' => 'messenger'])
             ->assertSee('Max')
             ->set('kindFilter', 'max')
             ->assertSee('@max_support')
@@ -101,7 +101,7 @@ class DataBrowserBulkTest extends TestCase
         ContactEntry::factory()->for($site)->messenger('max')->create(); // custom platform
 
         $kinds = Livewire::actingAs($owner)
-            ->test(DataBrowser::class, ['typeFilter' => 'messenger'])
+            ->test(DataBrowser::class, ['mode' => 'browse', 'typeFilter' => 'messenger'])
             ->viewData('kinds');
 
         $this->assertArrayHasKey('telegram', $kinds);   // present (canonical)
@@ -121,7 +121,7 @@ class DataBrowserBulkTest extends TestCase
         ContactEntry::factory()->for($site)->social('instagram')->create();
 
         $types = Livewire::actingAs($owner)
-            ->test(DataBrowser::class, ['typeFilter' => 'phone'])
+            ->test(DataBrowser::class, ['mode' => 'browse', 'typeFilter' => 'phone'])
             ->viewData('types');
 
         $this->assertArrayHasKey('phone', $types);
@@ -145,7 +145,7 @@ class DataBrowserBulkTest extends TestCase
         ContactEntry::factory()->for($site)->price()->create(['sku' => 'PRICE-DENIED', 'label' => 'Hidden price']);
 
         $component = Livewire::actingAs($manager)
-            ->test(DataBrowser::class, ['typeFilter' => 'price']);
+            ->test(DataBrowser::class, ['mode' => 'browse', 'typeFilter' => 'price']);
 
         $types = $component->viewData('types');
 
@@ -164,7 +164,7 @@ class DataBrowserBulkTest extends TestCase
             ->create()->pluck('id')->map(fn ($i) => (int) $i)->all();
 
         Livewire::actingAs($owner)
-            ->test(DataBrowser::class)
+            ->test(DataBrowser::class, ['mode' => 'browse'])
             ->call('selectPage', $ids)
             ->call('bulkDelete')
             ->assertSet('selected', [])
@@ -184,7 +184,7 @@ class DataBrowserBulkTest extends TestCase
         ContactEntry::whereIn('id', $ids)->delete();
 
         Livewire::actingAs($owner)
-            ->test(DataBrowser::class)
+            ->test(DataBrowser::class, ['mode' => 'browse'])
             ->call('bulkRestore', $ids);
 
         $this->assertSame(3, ContactEntry::whereIn('id', $ids)->count());
@@ -198,7 +198,7 @@ class DataBrowserBulkTest extends TestCase
         $b = ContactEntry::factory()->for($this->siteForOwner($owner))->phone()->create(['value' => '+222']);
 
         $component = Livewire::actingAs($owner)
-            ->test(DataBrowser::class)
+            ->test(DataBrowser::class, ['mode' => 'browse'])
             ->call('selectPage', [(int) $a->id, (int) $b->id])
             ->call('openEdit', 'value')
             ->assertSet('editingField', true)
@@ -225,7 +225,7 @@ class DataBrowserBulkTest extends TestCase
             ->create(['label' => 'old'])->pluck('id')->map(fn ($i) => (int) $i)->all();
 
         Livewire::actingAs($owner)
-            ->test(DataBrowser::class)
+            ->test(DataBrowser::class, ['mode' => 'browse'])
             ->call('selectPage', $ids)
             ->call('openEdit', 'label')
             ->set('editValue', 'Підписка · Pro')
@@ -241,7 +241,7 @@ class DataBrowserBulkTest extends TestCase
         $e = ContactEntry::factory()->for($this->siteForOwner($owner))->phone()->create(['value' => '+1']);
 
         Livewire::actingAs($owner)
-            ->test(DataBrowser::class)
+            ->test(DataBrowser::class, ['mode' => 'browse'])
             ->call('selectPage', [(int) $e->id])
             ->call('openEdit', 'value')
             ->set('editValue', '   ')
@@ -259,7 +259,7 @@ class DataBrowserBulkTest extends TestCase
             ->create(['value' => '+OLD'])->pluck('id')->map(fn ($i) => (int) $i)->all();
 
         Livewire::actingAs($owner)
-            ->test(DataBrowser::class)
+            ->test(DataBrowser::class, ['mode' => 'browse'])
             ->call('selectPage', $ids)
             ->call('openEdit', 'value')
             ->assertSet('editStep', 1)
@@ -281,7 +281,7 @@ class DataBrowserBulkTest extends TestCase
         $e = ContactEntry::factory()->for($this->siteForOwner($owner))->phone()->create();
 
         Livewire::actingAs($owner)
-            ->test(DataBrowser::class)
+            ->test(DataBrowser::class, ['mode' => 'browse'])
             ->call('selectPage', [(int) $e->id])
             ->call('openEdit', 'value')
             ->set('editValue', '   ')
@@ -299,7 +299,7 @@ class DataBrowserBulkTest extends TestCase
         ContactEntry::factory()->for($siteB)->phone()->count(4)->create();
 
         Livewire::actingAs($owner)
-            ->test(DataBrowser::class)
+            ->test(DataBrowser::class, ['mode' => 'browse'])
             ->set('siteFilter', (string) $siteA->id)
             ->call('selectAllMatching')
             ->call('bulkDelete');
@@ -314,7 +314,7 @@ class DataBrowserBulkTest extends TestCase
         ContactEntry::factory()->for($this->siteForOwner($owner))->phone()->create();
 
         Livewire::actingAs($owner)
-            ->test(DataBrowser::class)
+            ->test(DataBrowser::class, ['mode' => 'browse'])
             ->call('export')
             ->assertFileDownloaded();
     }
@@ -326,7 +326,7 @@ class DataBrowserBulkTest extends TestCase
             ->create()->pluck('id')->map(fn ($i) => (int) $i)->all();
 
         Livewire::actingAs($owner)
-            ->test(DataBrowser::class)
+            ->test(DataBrowser::class, ['mode' => 'browse'])
             ->call('selectPage', $ids)
             ->call('openReview')
             ->assertSet('reviewingSelection', true)
@@ -344,7 +344,7 @@ class DataBrowserBulkTest extends TestCase
         $other = ContactEntry::factory()->for($site)->phone()->create(['value' => '+48111222333']);
 
         $component = Livewire::actingAs($owner)
-            ->test(DataBrowser::class)
+            ->test(DataBrowser::class, ['mode' => 'browse'])
             ->call('selectPage', [(int) $match->id, (int) $other->id])
             ->call('openReplace')
             ->set('findText', '+380')
@@ -368,7 +368,7 @@ class DataBrowserBulkTest extends TestCase
         $e = ContactEntry::factory()->for($this->siteForOwner($owner))->phone()->create(['value' => '+48999']);
 
         Livewire::actingAs($owner)
-            ->test(DataBrowser::class)
+            ->test(DataBrowser::class, ['mode' => 'browse'])
             ->call('selectPage', [(int) $e->id])
             ->call('openReplace')
             ->set('findText', '+380')
@@ -386,7 +386,7 @@ class DataBrowserBulkTest extends TestCase
         $e = ContactEntry::factory()->for($this->siteForOwner($owner))->phone()->create(['value' => '+1']);
 
         Livewire::actingAs($owner)
-            ->test(DataBrowser::class)
+            ->test(DataBrowser::class, ['mode' => 'browse'])
             ->call('selectPage', [(int) $e->id])
             ->call('openReplace')
             ->set('findText', '')
@@ -406,7 +406,7 @@ class DataBrowserBulkTest extends TestCase
         ContactEntry::factory()->for($site)->price()->count(5)->create();
 
         Livewire::actingAs($owner)
-            ->test(DataBrowser::class)
+            ->test(DataBrowser::class, ['mode' => 'browse'])
             ->set('typeFilter', 'phone')
             ->call('selectAllMatching')
             ->assertSet('selectAllMatching', true)
@@ -425,7 +425,7 @@ class DataBrowserBulkTest extends TestCase
             ->create()->pluck('id')->map(fn ($i) => (int) $i)->all();
 
         Livewire::actingAs($manager)
-            ->test(DataBrowser::class)
+            ->test(DataBrowser::class, ['mode' => 'browse'])
             ->call('selectPage', $ids)
             ->call('bulkDelete')
             ->assertSet('selected', [])
@@ -459,7 +459,7 @@ class DataBrowserBulkTest extends TestCase
         ]);
 
         Livewire::actingAs($manager)
-            ->test(DataBrowser::class)
+            ->test(DataBrowser::class, ['mode' => 'browse'])
             ->assertViewHas('totalCount', 1)
             ->assertViewHas('entries', fn ($entries) => $entries->total() === 1
                 && (int) $entries->first()->id === (int) $own->id)
@@ -484,7 +484,7 @@ class DataBrowserBulkTest extends TestCase
             ->create(['value' => '+OWNER-SECRET']);
 
         Livewire::actingAs($manager)
-            ->test(DataBrowser::class)
+            ->test(DataBrowser::class, ['mode' => 'browse'])
             ->call('selectPage', [(int) $ownerEntry->id])
             ->call('openReview')
             ->assertSet('reviewingSelection', true)
@@ -502,7 +502,7 @@ class DataBrowserBulkTest extends TestCase
         ];
 
         Livewire::actingAs($owner)
-            ->test(DataBrowser::class)
+            ->test(DataBrowser::class, ['mode' => 'browse'])
             ->call('selectPage', $ids)
             ->call('openEdit', 'value')
             ->assertSet('editingField', false) // value semantics differ per type → refused
@@ -519,7 +519,7 @@ class DataBrowserBulkTest extends TestCase
         ];
 
         Livewire::actingAs($owner)
-            ->test(DataBrowser::class)
+            ->test(DataBrowser::class, ['mode' => 'browse'])
             ->call('selectPage', $ids)
             ->call('openReplace')
             ->assertSet('editingReplace', false)
@@ -536,7 +536,7 @@ class DataBrowserBulkTest extends TestCase
         ];
 
         Livewire::actingAs($owner)
-            ->test(DataBrowser::class)
+            ->test(DataBrowser::class, ['mode' => 'browse'])
             ->call('selectPage', $ids)
             ->call('openEdit', 'label')
             ->assertSet('editingField', true); // label is a free annotation, type-agnostic
@@ -549,7 +549,7 @@ class DataBrowserBulkTest extends TestCase
             ->create(['role' => 'primary', 'visible' => true])->pluck('id')->map(fn ($i) => (int) $i)->all();
 
         Livewire::actingAs($owner)
-            ->test(DataBrowser::class)
+            ->test(DataBrowser::class, ['mode' => 'browse'])
             ->call('selectPage', $ids)
             ->call('openRole')
             ->assertSet('editingRole', true)
@@ -574,7 +574,7 @@ class DataBrowserBulkTest extends TestCase
         ]);
 
         Livewire::actingAs($owner)
-            ->test(DataBrowser::class)
+            ->test(DataBrowser::class, ['mode' => 'browse'])
             ->call('selectPage', [(int) $reserve->id])
             ->call('openRole')
             ->set('roleValue', 'primary')
@@ -596,7 +596,7 @@ class DataBrowserBulkTest extends TestCase
         $e = ContactEntry::factory()->for($this->siteForOwner($owner))->phone()->create(['role' => 'primary']);
 
         Livewire::actingAs($owner)
-            ->test(DataBrowser::class)
+            ->test(DataBrowser::class, ['mode' => 'browse'])
             ->call('selectPage', [(int) $e->id])
             ->call('openRole')
             ->set('roleValue', 'backup') // needs a parent → not a bulk role
@@ -615,7 +615,7 @@ class DataBrowserBulkTest extends TestCase
         $reserve = ContactEntry::factory()->backup($primary)->create(['value' => '+RESERVE']);
 
         Livewire::actingAs($owner)
-            ->test(DataBrowser::class)
+            ->test(DataBrowser::class, ['mode' => 'browse'])
             ->set('typeFilter', 'phone')
             ->set('roleFilter', 'backup')
             ->call('pickValue', '+RESERVE', '')
@@ -635,7 +635,7 @@ class DataBrowserBulkTest extends TestCase
         ];
 
         Livewire::actingAs($owner)
-            ->test(DataBrowser::class)
+            ->test(DataBrowser::class, ['mode' => 'browse'])
             ->call('selectPage', $ids)
             ->call('openEdit', 'value')
             ->assertSet('editingField', false)
@@ -650,7 +650,7 @@ class DataBrowserBulkTest extends TestCase
             ->create()->pluck('id')->map(fn ($i) => (int) $i)->all();
 
         Livewire::actingAs($owner)
-            ->test(DataBrowser::class)
+            ->test(DataBrowser::class, ['mode' => 'browse'])
             ->call('selectPage', $ids)
             ->call('openEdit', 'value')
             ->assertSet('editingField', true) // same kind → allowed
@@ -669,7 +669,7 @@ class DataBrowserBulkTest extends TestCase
         ContactEntry::factory()->for($site)->messenger('viber')->count(2)->create();
 
         Livewire::actingAs($owner)
-            ->test(DataBrowser::class)
+            ->test(DataBrowser::class, ['mode' => 'browse'])
             ->set('typeFilter', 'messenger')
             ->set('kindFilter', 'telegram')
             ->call('selectAllMatching')
@@ -686,7 +686,7 @@ class DataBrowserBulkTest extends TestCase
         $tg = ContactEntry::factory()->for($site)->messenger('telegram')->create();
 
         Livewire::actingAs($owner)
-            ->test(DataBrowser::class)
+            ->test(DataBrowser::class, ['mode' => 'browse'])
             ->set('typeFilter', 'messenger')
             ->set('kindFilter', 'telegram')
             ->call('toggleSelected', $tg->id)
@@ -709,7 +709,7 @@ class DataBrowserBulkTest extends TestCase
         $dead->delete();
 
         Livewire::actingAs($owner)
-            ->test(DataBrowser::class)
+            ->test(DataBrowser::class, ['mode' => 'browse'])
             ->set('trashed', true)
             ->assertViewHas('entries', fn ($e) => $e->total() === 1 && (int) $e->first()->id === (int) $dead->id)
             ->assertSee('+DEAD')
@@ -724,7 +724,7 @@ class DataBrowserBulkTest extends TestCase
         ContactEntry::whereIn('id', $ids)->delete();
 
         Livewire::actingAs($owner)
-            ->test(DataBrowser::class)
+            ->test(DataBrowser::class, ['mode' => 'browse'])
             ->set('trashed', true)
             ->call('selectPage', $ids)
             ->call('restoreSelected')
@@ -741,7 +741,7 @@ class DataBrowserBulkTest extends TestCase
         ContactEntry::whereIn('id', $ids)->delete();
 
         Livewire::actingAs($owner)
-            ->test(DataBrowser::class)
+            ->test(DataBrowser::class, ['mode' => 'browse'])
             ->set('trashed', true)
             ->call('selectPage', $ids)
             ->call('purgeSelected')
@@ -756,7 +756,7 @@ class DataBrowserBulkTest extends TestCase
         $e = ContactEntry::factory()->for($this->siteForOwner($owner))->phone()->create();
 
         Livewire::actingAs($owner)
-            ->test(DataBrowser::class)
+            ->test(DataBrowser::class, ['mode' => 'browse'])
             ->call('toggleSelected', $e->id)
             ->assertSet('selected', [$e->id])
             ->set('trashed', true)
@@ -770,7 +770,7 @@ class DataBrowserBulkTest extends TestCase
         $e->delete();
 
         Livewire::actingAs($owner)
-            ->test(DataBrowser::class)
+            ->test(DataBrowser::class, ['mode' => 'browse'])
             ->set('trashed', true)
             ->call('selectPage', [(int) $e->id])
             ->call('openReview')
@@ -786,7 +786,7 @@ class DataBrowserBulkTest extends TestCase
             ->create(['geo_mode' => 'all', 'countries' => null])->pluck('id')->map(fn ($i) => (int) $i)->all();
 
         Livewire::actingAs($owner)
-            ->test(DataBrowser::class)
+            ->test(DataBrowser::class, ['mode' => 'browse'])
             ->call('selectPage', $ids)
             ->call('openGeo')
             ->assertSet('editingGeo', true)
@@ -808,7 +808,7 @@ class DataBrowserBulkTest extends TestCase
             ->create(['geo_mode' => 'only', 'countries' => ['UA']])->id;
 
         Livewire::actingAs($owner)
-            ->test(DataBrowser::class)
+            ->test(DataBrowser::class, ['mode' => 'browse'])
             ->call('selectPage', [$id])
             ->call('openGeo')
             ->set('geoMode', 'all')
@@ -827,7 +827,7 @@ class DataBrowserBulkTest extends TestCase
             ->create(['geo_mode' => 'all'])->id;
 
         Livewire::actingAs($owner)
-            ->test(DataBrowser::class)
+            ->test(DataBrowser::class, ['mode' => 'browse'])
             ->call('selectPage', [$id])
             ->call('openGeo')
             ->set('geoMode', 'only')
@@ -846,7 +846,7 @@ class DataBrowserBulkTest extends TestCase
             ->create(['geo_mode' => 'except', 'countries' => ['RU']]);
 
         $component = Livewire::actingAs($owner)
-            ->test(DataBrowser::class)
+            ->test(DataBrowser::class, ['mode' => 'browse'])
             ->call('selectPage', [(int) $entry->id])
             ->call('openGeo')
             ->set('geoMode', 'only')
@@ -869,7 +869,7 @@ class DataBrowserBulkTest extends TestCase
         $b = ContactEntry::factory()->for($site)->price()->create(['currency' => 'USD']);
 
         $component = Livewire::actingAs($owner)
-            ->test(DataBrowser::class)
+            ->test(DataBrowser::class, ['mode' => 'browse'])
             ->set('typeFilter', 'price')
             ->call('selectPage', [(int) $a->id, (int) $b->id])
             ->call('openPriceEdit')
@@ -906,7 +906,7 @@ class DataBrowserBulkTest extends TestCase
         ]);
 
         Livewire::actingAs($owner)
-            ->test(DataBrowser::class, ['typeFilter' => 'price'])
+            ->test(DataBrowser::class, ['mode' => 'browse', 'typeFilter' => 'price'])
             ->assertSee('149')   // amount shows in the value rail
             ->assertSee('PLN')
             ->call('pickValue', '149', 'PLN')   // dive into the occurrences
@@ -922,7 +922,7 @@ class DataBrowserBulkTest extends TestCase
         ContactEntry::factory()->for($site)->price()->create();
 
         Livewire::actingAs($owner)
-            ->test(DataBrowser::class, ['typeFilter' => 'price', 'roleFilter' => 'backup'])
+            ->test(DataBrowser::class, ['mode' => 'browse', 'typeFilter' => 'price', 'roleFilter' => 'backup'])
             ->assertSet('roleFilter', '')
             ->assertDontSee('Резервні')
             ->assertSee('Активні')
@@ -936,7 +936,7 @@ class DataBrowserBulkTest extends TestCase
         $id = (int) ContactEntry::factory()->for($site)->price()->create(['old_price' => 99])->id;
 
         Livewire::actingAs($owner)
-            ->test(DataBrowser::class)
+            ->test(DataBrowser::class, ['mode' => 'browse'])
             ->set('typeFilter', 'price')
             ->call('selectPage', [$id])
             ->call('openPriceEdit')
@@ -954,7 +954,7 @@ class DataBrowserBulkTest extends TestCase
         $id = (int) ContactEntry::factory()->for($this->siteForOwner($owner))->price()->create(['currency' => 'EUR'])->id;
 
         Livewire::actingAs($owner)
-            ->test(DataBrowser::class)
+            ->test(DataBrowser::class, ['mode' => 'browse'])
             ->set('typeFilter', 'price')
             ->call('selectPage', [$id])
             ->call('openPriceEdit')
@@ -973,7 +973,7 @@ class DataBrowserBulkTest extends TestCase
         $e = ContactEntry::factory()->for($this->siteForOwner($owner))->phone()->create();
 
         Livewire::actingAs($owner)
-            ->test(DataBrowser::class)
+            ->test(DataBrowser::class, ['mode' => 'browse'])
             ->set('typeFilter', 'phone')
             ->call('selectPage', [(int) $e->id])
             ->call('openPriceEdit')
@@ -988,7 +988,7 @@ class DataBrowserBulkTest extends TestCase
         $phone = ContactEntry::factory()->for($siteA)->phone()->create(['value' => '+ORIGINAL']);
 
         $component = Livewire::actingAs($owner)
-            ->test(DataBrowser::class)
+            ->test(DataBrowser::class, ['mode' => 'browse'])
             ->call('selectPage', [(int) $phone->id])
             ->call('openDuplicate')
             ->assertSet('duplicating', true)
@@ -1015,7 +1015,7 @@ class DataBrowserBulkTest extends TestCase
         $backup = ContactEntry::factory()->backup($primary)->create();
 
         Livewire::actingAs($owner)
-            ->test(DataBrowser::class)
+            ->test(DataBrowser::class, ['mode' => 'browse'])
             ->call('selectPage', [(int) $primary->id])
             ->call('openMove')
             ->set('moveSite', (string) $siteB->id)
@@ -1033,7 +1033,7 @@ class DataBrowserBulkTest extends TestCase
         $siteB = $this->siteForOwner($owner);
 
         Livewire::actingAs($owner)
-            ->test(DataBrowser::class, ['typeFilter' => 'phone'])
+            ->test(DataBrowser::class, ['mode' => 'browse', 'typeFilter' => 'phone'])
             ->call('openCreate')
             ->assertSet('creating', true)
             ->set('createValue', '+NEW')
@@ -1054,7 +1054,7 @@ class DataBrowserBulkTest extends TestCase
         $orphan = ContactEntry::factory()->for($site)->phone()->create(['value' => '+SPARE']);
 
         Livewire::actingAs($owner)
-            ->test(DataBrowser::class, ['typeFilter' => 'phone'])
+            ->test(DataBrowser::class, ['mode' => 'browse', 'typeFilter' => 'phone'])
             ->call('selectPage', [(int) $orphan->id])
             ->call('openAttach')
             ->assertSet('attaching', true)
@@ -1074,7 +1074,7 @@ class DataBrowserBulkTest extends TestCase
         $b = ContactEntry::factory()->for($this->siteForOwner($owner))->phone()->create();
 
         Livewire::actingAs($owner)
-            ->test(DataBrowser::class, ['typeFilter' => 'phone'])
+            ->test(DataBrowser::class, ['mode' => 'browse', 'typeFilter' => 'phone'])
             ->call('selectPage', [(int) $a->id, (int) $b->id])
             ->call('openAttach')
             ->assertSet('attaching', false) // a reserve lives on its primary's site
@@ -1107,7 +1107,7 @@ class DataBrowserBulkTest extends TestCase
         ]);
 
         Livewire::actingAs($owner)
-            ->test(DataBrowser::class, ['typeFilter' => 'phone', 'roleFilter' => 'hidden'])
+            ->test(DataBrowser::class, ['mode' => 'browse', 'typeFilter' => 'phone', 'roleFilter' => 'hidden'])
             ->assertSee('+HIDDEN-PHONE')   // listed in the value rail
             ->call('pickValue', '+HIDDEN-PHONE', '')
             ->assertSee('Резерв для')
@@ -1116,7 +1116,7 @@ class DataBrowserBulkTest extends TestCase
             ->assertSee('Резерв');
 
         Livewire::actingAs($owner)
-            ->test(DataBrowser::class, ['typeFilter' => 'messenger', 'kindFilter' => 'telegram', 'roleFilter' => 'hidden'])
+            ->test(DataBrowser::class, ['mode' => 'browse', 'typeFilter' => 'messenger', 'kindFilter' => 'telegram', 'roleFilter' => 'hidden'])
             ->assertSee('@hidden_tg')   // listed in the value rail
             ->call('pickValue', '@hidden_tg', '')
             ->assertSee('Резерв для')

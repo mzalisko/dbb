@@ -89,7 +89,7 @@ class SiteSocialAddressTest extends TestCase
         ContactEntry::factory()->for($site)->social('facebook')->create(['value' => 'FB-PAGE']);
 
         Livewire::actingAs($user)
-            ->test(DataBrowser::class, ['typeFilter' => 'social', 'kindFilter' => 'instagram'])
+            ->test(DataBrowser::class, ['mode' => 'browse', 'typeFilter' => 'social', 'kindFilter' => 'instagram'])
             ->assertSee('Соцмережі')      // the type tab is registered
             ->assertSee('IG-PROFILE')
             ->assertDontSee('FB-PAGE');   // kind sub-filter scopes the list
@@ -101,7 +101,7 @@ class SiteSocialAddressTest extends TestCase
         ContactEntry::factory()->for($site)->address()->create(['value' => 'MY-ADDRESS-STREET']);
 
         Livewire::actingAs($user)
-            ->test(DataBrowser::class, ['typeFilter' => 'address'])
+            ->test(DataBrowser::class, ['mode' => 'browse', 'typeFilter' => 'address'])
             ->assertSee('Адреси')
             ->assertSee('MY-ADDRESS-STREET');
     }

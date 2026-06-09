@@ -830,13 +830,21 @@ class DataBrowser extends Component
             return; // nothing changed — stay quiet
         }
 
+        $old = $entry->{$field};
         $entry->update([$field => $stored]);
         $this->syncSites([(int) $entry->site_id]);
 
         $noun = match ($field) {
             'value' => 'Значення', 'label' => 'Мітку', 'price' => 'Ціну', 'old_price' => 'Стару ціну',
         };
-        $this->dispatch('toast', type: 'success', message: "{$noun} оновлено");
+        // Reuse the bulk per-row restore so a single inline edit is also undoable.
+        $this->dispatch('toast',
+            type: 'success',
+            message: "{$noun} оновлено",
+            action: 'bulkRestoreField',
+            actionLabel: 'Відмінити',
+            actionData: ['snapshot' => [$entry->id => $old], 'field' => $field],
+        );
     }
 
     // ─── Generic "change ANY field" (set / clear / find-replace) ──────────

@@ -491,6 +491,23 @@ class DataBrowserFinishTest extends TestCase
         $this->assertSame(100.0, (float) $e->fresh()->price);
     }
 
+    public function test_inline_update_is_undoable(): void
+    {
+        $owner = User::factory()->create(['role' => 'owner']);
+        $e = ContactEntry::factory()->for($this->siteForOwner($owner))->phone()->create(['value' => '+OLD']);
+
+        $component = Livewire::actingAs($owner)
+            ->test(DataBrowser::class, ['typeFilter' => 'phone'])
+            ->call('inlineUpdate', $e->id, 'value', '+NEW')
+            ->assertDispatched('toast', fn ($ev, $p) => ($p['action'] ?? null) === 'bulkRestoreField'
+                && ($p['actionData']['field'] ?? null) === 'value');
+
+        $this->assertSame('+NEW', $e->fresh()->value);
+
+        $component->call('bulkRestoreField', [$e->id => '+OLD'], 'value');
+        $this->assertSame('+OLD', $e->fresh()->value); // undo restores
+    }
+
     // ── Stale data: entries on deleted sites must not surface ────────────
 
     public function test_entries_on_deleted_sites_are_hidden(): void

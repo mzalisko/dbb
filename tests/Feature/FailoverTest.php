@@ -161,4 +161,106 @@ class FailoverTest extends TestCase
 
         $this->assertFalse(ActivityLog::where('action', 'site.failover.triggered')->latest()->first()->properties['ok']);
     }
+
+    // ── Cascade visibility tests ──
+
+    public function test_hiding_primary_cascades_to_all_backups(): void
+    {
+        [$site, $base, [$r1, $r2]] = $this->siteWithReserves(2);
+
+        // All start visible.
+        $this->assertTrue($base->fresh()->visible);
+        $this->assertTrue($r1->fresh()->visible);
+        $this->assertTrue($r2->fresh()->visible);
+
+        Livewire::test(Show::class, ['site' => $site])
+            ->call('toggleEntryVisibility', $base->id);
+
+        // All should be hidden now.
+        $this->assertFalse($base->fresh()->visible, 'primary hidden');
+        $this->assertFalse($r1->fresh()->visible, 'reserve 1 cascade-hidden');
+        $this->assertFalse($r2->fresh()->visible, 'reserve 2 cascade-hidden');
+    }
+
+    public function test_showing_primary_cascades_to_all_backups(): void
+    {
+        [$site, $base, [$r1, $r2]] = $this->siteWithReserves(2);
+
+        // Start all hidden.
+        $base->update(['visible' => false]);
+        $r1->update(['visible' => false]);
+        $r2->update(['visible' => false]);
+
+        Livewire::test(Show::class, ['site' => $site])
+            ->call('toggleEntryVisibility', $base->id);
+
+        // All should be visible now.
+        $this->assertTrue($base->fresh()->visible, 'primary shown');
+        $this->assertTrue($r1->fresh()->visible, 'reserve 1 cascade-shown');
+        $this->assertTrue($r2->fresh()->visible, 'reserve 2 cascade-shown');
+    }
+
+    public function test_hiding_reserve_cascades_whole_group(): void
+    {
+        [$site, $base, [$r1, $r2]] = $this->siteWithReserves(2);
+
+        // Toggle via a reserve entry — should resolve to head and cascade.
+        Livewire::test(Show::class, ['site' => $site])
+            ->call('toggleEntryVisibility', $r1->id);
+
+        $this->assertFalse($base->fresh()->visible, 'primary cascade-hidden via reserve');
+        $this->assertFalse($r1->fresh()->visible, 'reserve 1 hidden');
+        $this->assertFalse($r2->fresh()->visible, 'reserve 2 cascade-hidden');
+    }
+
+    public function test_cascade_visibility_is_logged(): void
+    {
+        [$site, $base, [$r1]] = $this->siteWithReserves(1);
+
+        Livewire::test(Show::class, ['site' => $site])
+            ->call('toggleEntryVisibility', $base->id);
+
+        $log = ActivityLog::where('action', 'entry.visibility.hidden')
+            ->orderByDesc('id')
+            ->first();
+
+        $this->assertNotNull($log);
+        $this->assertTrue($log->properties['cascade']);
+        $this->assertSame(1, $log->properties['backup_count']);
+    }
+
+    public function test_cascade_visibility_for_messengers(): void
+    {
+        $owner = User::factory()->create(['role' => 'owner']);
+        $this->actingAs($owner);
+        $site = Site::factory()->for(Client::factory()->for($owner))->create();
+
+        $base = ContactEntry::factory()->for($site)->messenger()
+            ->create(['value' => '@main', 'role' => 'primary', 'parent_id' => null, 'order' => 0]);
+        $reserve = ContactEntry::factory()->for($site)->messenger()
+            ->create(['value' => '@backup', 'role' => 'backup', 'parent_id' => $base->id, 'order' => 1]);
+
+        Livewire::test(Show::class, ['site' => $site])
+            ->call('toggleEntryVisibility', $base->id);
+
+        $this->assertFalse($base->fresh()->visible, 'messenger primary hidden');
+        $this->assertFalse($reserve->fresh()->visible, 'messenger reserve cascade-hidden');
+    }
+
+    public function test_hide_show_roundtrip_preserves_visibility(): void
+    {
+        [$site, $base, [$r1, $r2]] = $this->siteWithReserves(2);
+
+        $c = Livewire::test(Show::class, ['site' => $site]);
+
+        // Hide all.
+        $c->call('toggleEntryVisibility', $base->id);
+        $this->assertFalse($base->fresh()->visible);
+
+        // Show all again.
+        $c->call('toggleEntryVisibility', $base->id);
+        $this->assertTrue($base->fresh()->visible, 'primary visible after roundtrip');
+        $this->assertTrue($r1->fresh()->visible, 'reserve 1 visible after roundtrip');
+        $this->assertTrue($r2->fresh()->visible, 'reserve 2 visible after roundtrip');
+    }
 }

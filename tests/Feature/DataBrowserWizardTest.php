@@ -12,9 +12,11 @@ use Livewire\Livewire;
 use Tests\TestCase;
 
 /**
- * v4 full-screen wizard: Тип → Значення → Сайти → Дія → Підтвердити.
- * It drives the existing audited apply* methods, so here we test the flow
- * (navigation, guards) and that each step + action detail renders.
+ * v4 wizard. After Тип the manager picks an intent and the flow branches:
+ *   edit    : Тип → Намір → Значення → Сайти → Дія → Підтвердити
+ *   create  : Тип → Намір → Дані → Сайти → Підтвердити
+ *   reserve : Тип → Намір → Основний → Сайти → Резерви → Підтвердити
+ * It drives the existing audited apply* methods (+ one bulk add-reserve helper).
  */
 class DataBrowserWizardTest extends TestCase
 {
@@ -25,11 +27,12 @@ class DataBrowserWizardTest extends TestCase
         return Site::factory()->for(Client::factory()->for($owner))->create();
     }
 
-    public function test_wizard_is_the_default_mode_and_renders_every_step(): void
+    public function test_wizard_is_default_and_renders_each_edit_step(): void
     {
         $owner = User::factory()->create(['role' => 'owner']);
         $site = $this->siteForOwner($owner);
-        ContactEntry::factory()->for($site)->phone()->count(4)->create(['value' => '+SAME']);
+        ContactEntry::factory()->for($site)->phone()->count(3)->create(['value' => '+SAME']);
+        $id = (int) ContactEntry::where('value', '+SAME')->value('id');
 
         $c = Livewire::actingAs($owner)
             ->test(DataBrowser::class, ['typeFilter' => 'phone'])
@@ -38,14 +41,14 @@ class DataBrowserWizardTest extends TestCase
             ->assertSee('Дії над даними')
             ->assertSee('Що міняємо');
 
-        $c->set('wizStep', 2)->assertSee('Яке значення');
-        $c->call('pickValue', '+SAME', '')->set('wizStep', 3)->assertSee('Де саме');
-        $first = (int) ContactEntry::where('value', '+SAME')->value('id');
-        $c->call('toggleSelected', $first)->set('wizStep', 4)->assertSee('Яка дія');
-        $c->call('setWizAction', 'replace')->set('wizStep', 5)->assertSee('Підтвердити');
+        $c->set('wizStep', 2)->assertSee('Що зробити');
+        $c->set('wizStep', 3)->assertSee('Яке значення');
+        $c->call('pickValue', '+SAME', '')->set('wizStep', 4)->assertSee('Де саме');
+        $c->call('toggleSelected', $id)->set('wizStep', 5)->assertSee('Яка дія');
+        $c->call('setWizAction', 'replace')->set('wizStep', 6)->assertSee('останній перегляд');
     }
 
-    public function test_wizard_renders_every_action_detail_without_error(): void
+    public function test_wizard_renders_every_edit_action_detail(): void
     {
         $owner = User::factory()->create(['role' => 'owner']);
         $site = $this->siteForOwner($owner);
@@ -56,14 +59,14 @@ class DataBrowserWizardTest extends TestCase
             ->test(DataBrowser::class, ['typeFilter' => 'phone'])
             ->call('pickValue', '+SAME', '')
             ->call('toggleSelected', $id)
-            ->set('wizStep', 4);
+            ->set('wizStep', 5);
 
         foreach (['replace', 'substr', 'label', 'geo', 'state', 'move', 'duplicate', 'delete'] as $a) {
             $c->call('setWizAction', $a)->assertSet('wizAction', $a)->assertSee('Яка дія');
         }
     }
 
-    public function test_wizard_replace_touches_only_selected_occurrences(): void
+    public function test_edit_replace_touches_only_selected_occurrences(): void
     {
         $owner = User::factory()->create(['role' => 'owner']);
         $site = $this->siteForOwner($owner);
@@ -73,40 +76,109 @@ class DataBrowserWizardTest extends TestCase
 
         Livewire::actingAs($owner)
             ->test(DataBrowser::class, ['typeFilter' => 'phone'])
-            ->call('wizNext')->assertSet('wizStep', 2)
+            ->call('wizNext')->assertSet('wizStep', 2)        // intent (default edit)
+            ->call('wizNext')->assertSet('wizStep', 3)        // value
             ->call('pickValue', '+SAME', '')
-            ->call('wizNext')->assertSet('wizStep', 3)
+            ->call('wizNext')->assertSet('wizStep', 4)        // sites
             ->call('toggleSelected', $a)
             ->call('toggleSelected', $b)
-            ->call('wizNext')->assertSet('wizStep', 4)
+            ->call('wizNext')->assertSet('wizStep', 5)        // action
             ->call('setWizAction', 'replace')
             ->set('editValue', '+NEW')
-            ->call('wizNext')->assertSet('wizStep', 5)
+            ->call('wizNext')->assertSet('wizStep', 6)        // confirm
             ->call('wizConfirm')
-            ->assertSet('wizStep', 1)        // success restarts the wizard
+            ->assertSet('wizStep', 1)
             ->assertSet('wizAction', '');
 
         $this->assertSame(2, ContactEntry::where('value', '+NEW')->count());
         $this->assertSame(2, ContactEntry::where('value', '+SAME')->count());
     }
 
-    public function test_wizard_delete_flow_soft_deletes_selected(): void
+    public function test_create_flow_adds_entry_on_each_chosen_site(): void
     {
         $owner = User::factory()->create(['role' => 'owner']);
-        $site = $this->siteForOwner($owner);
-        $rows = ContactEntry::factory()->for($site)->phone()->count(3)->create(['value' => '+SAME']);
-        $a = (int) $rows[0]->id;
+        $s1 = $this->siteForOwner($owner);
+        $s2 = $this->siteForOwner($owner);
 
         Livewire::actingAs($owner)
             ->test(DataBrowser::class, ['typeFilter' => 'phone'])
-            ->call('pickValue', '+SAME', '')
-            ->call('toggleSelected', $a)
-            ->set('wizStep', 5)
-            ->call('setWizAction', 'delete')
-            ->call('wizConfirm');
+            ->call('wizNext')->assertSet('wizStep', 2)        // intent
+            ->call('setWizIntent', 'create')->assertSet('wizIntent', 'create')
+            ->call('wizNext')->assertSet('wizStep', 3)        // data
+            ->set('createValue', '+380 NEW')
+            ->call('wizNext')->assertSet('wizStep', 4)        // sites
+            ->call('toggleCreateSite', $s1->id)
+            ->call('toggleCreateSite', $s2->id)
+            ->call('wizNext')->assertSet('wizStep', 5)        // confirm
+            ->call('wizConfirm')
+            ->assertSet('wizStep', 1)
+            ->assertSet('wizIntent', 'edit');
 
-        $this->assertSoftDeleted('contact_entries', ['id' => $a]);
-        $this->assertSame(2, ContactEntry::where('value', '+SAME')->count());
+        $this->assertSame(2, ContactEntry::where('value', '+380 NEW')->count());
+        $this->assertDatabaseHas('contact_entries', ['site_id' => $s1->id, 'value' => '+380 NEW']);
+        $this->assertDatabaseHas('contact_entries', ['site_id' => $s2->id, 'value' => '+380 NEW']);
+    }
+
+    public function test_reserve_flow_attaches_new_reserves_to_each_selected_primary(): void
+    {
+        $owner = User::factory()->create(['role' => 'owner']);
+        $s1 = $this->siteForOwner($owner);
+        $s2 = $this->siteForOwner($owner);
+        $p1 = ContactEntry::factory()->for($s1)->phone()->create(['value' => '+MAIN', 'role' => 'primary']);
+        $p2 = ContactEntry::factory()->for($s2)->phone()->create(['value' => '+MAIN', 'role' => 'primary']);
+
+        Livewire::actingAs($owner)
+            ->test(DataBrowser::class, ['typeFilter' => 'phone'])
+            ->call('wizNext')->assertSet('wizStep', 2)        // intent
+            ->call('setWizIntent', 'reserve')->assertSet('roleFilter', 'primary')
+            ->call('wizNext')->assertSet('wizStep', 3)        // primary value
+            ->call('pickValue', '+MAIN', '')
+            ->call('wizNext')->assertSet('wizStep', 4)        // which primaries
+            ->call('selectAllFiltered')
+            ->call('wizNext')->assertSet('wizStep', 5)        // reserve numbers
+            ->set('reserveNumbers', "+RES1\n+RES2")
+            ->call('wizNext')->assertSet('wizStep', 6)        // confirm
+            ->call('wizConfirm')
+            ->assertSet('wizStep', 1);
+
+        // Two new reserves under each of the two primaries = 4 backups.
+        $this->assertSame(2, ContactEntry::where('parent_id', $p1->id)->where('role', 'backup')->count());
+        $this->assertSame(2, ContactEntry::where('parent_id', $p2->id)->where('role', 'backup')->count());
+        $this->assertSame(2, ContactEntry::where('value', '+RES1')->count());
+    }
+
+    public function test_reserve_and_create_steps_render(): void
+    {
+        $owner = User::factory()->create(['role' => 'owner']);
+        $site = $this->siteForOwner($owner);
+        ContactEntry::factory()->for($site)->phone()->create(['value' => '+MAIN', 'role' => 'primary']);
+
+        $c = Livewire::actingAs($owner)->test(DataBrowser::class, ['typeFilter' => 'phone']);
+
+        $c->call('setWizIntent', 'create');
+        $c->set('wizStep', 3)->assertSee('Нові дані');
+        $c->set('createValue', '+X')->set('wizStep', 4)->assertSee('На яких сайтах');
+
+        $c->call('setWizIntent', 'reserve');
+        $c->set('wizStep', 3)->assertSee('Який основний номер');
+        $c->call('pickValue', '+MAIN', '')->set('wizStep', 4)->assertSee('До яких основних');
+        $c->set('wizStep', 5)->assertSee('Резервні номери');
+    }
+
+    public function test_value_list_shows_primary_and_reserve_counts(): void
+    {
+        $owner = User::factory()->create(['role' => 'owner']);
+        $site = $this->siteForOwner($owner);
+        $primary = ContactEntry::factory()->for($site)->phone()->create(['value' => '+MAIN', 'role' => 'primary']);
+        ContactEntry::factory()->backup($primary)->create(['value' => '+MAIN']);
+
+        $g = collect(Livewire::actingAs($owner)
+            ->test(DataBrowser::class, ['typeFilter' => 'phone'])
+            ->viewData('valueGroups'))->firstWhere('gkey', '+MAIN');
+
+        $this->assertNotNull($g);
+        $this->assertSame(1, (int) $g->prim);   // one primary
+        $this->assertSame(1, (int) $g->res);    // one reserve
     }
 
     public function test_wizard_blocks_advancing_without_value_or_selection(): void
@@ -115,30 +187,28 @@ class DataBrowserWizardTest extends TestCase
         $site = $this->siteForOwner($owner);
         ContactEntry::factory()->for($site)->phone()->create(['value' => '+SAME']);
 
-        // Step 2 without a pick → stays on 2 with an error toast.
         $c = Livewire::actingAs($owner)
             ->test(DataBrowser::class, ['typeFilter' => 'phone'])
-            ->call('wizNext')->assertSet('wizStep', 2)
-            ->call('wizNext')->assertSet('wizStep', 2)
+            ->call('wizNext')->assertSet('wizStep', 2)        // intent
+            ->call('wizNext')->assertSet('wizStep', 3)        // value
+            ->call('wizNext')->assertSet('wizStep', 3)        // no pick → stays
             ->assertDispatched('toast', fn ($e, $p) => ($p['type'] ?? null) === 'error');
 
-        // Pick, advance to 3, but select nothing → stays on 3.
         $c->call('pickValue', '+SAME', '')
-            ->call('wizNext')->assertSet('wizStep', 3)
-            ->call('wizNext')->assertSet('wizStep', 3);
+            ->call('wizNext')->assertSet('wizStep', 4)        // sites
+            ->call('wizNext')->assertSet('wizStep', 4);       // no selection → stays
     }
 
-    public function test_wizard_goto_cannot_skip_prerequisites(): void
+    public function test_wizard_goto_is_backward_only(): void
     {
         $owner = User::factory()->create(['role' => 'owner']);
-        $site = $this->siteForOwner($owner);
-        ContactEntry::factory()->for($site)->phone()->create(['value' => '+SAME']);
+        $this->siteForOwner($owner);
 
         Livewire::actingAs($owner)
             ->test(DataBrowser::class, ['typeFilter' => 'phone'])
-            ->call('wizGoto', 4)->assertSet('wizStep', 2)   // no value yet → clamp to 2
-            ->call('pickValue', '+SAME', '')
-            ->call('wizGoto', 4)->assertSet('wizStep', 3);   // value but no selection → clamp to 3
+            ->call('wizGoto', 5)->assertSet('wizStep', 1)     // can't skip forward
+            ->call('wizNext')->assertSet('wizStep', 2)
+            ->call('wizGoto', 1)->assertSet('wizStep', 1);    // back is fine
     }
 
     public function test_mode_toggle_switches_between_wizard_and_browse(): void
@@ -149,6 +219,6 @@ class DataBrowserWizardTest extends TestCase
         Livewire::actingAs($owner)
             ->test(DataBrowser::class, ['typeFilter' => 'phone'])
             ->call('toBrowse')->assertSet('mode', 'browse')
-            ->call('toWizard')->assertSet('mode', 'wizard')->assertSet('wizStep', 1);
+            ->call('toWizard')->assertSet('mode', 'wizard')->assertSet('wizStep', 1)->assertSet('wizIntent', 'edit');
     }
 }

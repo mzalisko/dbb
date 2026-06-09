@@ -2,15 +2,22 @@
 
 namespace App\Livewire\Concerns;
 
+use App\Models\ContactEntry;
+use App\Services\ActivityLogService;
+use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Url;
 
 /**
- * v4 full-screen step wizard: Тип → Значення → Сайти → Дія → Підтвердити.
+ * v4 full-screen step wizard. After Тип, the manager picks an INTENT and the
+ * flow branches:
+ *   edit    : Тип → Намір → Значення → Сайти → Дія → Підтвердити
+ *   create  : Тип → Намір → Дані → Сайти → Підтвердити
+ *   reserve : Тип → Намір → Основний → Сайти → Резерви → Підтвердити
  *
- * Pure orchestration over the existing, audited bulk actions (applyEdit,
- * applyReplace, applyGeo, applyRole, applyMove, applyDuplicate, bulkDelete):
- * it only sets the matching state + drives the selection, then calls the
- * proven apply* method. No new write logic — logging and undo are unchanged.
+ * Pure orchestration over the existing, audited actions (applyEdit / applyReplace
+ * / applyGeo / applyRole / applyMove / applyDuplicate / bulkDelete / applyCreate)
+ * plus one small new bulk helper for "add a reserve to N primaries at once".
+ * No new edit logic — logging and undo are unchanged.
  */
 trait WithWizard
 {
@@ -18,13 +25,47 @@ trait WithWizard
     #[Url]
     public string $mode = 'wizard';
 
-    /** Current step, 1..5. */
+    /** Current step (1-based index into wizSteps()). */
     public int $wizStep = 1;
 
-    /** The action chosen on step 4 — key of wizActionLabels(). */
+    /** Branch: edit existing | create new | attach reserve to primaries. */
+    public string $wizIntent = 'edit';
+
+    /** The edit action chosen on the 'action' step. */
     public string $wizAction = '';
 
-    /** Human labels for the action picker, step rail and summaries. */
+    /** Step labels per intent (drives the progress rail). */
+    public function wizSteps(): array
+    {
+        return match ($this->wizIntent) {
+            'create'  => ['Тип', 'Намір', 'Дані', 'Сайти', 'Підтвердити'],
+            'reserve' => ['Тип', 'Намір', 'Основний', 'Сайти', 'Резерви', 'Підтвердити'],
+            default   => ['Тип', 'Намір', 'Значення', 'Сайти', 'Дія', 'Підтвердити'],
+        };
+    }
+
+    /** Stable per-step keys (drives guards + which panel renders). */
+    public function wizStepKeys(): array
+    {
+        return match ($this->wizIntent) {
+            'create'  => ['type', 'intent', 'data', 'csites', 'confirm'],
+            'reserve' => ['type', 'intent', 'value', 'sites', 'resnums', 'confirm'],
+            default   => ['type', 'intent', 'value', 'sites', 'action', 'confirm'],
+        };
+    }
+
+    public function wizKey(): string
+    {
+        return $this->wizStepKeys()[$this->wizStep - 1] ?? 'type';
+    }
+
+    public function wizIndexOf(string $key): int
+    {
+        $i = array_search($key, $this->wizStepKeys(), true);
+
+        return $i === false ? 1 : $i + 1;
+    }
+
     public function wizActionLabels(): array
     {
         return [
@@ -36,6 +77,15 @@ trait WithWizard
             'move'      => 'Перемістити на сайт',
             'duplicate' => 'Дублювати на сайти',
             'delete'    => 'Видалити',
+        ];
+    }
+
+    public function wizIntentLabels(): array
+    {
+        return [
+            'edit'    => 'Змінити наявні',
+            'create'  => 'Додати нові',
+            'reserve' => 'Приєднати резерв до наявних',
         ];
     }
 
@@ -54,21 +104,46 @@ trait WithWizard
     public function wizReset(): void
     {
         $this->wizStep = 1;
+        $this->wizIntent = 'edit';
         $this->wizAction = '';
+        $this->roleFilter = '';
         $this->clearSelected();
     }
 
-    /** Jump via the progress rail — never ahead of the prerequisites. */
+    /** Pick the intent on step 2 and seed the right defaults. */
+    public function setWizIntent(string $intent): void
+    {
+        if (! array_key_exists($intent, $this->wizIntentLabels())) {
+            return;
+        }
+        $this->wizIntent = $intent;
+        $this->wizAction = '';
+        $this->pickedValue = '';
+        $this->pickedCurrency = '';
+        $this->clearSelected();
+
+        // Attaching reserves only makes sense for primaries — focus the value
+        // list + occurrence list on them.
+        $this->roleFilter = $intent === 'reserve' ? 'primary' : '';
+
+        if ($intent === 'create') {
+            $this->createValue = '';
+            $this->createLabel = '';
+            $this->createRole = 'primary';
+            $this->createSites = [];
+        }
+        if ($intent === 'reserve') {
+            $this->reserveNumbers = '';
+        }
+    }
+
+    /** Jump via the rail — backwards only, so prerequisites can't be skipped. */
     public function wizGoto(int $step): void
     {
-        $step = max(1, min(5, $step));
-        if ($step >= 3 && $this->pickedValue === '') {
-            $step = 2;                 // need a value before choosing where
+        $step = max(1, min(count($this->wizSteps()), $step));
+        if ($step <= $this->wizStep) {
+            $this->wizStep = $step;
         }
-        if ($step >= 4 && ! $this->hasSelection()) {
-            $step = min($step, 3);     // need a selection before choosing an action
-        }
-        $this->wizStep = $step;
     }
 
     public function wizBack(): void
@@ -78,33 +153,42 @@ trait WithWizard
 
     public function wizNext(): void
     {
-        switch ($this->wizStep) {
-            case 2:
+        switch ($this->wizKey()) {
+            case 'value':
                 if ($this->pickedValue === '') {
-                    $this->dispatch('toast', type: 'error', message: 'Оберіть значення зі списку');
-
-                    return;
+                    $this->wizErr('Оберіть значення зі списку'); return;
                 }
                 break;
-            case 3:
+            case 'sites':
                 if (! $this->hasSelection()) {
-                    $this->dispatch('toast', type: 'error', message: 'Позначте хоча б одне входження');
-
-                    return;
+                    $this->wizErr('Позначте хоча б одне входження'); return;
                 }
                 break;
-            case 4:
+            case 'data':
+                if (trim($this->createValue) === '') {
+                    $this->wizErr('Введіть значення'); return;
+                }
+                break;
+            case 'csites':
+                if (empty($this->createSites)) {
+                    $this->wizErr('Оберіть хоча б один сайт'); return;
+                }
+                break;
+            case 'resnums':
+                if (trim($this->reserveNumbers) === '') {
+                    $this->wizErr('Введіть хоча б один резервний номер'); return;
+                }
+                break;
+            case 'action':
                 if ($this->wizAction === '') {
-                    $this->dispatch('toast', type: 'error', message: 'Оберіть дію');
-
-                    return;
+                    $this->wizErr('Оберіть дію'); return;
                 }
                 break;
         }
-        $this->wizStep = min(5, $this->wizStep + 1);
+        $this->wizStep = min(count($this->wizSteps()), $this->wizStep + 1);
     }
 
-    /** Pick the action on step 4 and seed its detail inputs with defaults. */
+    /** Pick the edit action on the 'action' step and seed its detail inputs. */
     public function setWizAction(string $action): void
     {
         if (! array_key_exists($action, $this->wizActionLabels())) {
@@ -141,19 +225,51 @@ trait WithWizard
         }
     }
 
-    /** Final step — run the chosen action over the selection via its apply* method. */
+    /** Final step — run the chosen flow via its proven apply* method. */
     public function wizConfirm(): void
     {
-        if ($this->wizAction === '') {
-            $this->dispatch('toast', type: 'error', message: 'Оберіть дію');
+        if ($this->wizIntent === 'create') {
+            if (trim($this->createValue) === '') {
+                $this->wizErr('Введіть значення'); return;
+            }
+            if (empty($this->createSites)) {
+                $this->wizErr('Оберіть хоча б один сайт'); return;
+            }
+            $this->createKind = $this->kindFilter;
+            $this->applyCreate();
+            $this->wizReset();
 
             return;
         }
-        if (! $this->hasSelection()) {
-            $this->dispatch('toast', type: 'error', message: 'Нічого не обрано');
-            $this->wizStep = 3;
+
+        if ($this->wizIntent === 'reserve') {
+            if (! $this->hasSelection()) {
+                $this->wizStep = $this->wizIndexOf('sites');
+
+                $this->wizErr('Оберіть основні номери'); return;
+            }
+            if (trim($this->reserveNumbers) === '') {
+                $this->wizErr('Введіть хоча б один резервний номер'); return;
+            }
+            $this->applyWizardReserve();
+            // applyWizardReserve clears the selection on success.
+            if ($this->hasSelection()) {
+                $this->wizStep = $this->wizIndexOf('resnums');
+            } else {
+                $this->wizReset();
+            }
 
             return;
+        }
+
+        // edit
+        if ($this->wizAction === '') {
+            $this->wizErr('Оберіть дію'); return;
+        }
+        if (! $this->hasSelection()) {
+            $this->wizStep = $this->wizIndexOf('sites');
+
+            $this->wizErr('Нічого не обрано'); return;
         }
 
         switch ($this->wizAction) {
@@ -167,13 +283,87 @@ trait WithWizard
             case 'delete':    $this->bulkDelete(); break;
         }
 
-        // apply* clears the selection on success; if it's still there the action
-        // bounced on validation — keep the user on the details step to fix it.
+        // apply* clears the selection on success; if it survived the action
+        // bounced on validation — keep the user on the action step to fix it.
         if ($this->hasSelection()) {
-            $this->wizStep = 4;
+            $this->wizStep = $this->wizIndexOf('action');
         } else {
-            $this->wizStep = 1;
-            $this->wizAction = '';
+            $this->wizReset();
         }
+    }
+
+    /**
+     * Add brand-new reserve numbers to EVERY selected primary at once — the
+     * "attach a reserve to these primaries across N sites" case. Each primary
+     * gets its own copies (right site, type, kind, queue order, geo inherited).
+     */
+    public function applyWizardReserve(): void
+    {
+        $values = collect(preg_split('/[\r\n]+/', trim($this->reserveNumbers)) ?: [])
+            ->map(fn ($v) => trim((string) $v))
+            ->filter()
+            ->values();
+
+        if ($values->isEmpty()) {
+            $this->wizErr('Введіть хоча б один резервний номер'); return;
+        }
+
+        $user = Auth::user();
+        $created = [];
+        $touched = [];
+
+        ContactEntry::disableAuditing();
+        try {
+            $this->selectedSourceQuery()->chunkById(200, function ($rows) use ($values, $user, &$created, &$touched) {
+                foreach ($rows as $primary) {
+                    // Reserves attach to primaries only; skip reserves in the selection.
+                    if (! is_null($primary->parent_id) || ! $user || ! $user->can('update', $primary)) {
+                        continue;
+                    }
+                    $order = (int) ContactEntry::where('parent_id', $primary->id)
+                        ->where('site_id', $primary->site_id)->max('order');
+                    foreach ($values as $v) {
+                        $order++;
+                        $created[] = ContactEntry::create([
+                            'site_id'   => $primary->site_id,
+                            'type'      => $primary->type,
+                            'kind'      => $primary->kind,
+                            'value'     => $v,
+                            'role'      => 'backup',
+                            'parent_id' => $primary->id,
+                            'geo_mode'  => 'all',
+                            'visible'   => true,
+                            'order'     => $order,
+                        ])->id;
+                    }
+                    $touched[] = (int) $primary->site_id;
+                }
+            });
+        } finally {
+            ContactEntry::enableAuditing();
+        }
+
+        if (empty($created)) {
+            $this->wizErr('Нічого не додано — оберіть основні номери'); return;
+        }
+
+        ActivityLogService::log('entry.bulk.attached', null, [
+            'done' => count($created), 'created' => true,
+        ], context: 'bulk');
+        $this->syncSites(array_values(array_unique($touched)));
+        $this->clearSelected();
+
+        $this->dispatch('toast',
+            type: 'success',
+            message: 'Додано резервів: '.count($created),
+            action: 'bulkPurgeCreated',
+            actionLabel: 'Відмінити',
+            actionData: ['ids' => $created],
+        );
+    }
+
+    private function wizErr(string $message): void
+    {
+        $this->dispatch('toast', type: 'error', message: $message);
     }
 }

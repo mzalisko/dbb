@@ -456,7 +456,9 @@ class DataBrowser extends Component
 
         if ($this->typeFilter === 'price') {
             return $base
-                ->select('price as gkey', 'currency', DB::raw('COUNT(*) as n'), DB::raw('COUNT(DISTINCT site_id) as sites'))
+                ->select('price as gkey', 'currency', DB::raw('COUNT(*) as n'), DB::raw('COUNT(DISTINCT site_id) as sites'),
+                    DB::raw('SUM(CASE WHEN parent_id IS NULL THEN 1 ELSE 0 END) as prim'),
+                    DB::raw('SUM(CASE WHEN parent_id IS NOT NULL THEN 1 ELSE 0 END) as res'))
                 ->groupBy('price', 'currency')
                 ->orderByDesc('n')->orderByDesc('price')
                 ->limit(200)->get();
@@ -466,7 +468,7 @@ class DataBrowser extends Component
         // rows (e.g. " +380…" vs "+380…"). The pick constraint trims too, so editing
         // the merged group rewrites — and cleans — every whitespace variant.
         return $base
-            ->selectRaw('TRIM(`value`) as gkey, COUNT(*) as n, COUNT(DISTINCT site_id) as sites')
+            ->selectRaw('TRIM(`value`) as gkey, COUNT(*) as n, COUNT(DISTINCT site_id) as sites, SUM(CASE WHEN parent_id IS NULL THEN 1 ELSE 0 END) as prim, SUM(CASE WHEN parent_id IS NOT NULL THEN 1 ELSE 0 END) as res')
             ->groupBy(DB::raw('TRIM(`value`)'))
             ->orderByDesc('n')->orderBy(DB::raw('TRIM(`value`)'))
             ->limit(200)->get();

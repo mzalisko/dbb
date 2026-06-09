@@ -39,7 +39,7 @@ trait WithWizard
     {
         return match ($this->wizIntent) {
             'create'  => ['Тип', 'Намір', 'Дані', 'Сайти', 'Підтвердити'],
-            'reserve' => ['Тип', 'Намір', 'Основний', 'Сайти', 'Резерви', 'Підтвердити'],
+            'reserve' => ['Тип', 'Намір', 'Основний', 'Сайти', 'Резерви', 'Підтвердити', 'Порядок'],
             default   => ['Тип', 'Намір', 'Значення', 'Сайти', 'Дія', 'Підтвердити'],
         };
     }
@@ -49,7 +49,7 @@ trait WithWizard
     {
         return match ($this->wizIntent) {
             'create'  => ['type', 'intent', 'data', 'csites', 'confirm'],
-            'reserve' => ['type', 'intent', 'value', 'sites', 'resnums', 'confirm'],
+            'reserve' => ['type', 'intent', 'value', 'sites', 'resnums', 'confirm', 'order'],
             default   => ['type', 'intent', 'value', 'sites', 'action', 'confirm'],
         };
     }
@@ -108,6 +108,12 @@ trait WithWizard
         $this->wizAction = '';
         $this->roleFilter = '';
         $this->clearSelected();
+    }
+
+    /** Leave the post-reserve "order" step and start fresh. */
+    public function wizFinish(): void
+    {
+        $this->wizReset();
     }
 
     /** Pick the intent on step 2 and seed the right defaults. */
@@ -252,11 +258,13 @@ trait WithWizard
                 $this->wizErr('Введіть хоча б один резервний номер'); return;
             }
             $this->applyWizardReserve();
-            // applyWizardReserve clears the selection on success.
+            // On success the selection is cleared → land on the "order" step so the
+            // manager sees each primary with its reserves and can set the queue.
             if ($this->hasSelection()) {
                 $this->wizStep = $this->wizIndexOf('resnums');
             } else {
-                $this->wizReset();
+                $this->reserveNumbers = '';
+                $this->wizStep = $this->wizIndexOf('order');
             }
 
             return;

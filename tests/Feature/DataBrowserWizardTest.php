@@ -139,7 +139,9 @@ class DataBrowserWizardTest extends TestCase
             ->set('reserveNumbers', "+RES1\n+RES2")
             ->call('wizNext')->assertSet('wizStep', 6)        // confirm
             ->call('wizConfirm')
-            ->assertSet('wizStep', 1);
+            ->assertSet('wizStep', 7)                         // lands on "order"
+            ->assertSee('Порядок резервів')
+            ->call('wizFinish')->assertSet('wizStep', 1);
 
         // Two new reserves under each of the two primaries = 4 backups.
         $this->assertSame(2, ContactEntry::where('parent_id', $p1->id)->where('role', 'backup')->count());

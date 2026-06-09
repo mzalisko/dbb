@@ -306,7 +306,7 @@
                     </div>
                 </div>
             </div>
-            <div style="{{ $pf }}"><button class="btn btn-ghost" wire:click="wizBack">← Назад</button><span style="flex:1;"></span><button class="btn btn-primary" wire:click="wizNext" @disabled(trim($createValue) === '')>Далі → Сайти</button></div>
+            <div style="{{ $pf }}"><button class="btn btn-ghost" wire:click="wizBack">← Назад</button><span style="flex:1;"></span><button class="btn btn-primary" wire:click="wizNext">Далі → Сайти</button></div>
         </div>
     @endif
 
@@ -338,7 +338,7 @@
                 <textarea wire:model="reserveNumbers" rows="5" placeholder="+48 22 000 11 22&#10;+49 30 000 11 22"
                           style="width:100%; padding:12px 14px; border-radius:10px; background:var(--card); border:1px solid var(--ink-3); font:14px var(--font-mono); color:var(--ink-9); outline:none; resize:vertical;"></textarea>
             </div>
-            <div style="{{ $pf }}"><button class="btn btn-ghost" wire:click="wizBack">← Назад</button><span style="flex:1;"></span><button class="btn btn-primary" wire:click="wizNext" @disabled(trim($reserveNumbers) === '')>Далі → Підтвердити</button></div>
+            <div style="{{ $pf }}"><button class="btn btn-ghost" wire:click="wizBack">← Назад</button><span style="flex:1;"></span><button class="btn btn-primary" wire:click="wizNext">Далі → Підтвердити</button></div>
         </div>
     @endif
 
@@ -400,6 +400,45 @@
                 @endif
             </div>
             <div style="{{ $pf }}"><button class="btn btn-ghost" wire:click="wizBack">← Назад</button><span style="flex:1;"></span><span style="color:var(--ink-5); font:12px var(--font-sans); margin-right:8px;">Можна скасувати після виконання</span><button class="btn btn-primary" wire:click="wizConfirm" style="background:var(--accent); border-color:var(--accent);">✓ Підтвердити та застосувати</button></div>
+        </div>
+    @endif
+
+    {{-- ════ ORDER (reserve — set the failover queue after attaching) ════ --}}
+    @if ($key === 'order')
+        @php $mine = $reserveGroups->filter(fn ($g) => trim((string) $g->value) === trim((string) $pickedValue)); @endphp
+        <div class="card" style="overflow:hidden;">
+            <div style="{{ $panelHead }}"><span style="font:11px var(--font-mono); letter-spacing:.07em; text-transform:uppercase; color:var(--ok);">Готово ✓</span><h2 style="{{ $h2 }}">Порядок резервів</h2><span style="{{ $hint }}">{{ $mine->count() }} основних</span></div>
+            <div style="padding:18px 20px;">
+                <div style="padding:12px 14px; border:1px solid var(--ok); background:#eef5e8; border-radius:10px; margin-bottom:14px; font:13px var(--font-sans); color:var(--ink-8);">
+                    ✓ Резерви додано до <b class="mono">{{ $pickedValue }}</b>. Тепер задай їхній порядок (черга failover): ↑↓ — підняти/опустити, «→ основним» — від'єднати в окремий основний.
+                </div>
+                @forelse ($mine as $g)
+                    @php $rc = $g->backups->count(); @endphp
+                    <div style="border:1px solid var(--ink-2); border-radius:10px; margin-bottom:10px; overflow:hidden;">
+                        <div style="display:flex; align-items:center; gap:10px; padding:11px 14px; background:#fbfaf6; border-bottom:1px solid var(--ink-2);">
+                            <span class="dot dot-ok"></span>
+                            <span class="mono" style="font:13.5px var(--font-mono); color:var(--ink-9);">{{ $g->value }}</span>
+                            <span style="font:12px var(--font-sans); color:var(--ink-5);">{{ $g->site?->name ?? '—' }} · {{ $rc }} рез.</span>
+                        </div>
+                        @foreach ($g->backups as $bi => $b)
+                            <div style="display:flex; align-items:center; gap:11px; padding:10px 14px; border-bottom:1px solid var(--ink-2);">
+                                <span class="mono" style="font:11px var(--font-mono); color:var(--ink-5); width:16px;">{{ $bi + 1 }}</span>
+                                <span style="color:var(--ink-4);">↳</span>
+                                <span class="mono" style="flex:1; min-width:0; font:13px var(--font-mono); color:var(--ink-7); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ $b->value }}</span>
+                                <button type="button" wire:click="reorderReserve({{ $b->id }}, 'up')" @disabled($bi === 0) style="width:28px; height:28px; border-radius:7px; border:1px solid var(--ink-3); background:var(--card); color:var(--ink-6); cursor:pointer; {{ $bi === 0 ? 'opacity:.4;' : '' }}" title="Підняти">↑</button>
+                                <button type="button" wire:click="reorderReserve({{ $b->id }}, 'down')" @disabled($bi === $rc - 1) style="width:28px; height:28px; border-radius:7px; border:1px solid var(--ink-3); background:var(--card); color:var(--ink-6); cursor:pointer; {{ $bi === $rc - 1 ? 'opacity:.4;' : '' }}" title="Опустити">↓</button>
+                                <button type="button" wire:click="makePrimary({{ $b->id }})" style="height:28px; padding:0 10px; border-radius:7px; border:1px solid var(--ink-3); background:var(--card); color:var(--accent); cursor:pointer; font:11.5px var(--font-sans);" title="Від'єднати в окремий основний">→ основним</button>
+                            </div>
+                        @endforeach
+                        @if ($rc === 0)
+                            <div style="padding:10px 14px; font:12px var(--font-sans); color:var(--ink-4);">Резервів поки немає.</div>
+                        @endif
+                    </div>
+                @empty
+                    <div style="padding:30px; text-align:center; color:var(--ink-5); font:13px var(--font-sans);">Резерви додано. Список з'явиться після оновлення.</div>
+                @endforelse
+            </div>
+            <div style="{{ $pf }}"><span style="color:var(--ink-6); font:12.5px var(--font-sans);">Порядок зберігається одразу при ↑↓</span><span style="flex:1;"></span><button class="btn btn-primary" wire:click="wizFinish" style="background:var(--accent); border-color:var(--accent);">✓ Готово</button></div>
         </div>
     @endif
 

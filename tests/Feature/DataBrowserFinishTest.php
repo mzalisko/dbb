@@ -541,6 +541,41 @@ class DataBrowserFinishTest extends TestCase
         $component->assertSee('alpha')->assertSee('zeta'); // group headers
     }
 
+    // ── Bulk-change wizard (Jira-style) ─────────────────────────────────
+
+    public function test_bulk_wizard_routes_to_a_chosen_operation(): void
+    {
+        $owner = User::factory()->create(['role' => 'owner']);
+        $ids = ContactEntry::factory()->for($this->siteForOwner($owner))->phone()->count(2)
+            ->create()->pluck('id')->map(fn ($i) => (int) $i)->all();
+
+        Livewire::actingAs($owner)
+            ->test(DataBrowser::class, ['typeFilter' => 'phone'])
+            ->call('selectPage', $ids)
+            ->call('openBulkWizard')
+            ->assertSet('bulkWizard', true)
+            ->call('wizardTo', 'geo')
+            ->assertSet('bulkWizard', false)
+            ->assertSet('editingGeo', true); // routed into the geo flow
+    }
+
+    public function test_bulk_wizard_delete_soft_deletes_selected(): void
+    {
+        $owner = User::factory()->create(['role' => 'owner']);
+        $ids = ContactEntry::factory()->for($this->siteForOwner($owner))->phone()->count(2)
+            ->create()->pluck('id')->map(fn ($i) => (int) $i)->all();
+
+        Livewire::actingAs($owner)
+            ->test(DataBrowser::class)
+            ->call('selectPage', $ids)
+            ->call('wizardTo', 'delete')
+            ->assertSet('bulkWizard', false);
+
+        foreach ($ids as $id) {
+            $this->assertSoftDeleted('contact_entries', ['id' => $id]);
+        }
+    }
+
     // ── Stale data: entries on deleted sites must not surface ────────────
 
     public function test_entries_on_deleted_sites_are_hidden(): void

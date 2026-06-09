@@ -113,6 +113,9 @@ class DataBrowser extends Component
     public int $editStep = 1;
 
     /** Generic "change ANY field" drawer — pick field + operation (set/clear/replace). */
+    /** Jira-style bulk-change wizard — pick an operation, then route to its flow. */
+    public bool $bulkWizard = false;
+
     public bool $editingGeneric = false;
     public string $genField = 'value';
     public string $genOp = 'set';          // set | clear | replace
@@ -875,6 +878,36 @@ class DataBrowser extends Component
             'currency'           => ['set' => 'Встановити'],
             'price', 'old_price' => ['set' => 'Встановити', 'clear' => 'Очистити'],
             default              => ['set' => 'Встановити', 'clear' => 'Очистити', 'replace' => 'Знайти→замінити'],
+        };
+    }
+
+    // ─── Jira-style bulk-change wizard ────────────────────────────────────
+
+    public function openBulkWizard(): void
+    {
+        if ($this->hasSelection()) {
+            $this->bulkWizard = true;
+        }
+    }
+
+    public function closeBulkWizard(): void
+    {
+        $this->bulkWizard = false;
+    }
+
+    /** Pick an operation in the wizard → route to its existing (audited, undoable) flow. */
+    public function wizardTo(string $op): void
+    {
+        $this->bulkWizard = false;
+        match ($op) {
+            'field'     => $this->openGeneric(),
+            'geo'       => $this->openGeo(),
+            'state'     => $this->openRole(),
+            'move'      => $this->openMove(),
+            'duplicate' => $this->openDuplicate(),
+            'attach'    => $this->openAttach(),
+            'delete'    => $this->bulkDelete(),
+            default     => null,
         };
     }
 

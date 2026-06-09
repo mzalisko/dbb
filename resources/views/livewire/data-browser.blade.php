@@ -490,17 +490,10 @@
                             <button type="button" style="{{ $actStyle }}" wire:click="restoreSelected">Відновити</button>
                             <button type="button" style="{{ $dangerStyle }}" wire:click="purgeSelected" wire:confirm="Видалити обрані записи НАЗАВЖДИ? Це не можна відмінити.">Видалити назавжди</button>
                         @else
-                            <button type="button" style="{{ $actStyle }} font-weight:500;" wire:click="openGeneric" @disabled($mixedType) @if ($mixedType) title="{{ $valueHint }}" @endif>⚙ Змінити поле</button>
-                            <button type="button" style="{{ $actStyle }}" wire:click="openEdit('value')" @disabled($mixedType) @if ($mixedType) title="{{ $valueHint }}" @endif>Замінити значення</button>
-                            <button type="button" style="{{ $actStyle }}" wire:click="openReplace" @disabled($mixedType) @if ($mixedType) title="{{ $valueHint }}" @endif>Підрядок</button>
-                            <button type="button" style="{{ $actStyle }}" wire:click="openEdit('label')">Мітка</button>
-                            <button type="button" style="{{ $actStyle }}" wire:click="openRole">Стан</button>
-                            @if ($typeFilter === 'price')<button type="button" style="{{ $actStyle }}" wire:click="openPriceEdit">Ціна</button>@endif
-                            <button type="button" style="{{ $actStyle }}" wire:click="openGeo">Гео</button>
-                            <button type="button" style="{{ $actStyle }}" wire:click="openDuplicate">Дублювати</button>
-                            <button type="button" style="{{ $actStyle }}" wire:click="openMove">Перемістити</button>
-                            @unless ($mixedType)<button type="button" style="{{ $actStyle }}" wire:click="openAttach">Приєднати резерв</button>@endunless
-                            @if (! $selectAllMatching && count($selected) === 1)<button type="button" style="{{ $actStyle }} color:var(--accent);" wire:click="openAddReserve">+ Додати резерв</button>@endif
+                            <button type="button" style="{{ $actStyle }} font-weight:500; background:var(--ink-9); color:var(--paper); border-color:var(--ink-9);" wire:click="openBulkWizard">⚙ Масова зміна</button>
+                            @if (! $selectAllMatching && count($selected) === 1)
+                                <button type="button" style="{{ $actStyle }} color:var(--accent);" wire:click="openAddReserve">+ Додати резерв</button>
+                            @endif
                             <button type="button" style="{{ $dangerStyle }}" wire:click="bulkDelete">Видалити</button>
                         @endif
                         <span style="margin-left:auto; display:inline-flex; align-items:center; gap:10px;">
@@ -634,6 +627,43 @@
                             {{ $editField === 'value' ? 'Замінити' : 'Зберегти' }} {{ $this->selectedCount() }}
                         </button>
                     @endif
+                </x-slot:footer>
+            </x-ui.drawer>
+        </div>
+    @endif
+
+    {{-- Bulk-change wizard (Jira-style): pick an operation → route to its flow --}}
+    @if ($bulkWizard)
+        @php
+            $wizOps = [
+                ['op' => 'field', 'ic' => '⚙', 't' => 'Змінити поле', 'd' => 'Встановити / очистити / знайти-замінити будь-яке поле'],
+                ['op' => 'geo', 'ic' => '🌐', 't' => 'Гео-видимість', 'd' => 'Усім / тільки / крім — країни'],
+                ['op' => 'state', 'ic' => '⚡', 't' => 'Стан', 'd' => 'Активний / прихований'],
+                ['op' => 'move', 'ic' => '↗', 't' => 'Перемістити на сайт', 'd' => 'Разом із резервами'],
+                ['op' => 'duplicate', 'ic' => '⧉', 't' => 'Дублювати на сайти', 'd' => 'Копії на інших сайтах'],
+                ['op' => 'attach', 'ic' => '🔗', 't' => 'Приєднати як резерв', 'd' => 'Зробити обрані резервами основного'],
+                ['op' => 'delete', 'ic' => '🗑', 't' => 'Видалити', 'd' => 'У кошик, з можливістю відновити', 'danger' => true],
+            ];
+        @endphp
+        <div wire:key="bulk-wizard">
+            <x-ui.drawer :open="true" title="Масова зміна" :sub="$this->selectedCount() . ' обрано'"
+                         @drawer-close.window="$wire.closeBulkWizard()">
+                <div style="display:flex; flex-direction:column; gap:8px;">
+                    <div style="font:13px var(--font-sans); color:var(--ink-6); margin-bottom:4px;">Що зробити з {{ $this->selectedCount() }} обраними? Дію можна буде відмінити.</div>
+                    @foreach ($wizOps as $w)
+                        <button type="button" wire:click="wizardTo('{{ $w['op'] }}')"
+                                style="display:flex; align-items:center; gap:12px; width:100%; text-align:left; padding:12px 14px; border:1px solid var(--ink-3); border-radius:10px; background:var(--card); cursor:pointer;"
+                                onmouseover="this.style.background='var(--paper-2)'" onmouseout="this.style.background='var(--card)'">
+                            <span style="width:30px; height:30px; border-radius:8px; background:var(--paper-2); display:inline-flex; align-items:center; justify-content:center; font-size:15px;">{{ $w['ic'] }}</span>
+                            <span style="min-width:0;">
+                                <span style="display:block; font:13.5px var(--font-sans); color:{{ ($w['danger'] ?? false) ? 'var(--bad)' : 'var(--ink-9)' }};">{{ $w['t'] }}</span>
+                                <span style="display:block; font:11.5px var(--font-sans); color:var(--ink-5);">{{ $w['d'] }}</span>
+                            </span>
+                        </button>
+                    @endforeach
+                </div>
+                <x-slot:footer>
+                    <button class="btn btn-ghost" wire:click="closeBulkWizard">Скасувати</button>
                 </x-slot:footer>
             </x-ui.drawer>
         </div>

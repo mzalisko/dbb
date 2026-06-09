@@ -277,10 +277,16 @@
                             @if ($geoMode !== 'all')<input wire:model="geoCountries" type="text" placeholder="країни через кому, напр. UA, PL, DE" style="{{ $inp }} width:100%; font-family:var(--font-mono);" />@endif
                         @elseif ($wizAction === 'state')
                             <label style="display:block; font:12px var(--font-sans); color:var(--ink-6); margin-bottom:8px;">Новий стан обраних:</label>
-                            <div style="display:flex; gap:8px;">
-                                @foreach (['primary' => '● Активний', 'hidden' => '◌ Прихований'] as $rk => $rl)
-                                    <button type="button" wire:click="$set('roleValue', '{{ $rk }}')" style="height:34px; padding:0 16px; border-radius:8px; cursor:pointer; font:13px var(--font-sans); background:{{ $roleValue === $rk ? 'var(--ink-9)' : 'var(--card)' }}; color:{{ $roleValue === $rk ? 'var(--paper)' : 'var(--ink-7)' }}; border:1px solid {{ $roleValue === $rk ? 'var(--ink-9)' : 'var(--ink-3)' }};">{{ $rl }}</button>
+                            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                                @php $states = ['primary' => ['Активний', 'check'], 'hidden' => ['Прихований (весь набір)', 'eye-off'], 'down' => ['Збій → резерв', 'bolt']]; @endphp
+                                @foreach ($states as $rk => $rs)
+                                    <button type="button" wire:click="$set('roleValue', '{{ $rk }}')" style="height:34px; padding:0 14px; border-radius:8px; cursor:pointer; font:13px var(--font-sans); display:inline-flex; align-items:center; gap:7px; background:{{ $roleValue === $rk ? 'var(--ink-9)' : 'var(--card)' }}; color:{{ $roleValue === $rk ? 'var(--paper)' : 'var(--ink-7)' }}; border:1px solid {{ $roleValue === $rk ? 'var(--ink-9)' : 'var(--ink-3)' }};"><x-dynamic-component :component="'icon.'.$rs[1]" width="13" height="13" /> {{ $rs[0] }}</button>
                                 @endforeach
+                            </div>
+                            <div style="margin-top:8px; font:11.5px var(--font-sans); color:var(--ink-5);">
+                                @if ($roleValue === 'hidden')Приховає основний разом з його резервами.
+                                @elseif ($roleValue === 'down')Основний позначиться як «збій» — почне віддаватися його резерв.
+                                @else Розкриє набір і зніме позначку збою.@endif
                             </div>
                         @elseif ($wizAction === 'move')
                             <label style="display:block; font:12px var(--font-sans); color:var(--ink-6); margin-bottom:8px;">Сайт призначення:</label>
@@ -379,7 +385,7 @@
                     'label'     => 'Змінити мітку на '.$n.' входженнях на «'.trim($editValue).'».',
                     'substr'    => 'У '.$n.' входженнях замінити підрядок «'.$findText.'» → «'.$replaceText.'».',
                     'geo'       => 'Змінити гео на '.$n.' входженнях ('.($geoMode === 'all' ? 'усім' : ($geoMode === 'only' ? 'тільки: '.$geoCountries : 'крім: '.$geoCountries)).').',
-                    'state'     => 'Змінити стан на '.$n.' входженнях на «'.($roleValue === 'hidden' ? 'Прихований' : 'Активний').'».',
+                    'state'     => 'Змінити стан на '.$n.' входженнях: «'.(['primary' => 'Активний', 'hidden' => 'Прихований (весь набір)', 'down' => 'Збій → резерв'][$roleValue] ?? 'Активний').'».',
                     'move'      => 'Перемістити '.$n.' входжень на обраний сайт (з резервами).',
                     'duplicate' => 'Скопіювати '.$n.' входжень на '.count($dupSites).' сайтів.',
                     'delete'    => 'Видалити '.$n.' входжень у кошик.',

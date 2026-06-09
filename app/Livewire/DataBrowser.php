@@ -1205,39 +1205,73 @@ class DataBrowser extends Component
 
     public function applyRole(): void
     {
-        // 'backup' needs a parent — not a bulk operation; only primary/hidden here.
-        if (! in_array($this->roleValue, ['primary', 'hidden'], true)) {
-            $this->dispatch('toast', type: 'error', message: 'Оберіть стан: Активний або Прихований');
+        // Three states: active (primary) | hidden | down (failover → reserve serves).
+        if (! in_array($this->roleValue, ['primary', 'hidden', 'down'], true)) {
+            $this->dispatch('toast', type: 'error', message: 'Оберіть стан');
 
             return;
         }
         $new = $this->roleValue;
 
         $snapshot = [];
+        $capture = function (ContactEntry $e) use (&$snapshot) {
+            $snapshot[$e->id] ??= [
+                'role'          => $e->role,
+                'visible'       => $e->visible,
+                'parent_id'     => $e->parent_id,
+                'geo_tag'       => $e->geo_tag,
+                'geo_mode'      => $e->geo_mode,
+                'countries'     => $e->countries,
+                'failover_down' => $e->failover_down,
+            ];
+        };
+
         $result = BulkActionService::apply(
             ContactEntry::class,
             $this->bulkTargetIds(),
             'update',
-            function (ContactEntry $e) use (&$snapshot, $new) {
-                $snapshot[$e->id] = [
-                    'role'      => $e->role,
-                    'visible'   => $e->visible,
-                    'parent_id' => $e->parent_id,
-                    'geo_tag'   => $e->geo_tag,
-                    'geo_mode'  => $e->geo_mode,
-                    'countries' => $e->countries,
-                ];
-                $data = ['role' => $new, 'visible' => $new !== 'hidden'];
-                // Promoting a reserve to active detaches it from its primary and
-                // captures the geo it had been inheriting, so targeting survives.
-                if ($new === 'primary' && $e->parent_id) {
+            function (ContactEntry $e) use (&$snapshot, $new, $capture) {
+                $capture($e);
+
+                // Збій — mark down so the reserve serves (same model as the site).
+                if ($new === 'down') {
+                    $e->forceFill(['failover_down' => true])->save();
+
+                    return;
+                }
+
+                // Hidden hides the WHOLE set — a primary drags its reserves along.
+                if ($new === 'hidden') {
+                    $e->update(['visible' => false]);
+                    if (is_null($e->parent_id)) {
+                        foreach ($e->backups as $b) {
+                            $capture($b);
+                            $b->update(['visible' => false]);
+                        }
+                    }
+
+                    return;
+                }
+
+                // Active — clears the down flag, reveals the group; promotes a reserve.
+                $data = ['role' => 'primary', 'visible' => true];
+                if ($e->parent_id) {
                     $parent = $e->parent;
                     $data['parent_id'] = null;
                     $data['geo_tag']   = $parent?->geo_tag;
                     $data['geo_mode']  = $parent?->geo_mode ?? 'all';
                     $data['countries'] = $parent?->countries;
                 }
+                $e->forceFill(['failover_down' => false]);
                 $e->update($data);
+                if (is_null($e->parent_id)) {
+                    foreach ($e->backups as $b) {
+                        $capture($b);
+                        if (! $b->visible) {
+                            $b->update(['visible' => true]);
+                        }
+                    }
+                }
             },
             auditAction: 'entry.bulk.role',
             syncTouchedSites: true,
@@ -1252,7 +1286,12 @@ class DataBrowser extends Component
             return;
         }
 
-        $verb = $new === 'primary' ? 'Активовано' : 'Приховано';
+        $verb = match ($new) {
+            'primary' => 'Активовано',
+            'hidden'  => 'Приховано весь набір',
+            'down'    => 'Перемкнено на резерв',
+            default   => 'Змінено',
+        };
         $this->dispatch('toast',
             type: 'success',
             message: $this->withSkipped("{$verb}: {$result['done']}", $result['skipped']),
@@ -1276,7 +1315,7 @@ class DataBrowser extends Component
         ContactEntry::withTrashed()->whereIn('id', array_keys($snapshot))->get()
             ->each(function (ContactEntry $e) use ($snapshot, $user, &$done) {
                 if ($user && $user->can('update', $e) && ($prev = $snapshot[$e->id] ?? null)) {
-                    $e->update($prev);
+                    $e->forceFill($prev)->save();   // forceFill: also restores the guarded failover_down
                     $done++;
                 }
             });

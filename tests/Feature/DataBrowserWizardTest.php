@@ -380,4 +380,37 @@ class DataBrowserWizardTest extends TestCase
             ->call('wizExport')
             ->assertFileDownloaded();
     }
+
+    public function test_state_hidden_cascades_to_the_whole_set(): void
+    {
+        $owner = User::factory()->create(['role' => 'owner']);
+        $site = $this->siteForOwner($owner);
+        $primary = ContactEntry::factory()->for($site)->phone()->create(['role' => 'primary', 'visible' => true]);
+        $backup = ContactEntry::factory()->backup($primary)->create(['visible' => true]);
+
+        Livewire::actingAs($owner)
+            ->test(DataBrowser::class, ['mode' => 'browse', 'typeFilter' => 'phone'])
+            ->call('selectPage', [(int) $primary->id])
+            ->set('roleValue', 'hidden')
+            ->call('applyRole');
+
+        $this->assertFalse((bool) $primary->fresh()->visible);
+        $this->assertFalse((bool) $backup->fresh()->visible, 'reserve hidden together with its primary');
+    }
+
+    public function test_state_down_switches_to_reserve(): void
+    {
+        $owner = User::factory()->create(['role' => 'owner']);
+        $site = $this->siteForOwner($owner);
+        $primary = ContactEntry::factory()->for($site)->phone()->create(['role' => 'primary']);
+        ContactEntry::factory()->backup($primary)->create();
+
+        Livewire::actingAs($owner)
+            ->test(DataBrowser::class, ['mode' => 'browse', 'typeFilter' => 'phone'])
+            ->call('selectPage', [(int) $primary->id])
+            ->set('roleValue', 'down')
+            ->call('applyRole');
+
+        $this->assertTrue((bool) $primary->fresh()->failover_down, 'primary marked down → reserve serves');
+    }
 }

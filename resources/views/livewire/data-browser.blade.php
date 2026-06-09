@@ -946,22 +946,20 @@
                     <div>
                         <label style="display:block; font:12px var(--font-mono); color:var(--ink-5); text-transform:uppercase; letter-spacing:.06em;">Новий стан</label>
                         <div style="margin-top:8px; display:flex; gap:8px;">
-                            @foreach (['primary' => 'Активний', 'hidden' => 'Приховано'] as $val => $lbl)
+                            @php $rstates = ['primary' => ['Активний', 'check'], 'hidden' => ['Прихований', 'eye-off'], 'down' => ['Збій → резерв', 'bolt']]; @endphp
+                            @foreach ($rstates as $val => $rs)
                                 <button type="button" wire:click="$set('roleValue', '{{ $val }}')"
-                                        style="flex:1; height:44px; border-radius:10px; font:14px var(--font-sans); cursor:pointer;
+                                        style="flex:1; height:44px; border-radius:10px; font:13px var(--font-sans); cursor:pointer;
                                                display:inline-flex; align-items:center; justify-content:center; gap:6px;
                                                background:{{ $roleValue === $val ? 'var(--ink-9)' : 'var(--card)' }};
                                                color:{{ $roleValue === $val ? 'var(--paper)' : 'var(--ink-7)' }};
                                                border:1px solid {{ $roleValue === $val ? 'var(--ink-9)' : 'var(--ink-3)' }};">
-                                    @if($val === 'hidden')
-                                        <x-icon.eye-off width="14" height="14" class="state-icon state-icon--hidden" />
-                                    @endif
-                                    {{ $lbl }}
+                                    <x-dynamic-component :component="'icon.'.$rs[1]" width="14" height="14" /> {{ $rs[0] }}
                                 </button>
                             @endforeach
                         </div>
                         <div style="margin-top:8px; font:12px var(--font-sans); color:var(--ink-5);">
-                            «Активний» від'єднує резерв від контакту й зберігає успадковане гео. «Резерв» призначається окремо — потрібен основний запис. Дію можна відмінити.
+                            «Прихований» ховає основний <b>разом із резервами</b>. «Збій → резерв» позначає основний як збій — починає віддаватися його резерв. «Активний» розкриває набір і знімає збій (резерв від'єднується в окремий основний). Дію можна відмінити.
                         </div>
                     </div>
                 </div>

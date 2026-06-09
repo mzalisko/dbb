@@ -318,13 +318,29 @@
                         @endforeach
                     </div>
 
+            @php $prevSite = null; $groupSizes = collect($entries->items())->countBy('site_id'); @endphp
             @forelse ($entries as $i => $entry)
                 @php
                     $sel = $selectAllMatching || in_array($entry->id, $selected, true);
                     $isReserveEntry = ! is_null($entry->parent_id);
+                    $firstInGroup = false;
                 @endphp
+                @if ($groupBySite && $entry->site_id !== $prevSite)
+                    @php
+                        $prevSite = $entry->site_id; $firstInGroup = true;
+                        $gIds = collect($entries->items())->where('site_id', $entry->site_id)->pluck('id')->map(fn ($x) => (int) $x)->all();
+                        $gAllSel = $selectAllMatching || ($gIds && empty(array_diff($gIds, $selected)));
+                    @endphp
+                    <div style="display:flex; align-items:center; gap:10px; padding:9px 18px; background:#fbfaf6; border-top:{{ $i ? '1px solid var(--ink-3)' : 'none' }};">
+                        <button type="button" class="row-check {{ $gAllSel ? 'is-checked' : '' }}" wire:click.stop="selectPage(@js($gIds))" title="Обрати весь сайт (на сторінці)">
+                            @if ($gAllSel) <x-icon.check width="11" height="11" /> @endif
+                        </button>
+                        <span class="mono" style="font:12.5px var(--font-mono); color:var(--ink-8); font-weight:600;">{{ $entry->site?->name ?? '—' }}</span>
+                        <span style="font:11.5px var(--font-sans); color:var(--ink-5);">· {{ $groupSizes[$entry->site_id] ?? count($gIds) }} записів</span>
+                    </div>
+                @endif
                 <div wire:key="entry-{{ $entry->id }}" wire:click="toggleSelected({{ $entry->id }})"
-                     style="display:grid; grid-template-columns:32px 1.4fr 1.6fr 1fr 100px 80px; gap:12px; padding:14px 18px; border-top:{{ $i ? '1px solid var(--ink-3)' : 'none' }}; background:{{ $sel ? 'var(--accent-soft)' : 'transparent' }}; align-items:center; cursor:pointer; transition:background .12s;">
+                     style="display:grid; grid-template-columns:32px 1.4fr 1.6fr 1fr 100px 80px; gap:12px; padding:14px 18px; border-top:{{ ($i && ! $firstInGroup) ? '1px solid var(--ink-3)' : 'none' }}; background:{{ $sel ? 'var(--accent-soft)' : 'transparent' }}; align-items:center; cursor:pointer; transition:background .12s;">
                     <span class="row-check {{ $sel ? 'is-checked' : '' }}">
                         @if ($sel) <x-icon.check width="11" height="11" /> @endif
                     </span>

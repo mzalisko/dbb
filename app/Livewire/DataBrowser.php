@@ -61,6 +61,10 @@ class DataBrowser extends Component
     #[Url]
     public string $sortDir = 'asc';
 
+    /** Group the list by site (Jira-style) so it's clear which numbers sit on which site. */
+    #[Url]
+    public bool $groupBySite = true;
+
     /** Trash mode — browse & manage soft-deleted entries (restore / purge). */
     #[Url]
     public bool $trashed = false;
@@ -373,12 +377,18 @@ class DataBrowser extends Component
     private function applySort(Builder $query): Builder
     {
         $dir = $this->sortDir === 'desc' ? 'desc' : 'asc';
+        $siteName = Site::select('name')->whereColumn('sites.id', 'contact_entries.site_id');
+
+        // Group anchor: keep one site's rows together (chosen sort applies within).
+        if ($this->groupBySite) {
+            $query->orderBy($siteName, 'asc');
+        }
 
         return match ($this->sortField) {
             'value' => $query->orderBy('value', $dir),
             'label' => $query->orderBy('label', $dir),
             'role'  => $query->orderBy('role', $dir),
-            'site'  => $query->orderBy(Site::select('name')->whereColumn('sites.id', 'contact_entries.site_id'), $dir),
+            'site'  => $this->groupBySite ? $query : $query->orderBy($siteName, $dir),
             default => $query->orderBy('created_at', 'desc'),
         };
     }

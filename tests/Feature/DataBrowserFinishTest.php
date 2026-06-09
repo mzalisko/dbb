@@ -521,6 +521,26 @@ class DataBrowserFinishTest extends TestCase
             ->assertSee('+SAME');
     }
 
+    public function test_groups_occurrences_by_site_by_default(): void
+    {
+        $owner = User::factory()->create(['role' => 'owner']);
+        $client = Client::factory()->for($owner)->create();
+        $zeta = Site::factory()->for($client)->create(['name' => 'zeta']);
+        $alpha = Site::factory()->for($client)->create(['name' => 'alpha']);
+        ContactEntry::factory()->for($zeta)->phone()->create(['value' => '+SAME']);
+        ContactEntry::factory()->for($alpha)->phone()->create(['value' => '+SAME']);
+
+        $component = Livewire::actingAs($owner)
+            ->test(DataBrowser::class, ['typeFilter' => 'phone'])
+            ->assertSet('groupBySite', true)
+            ->call('pickValue', '+SAME', '');
+
+        // grouped → ordered by site name, alpha first
+        $entries = $component->viewData('entries');
+        $this->assertSame($alpha->id, (int) collect($entries->items())->first()->site_id);
+        $component->assertSee('alpha')->assertSee('zeta'); // group headers
+    }
+
     // ── Stale data: entries on deleted sites must not surface ────────────
 
     public function test_entries_on_deleted_sites_are_hidden(): void

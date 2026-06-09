@@ -59,8 +59,7 @@
                 </button>
             @endforeach
 
-            {{-- Site filter (value axis only — in the site axis the rail is the site picker) --}}
-            @if ($axis === 'value')
+            {{-- Site filter — single-list (Jira-style): the site picker lives here always, no left rail --}}
             <span style="width:1px; height:18px; background:var(--ink-3); margin:0 4px; align-self:center;"></span>
             <select wire:model.live="siteFilter" aria-label="Фільтр по сайту"
                     style="height:30px; padding:0 30px 0 12px; border-radius:999px;
@@ -76,6 +75,59 @@
                     <option value="{{ $s->id }}">{{ $s->name }}</option>
                 @endforeach
             </select>
+
+            {{-- Value picker "Значення ▾" — replaces the old left rail; pick the value to focus on --}}
+            @if ($axis === 'value')
+                @php
+                    $vpRoles = $typeFilter === 'price'
+                        ? ['' => 'Усі', 'primary' => 'Основні']
+                        : ['' => 'Усі', 'primary' => 'Основні', 'backup' => 'Резерви'];
+                @endphp
+                <div x-data="{ o:false }" @click.outside="o=false" style="position:relative;">
+                    <button type="button" @click="o=!o" aria-label="Фільтр по значенню" style="
+                        height:30px; padding:0 12px; border-radius:999px; border:0; cursor:pointer;
+                        display:inline-flex; align-items:center; gap:6px; font:12.5px var(--font-sans);
+                        background:{{ $pickedValue !== '' ? 'var(--ink-9)' : 'var(--card)' }};
+                        color:{{ $pickedValue !== '' ? 'var(--paper)' : 'var(--ink-7)' }};
+                        box-shadow:{{ $pickedValue !== '' ? 'none' : 'inset 0 0 0 1px var(--ink-3)' }};">
+                        @if ($pickedValue !== '')
+                            Значення: <b class="mono">{{ $pickedValue }}{{ $pickedCurrency ? ' '.$pickedCurrency : '' }}</b>
+                        @else
+                            Значення <span style="opacity:.6;">▾</span>
+                        @endif
+                    </button>
+                    <div x-show="o" x-cloak x-transition.opacity style="position:absolute; z-index:30; top:38px; left:0; width:308px; max-height:400px; overflow-y:auto; background:var(--card); border:1px solid var(--ink-3); border-radius:12px; box-shadow:0 18px 44px -18px rgba(0,0,0,.28);">
+                        <div style="position:sticky; top:0; background:var(--card); padding:9px 12px; border-bottom:1px solid var(--ink-2); display:flex; gap:5px; flex-wrap:wrap;">
+                            @foreach ($vpRoles as $rk => $rl)
+                                <button type="button" wire:click="$set('roleFilter', '{{ $rk }}')" style="
+                                    height:22px; padding:0 9px; border-radius:999px; font:11px var(--font-sans); cursor:pointer;
+                                    background:{{ $roleFilter === $rk ? 'var(--ink-9)' : 'transparent' }};
+                                    color:{{ $roleFilter === $rk ? 'var(--paper)' : 'var(--ink-6)' }};
+                                    box-shadow:{{ $roleFilter === $rk ? 'none' : 'inset 0 0 0 1px var(--ink-3)' }};">{{ $rl }}</button>
+                            @endforeach
+                        </div>
+                        @if ($pickedValue !== '')
+                            <button type="button" wire:click="clearPick" @click="o=false" style="display:block; width:100%; text-align:left; padding:9px 14px; border:0; border-bottom:1px solid var(--ink-2); background:transparent; cursor:pointer; font:12px var(--font-sans); color:var(--accent);">✕ Очистити вибір значення</button>
+                        @endif
+                        @forelse ($valueGroups as $g)
+                            @php
+                                $gcur = $g->currency ?? '';
+                                $gdisp = $typeFilter === 'price' ? rtrim(rtrim(number_format((float) $g->gkey, 2, '.', ' '), '0'), '.') : $g->gkey;
+                                $on = $pickedValue !== '' && (string) $pickedValue === (string) $g->gkey && (string) $pickedCurrency === (string) $gcur;
+                            @endphp
+                            <button type="button" wire:key="vgd-{{ md5($g->gkey.'|'.$gcur) }}"
+                                    wire:click="pickValue('{{ addslashes($g->gkey) }}', '{{ addslashes($gcur) }}')" @click="o=false"
+                                    style="display:flex; align-items:center; gap:9px; width:100%; text-align:left; padding:10px 14px; border:0; border-bottom:1px solid var(--ink-2); cursor:pointer;
+                                           background:{{ $on ? 'var(--accent-soft)' : 'transparent' }}; box-shadow:{{ $on ? 'inset 3px 0 0 var(--accent)' : 'none' }};">
+                                <span class="mono" style="flex:1; min-width:0; font:12.5px var(--font-mono); color:var(--ink-9); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ $gdisp }}{{ $gcur ? ' '.$gcur : '' }}</span>
+                                <span class="mono" style="font:10.5px var(--font-mono); color:var(--ink-6); background:var(--ink-2); border-radius:999px; padding:2px 7px; white-space:nowrap;">×{{ $g->n }}</span>
+                                <span style="font:10.5px var(--font-sans); color:var(--ink-5); white-space:nowrap;">{{ $g->sites }}&nbsp;с.</span>
+                            </button>
+                        @empty
+                            <div style="padding:26px 14px; text-align:center; color:var(--ink-5); font:12.5px var(--font-sans);">Немає значень.</div>
+                        @endforelse
+                    </div>
+                </div>
             @endif
         </div>
 
@@ -138,65 +190,9 @@
     </div>
 
     <div style="padding:14px 40px 64px; flex:1; overflow-y:auto;">
-        <div style="display:grid; grid-template-columns:300px 1fr; gap:18px; align-items:start;">
+        <div>
 
-            {{-- LEFT: finder rail — value axis lists distinct values; site axis lists sites --}}
-            <div class="card" style="overflow:hidden; align-self:start;">
-                <div style="padding:12px 14px; border-bottom:1px solid var(--ink-3); background:var(--paper-2);">
-                    <span class="eyebrow" style="font-size:10px;">{{ $axis === 'value' ? 'Значення' : 'Сайти' }}</span>
-                    {{-- Narrow the value list to primaries / reserves so you don't hunt through all --}}
-                    @if ($axis === 'value')
-                        @php
-                            $railRoles = $typeFilter === 'price'
-                                ? ['' => 'Усі', 'primary' => 'Основні']
-                                : ['' => 'Усі', 'primary' => 'Основні', 'backup' => 'Резерви'];
-                        @endphp
-                        <div style="display:flex; gap:5px; margin-top:9px; flex-wrap:wrap;">
-                            @foreach ($railRoles as $rk => $rl)
-                                <button type="button" wire:click="$set('roleFilter', '{{ $rk }}')" style="
-                                    height:24px; padding:0 9px; border-radius:999px; font:11px var(--font-sans); cursor:pointer;
-                                    background:{{ $roleFilter === $rk ? 'var(--ink-9)' : 'transparent' }};
-                                    color:{{ $roleFilter === $rk ? 'var(--paper)' : 'var(--ink-6)' }};
-                                    box-shadow:{{ $roleFilter === $rk ? 'none' : 'inset 0 0 0 1px var(--ink-3)' }};">{{ $rl }}</button>
-                            @endforeach
-                        </div>
-                    @endif
-                </div>
-                <div style="max-height:560px; overflow-y:auto;">
-                    @if ($axis === 'value')
-                        @forelse ($valueGroups as $g)
-                            @php
-                                $gcur = $g->currency ?? '';
-                                $gdisp = $typeFilter === 'price' ? rtrim(rtrim(number_format((float) $g->gkey, 2, '.', ' '), '0'), '.') : $g->gkey;
-                                $on = $pickedValue !== '' && (string) $pickedValue === (string) $g->gkey && (string) $pickedCurrency === (string) $gcur;
-                            @endphp
-                            <button type="button" wire:key="vg-{{ md5($g->gkey.'|'.$gcur) }}"
-                                    wire:click="pickValue('{{ addslashes($g->gkey) }}', '{{ addslashes($gcur) }}')"
-                                    style="display:flex; align-items:center; gap:9px; width:100%; text-align:left; padding:11px 16px; border:0; border-bottom:1px solid var(--ink-2); cursor:pointer;
-                                           background:{{ $on ? 'var(--accent-soft)' : 'transparent' }}; box-shadow:{{ $on ? 'inset 3px 0 0 var(--accent)' : 'none' }};">
-                                <span class="mono" style="flex:1; min-width:0; font:13px var(--font-mono); color:var(--ink-9); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ $gdisp }}{{ $gcur ? ' '.$gcur : '' }}</span>
-                                <span class="mono" style="font:11px var(--font-mono); color:var(--ink-6); background:var(--ink-2); border-radius:999px; padding:2px 8px; white-space:nowrap;">×{{ $g->n }}</span>
-                                <span style="font:11px var(--font-sans); color:var(--ink-5); white-space:nowrap;">{{ $g->sites }}&nbsp;с.</span>
-                            </button>
-                        @empty
-                            <div style="padding:40px 16px; text-align:center; color:var(--ink-5); font:13px var(--font-sans);">Немає значень.</div>
-                        @endforelse
-                    @else
-                        @forelse ($sites as $s)
-                            @php $on = (int) $siteFilter === (int) $s->id; @endphp
-                            <button type="button" wire:key="sg-{{ $s->id }}" wire:click="$set('siteFilter', '{{ $s->id }}')"
-                                    style="display:flex; align-items:center; gap:9px; width:100%; text-align:left; padding:11px 16px; border:0; border-bottom:1px solid var(--ink-2); cursor:pointer;
-                                           background:{{ $on ? 'var(--accent-soft)' : 'transparent' }}; box-shadow:{{ $on ? 'inset 3px 0 0 var(--accent)' : 'none' }};">
-                                <span style="flex:1; min-width:0; font:13px var(--font-sans); color:var(--ink-9); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ $s->name }}</span>
-                            </button>
-                        @empty
-                            <div style="padding:40px 16px; text-align:center; color:var(--ink-5); font:13px var(--font-sans);">Немає сайтів.</div>
-                        @endforelse
-                    @endif
-                </div>
-            </div>
-
-            {{-- RIGHT: working set — occurrences of the picked value / chosen site --}}
+            {{-- Single full-width list (Jira-style): no left rail; value picker is "Значення ▾" above --}}
             <div class="card" style="overflow:hidden;">
                 <div style="display:flex; align-items:center; gap:12px; padding:12px 18px; border-bottom:1px solid var(--ink-3); background:var(--paper-2); flex-wrap:wrap;">
                     <div style="flex:1; min-width:0;">
@@ -207,7 +203,7 @@
                             <span class="mono" style="font:13px var(--font-mono); color:var(--ink-9);">{{ optional($sites->firstWhere('id', (int) $siteFilter))->name ?? 'Сайт' }}</span>
                             <span style="font:12px var(--font-sans); color:var(--ink-5);"> · {{ $entries->total() }} записів</span>
                         @else
-                            <span style="font:12.5px var(--font-sans); color:var(--ink-5);">{{ $axis === 'value' ? 'Оберіть значення зліва' : 'Оберіть сайт зліва' }}</span>
+                            <span style="font:12.5px var(--font-sans); color:var(--ink-5);">{{ $axis === 'value' ? 'Оберіть значення у фільтрі «Значення ▾»' : 'Оберіть сайт у фільтрі' }}</span>
                         @endif
                     </div>
                     @php
@@ -464,8 +460,8 @@
                 @else
                     <div style="padding:72px 24px; text-align:center; color:var(--ink-5); font:13.5px var(--font-sans);">
                         {{ $axis === 'value'
-                            ? '← Оберіть значення зліва, щоб побачити всі його входження та змінити вибірково.'
-                            : '← Оберіть сайт зліва, щоб побачити його записи.' }}
+                            ? 'Оберіть значення у фільтрі «Значення ▾» вгорі, щоб побачити всі входження й змінити вибірково.'
+                            : 'Оберіть сайт у фільтрі вгорі, щоб побачити його записи.' }}
                     </div>
                 @endif
 
@@ -474,31 +470,31 @@
                     @php
                         $mixedType = count($selectionEntities) > 1;
                         $valueHint = $mixedType ? 'Лише для одного виду — обрано: '.implode(' + ', $selectionEntities) : '';
-                        $actStyle = 'height:30px; padding:0 11px; border-radius:8px; border:1px solid var(--ink-3); background:var(--card); color:var(--ink-8); font:12.5px var(--font-sans); cursor:pointer; white-space:nowrap;';
-                        $dangerStyle = $actStyle.' color:var(--bad); border-color:var(--bad-soft);';
+                        $actStyle = 'height:30px; padding:0 11px; border-radius:8px; border:1px solid rgba(255,255,255,.16); background:rgba(255,255,255,.08); color:var(--paper); font:12.5px var(--font-sans); cursor:pointer; white-space:nowrap;';
+                        $dangerStyle = $actStyle.' color:#ffb9a3;';
                     @endphp
-                    <div style="position:sticky; bottom:0; display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding:12px 18px; border-top:1px solid var(--ink-3); background:var(--card); box-shadow:0 -6px 14px -10px rgba(0,0,0,.18);">
-                        <span class="mono" style="font:12.5px var(--font-mono); color:var(--ink-8);">{{ $this->selectedCount() }} обрано</span>
+                    <div style="position:sticky; bottom:0; display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding:11px 16px; background:var(--ink-9); color:var(--paper); box-shadow:0 -8px 22px -12px rgba(0,0,0,.45);">
+                        <span class="mono" style="font:600 13px var(--font-mono); color:var(--paper);">{{ $this->selectedCount() }} обрано</span>
                         @if (! $selectAllMatching && $entries->total() > $this->selectedCount())
-                            <button type="button" wire:click.stop="selectAllFiltered" style="border:0; background:transparent; color:var(--accent); font:12px var(--font-sans); cursor:pointer;">Обрати всі {{ $entries->total() }}</button>
+                            <button type="button" wire:click.stop="selectAllFiltered" style="border:0; background:transparent; color:var(--paper); text-decoration:underline; text-underline-offset:2px; font:12px var(--font-sans); cursor:pointer;">Обрати всі {{ $entries->total() }}</button>
                         @elseif ($selectAllMatching)
-                            <span style="font:12px var(--font-sans); color:var(--ink-5);">усі {{ $entries->total() }} за фільтром</span>
+                            <span style="font:12px var(--font-sans); color:rgba(255,255,255,.7);">усі {{ $entries->total() }} за фільтром</span>
                         @endif
-                        <span style="width:1px; height:16px; background:var(--ink-3); margin:0 2px;"></span>
+                        <span style="width:1px; height:16px; background:rgba(255,255,255,.22); margin:0 2px;"></span>
                         <button type="button" style="{{ $actStyle }}" wire:click="openReview">Огляд</button>
                         @if ($trashed)
                             <button type="button" style="{{ $actStyle }}" wire:click="restoreSelected">Відновити</button>
                             <button type="button" style="{{ $dangerStyle }}" wire:click="purgeSelected" wire:confirm="Видалити обрані записи НАЗАВЖДИ? Це не можна відмінити.">Видалити назавжди</button>
                         @else
-                            <button type="button" style="{{ $actStyle }} font-weight:500; background:var(--ink-9); color:var(--paper); border-color:var(--ink-9);" wire:click="openBulkWizard">⚙ Масова зміна</button>
+                            <button type="button" style="{{ $actStyle }} font-weight:500; background:var(--accent); color:var(--paper); border-color:var(--accent);" wire:click="openBulkWizard">⚙ Масова зміна</button>
                             @if (! $selectAllMatching && count($selected) === 1)
-                                <button type="button" style="{{ $actStyle }} color:var(--accent);" wire:click="openAddReserve">+ Додати резерв</button>
+                                <button type="button" style="{{ $actStyle }}" wire:click="openAddReserve">+ Додати резерв</button>
                             @endif
                             <button type="button" style="{{ $dangerStyle }}" wire:click="bulkDelete">Видалити</button>
                         @endif
                         <span style="margin-left:auto; display:inline-flex; align-items:center; gap:10px;">
-                            <span style="font:12px var(--font-sans); color:var(--ink-5);">діє лише на {{ $this->selectedCount() }} обрані · з відміною</span>
-                            <button type="button" wire:click.stop="clearSelected" style="border:0; background:transparent; color:var(--ink-5); font:12px var(--font-sans); cursor:pointer;">Зняти виділення</button>
+                            <span style="font:12px var(--font-sans); color:rgba(255,255,255,.7);">діє лише на {{ $this->selectedCount() }} обрані · з відміною</span>
+                            <button type="button" wire:click.stop="clearSelected" style="border:0; background:transparent; color:rgba(255,255,255,.7); font:12px var(--font-sans); cursor:pointer;">Зняти</button>
                         </span>
                     </div>
                 @endif

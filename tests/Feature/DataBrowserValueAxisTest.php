@@ -174,7 +174,7 @@ class DataBrowserValueAxisTest extends TestCase
 
         Livewire::actingAs($owner)
             ->test(DataBrowser::class, ['typeFilter' => 'phone'])
-            ->assertSee('Оберіть значення зліва')   // right pane prompt
-            ->assertSee('+HIDDENUNTILPICKED');        // but the value rail lists it
+            ->assertSee('Оберіть значення у фільтрі')   // prompt shown before a pick
+            ->assertSee('+HIDDENUNTILPICKED');          // value is listed in the «Значення ▾» dropdown
     }
 }

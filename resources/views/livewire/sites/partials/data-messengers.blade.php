@@ -112,8 +112,17 @@
                     </span>
                     <span class="failover-actions">
                         @if($isDown)
-                            <button class="cc-promote" wire:click.stop="restoreFailover({{ $msg->id }})" title="Відновити">↩</button>
+                            <button class="cc-promote" wire:click.stop="restoreFailover({{ $msg->id }})" title="Відновити">
+                                <x-icon.refresh width="13" height="13" /> Відновити
+                            </button>
+                        @elseif($msg->backups->count() > 0)
+                            <button class="cc-trigger" wire:click.stop="triggerFailover({{ $msg->id }})" wire:confirm="Імітувати збій цього месенджера? Працюватиме наступний у черзі." title="Перемкнути на резерв">
+                                <x-icon.bolt width="13" height="13" /> Збій
+                            </button>
                         @endif
+                        <button class="cc-hide" wire:click.stop="toggleEntryVisibility({{ $msg->id }})" title="Приховати (весь набір)">
+                            <x-icon.eye-off width="13" height="13" />
+                        </button>
                         <button class="cc-edit" wire:click.stop="editEntry({{ $msg->id }})" title="Редагувати">
                             <x-icon.edit width="13" height="13" />
                         </button>
@@ -179,8 +188,16 @@
             <span class="failover-label failover-label--muted">{{ $msg->label ?: $k['label'] }}</span>
             <span class="failover-owner">{{ $msg->preview_geo_label ?: '—' }}</span>
             <span class="failover-geo">{{ $msg->geo_label }}</span>
-            <span class="failover-role failover-role--muted">Приховано</span>
+            <span class="failover-role failover-role--muted">
+                Приховано
+                @if($msg->backups->count() > 0)
+                    <span class="failover-cascade-badge">+{{ $msg->backups->count() }}</span>
+                @endif
+            </span>
             <span class="failover-actions">
+                <button class="cc-show" wire:click.stop="toggleEntryVisibility({{ $msg->id }})" title="Активувати (весь набір)">
+                    <x-icon.eye width="13" height="13" />
+                </button>
                 <button class="cc-edit" wire:click.stop="editEntry({{ $msg->id }})" title="Редагувати">
                     <x-icon.edit width="13" height="13" />
                 </button>
@@ -189,6 +206,24 @@
                 </button>
             </span>
         </div>
+        {{-- Cascade-hidden backups --}}
+        @foreach($msg->backups as $backup)
+            @php $bk = $resolveMsgKindMeta($backup->kind); @endphp
+            <div class="failover-row failover-row--hidden failover-row--backup-hidden"
+                 data-msg-kind="{{ $backup->kind }}"
+                 x-show="msgKind === 'all' || msgKind === @js($msg->kind)">
+                <span class="failover-backup-index">
+                    <span class="failover-branch">└</span>
+                    <span class="failover-order">{{ $loop->index + 1 }}</span>
+                </span>
+                <span class="mono failover-value failover-value--sub">{{ $backup->value }}</span>
+                <span class="failover-label failover-label--muted">{{ $backup->label ?: 'резерв · ' . $bk['label'] }}</span>
+                <span class="failover-owner">{{ $backup->preview_geo_label ?: '—' }}</span>
+                <span class="failover-geo">{{ $msg->geo_label }}</span>
+                <span class="failover-role failover-role--muted">Сховано (резерв)</span>
+                <span class="failover-actions"></span>
+            </div>
+        @endforeach
     @endforeach
 
     <div class="ctable__foot">

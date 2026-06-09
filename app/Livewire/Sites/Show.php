@@ -1535,11 +1535,50 @@ class Show extends Component
         return $this->redirectRoute('sites.index');
     }
 
+    /**
+     * Toggle visibility of an entry, cascading to its entire failover group:
+     * hiding a primary hides all its backups; showing a primary shows them all
+     * back. Symmetrical cascade ensures the whole set moves together.
+     */
     public function toggleEntryVisibility(int $id): void
     {
-        $entry = \App\Models\ContactEntry::findOrFail($id);
+        $entry = ContactEntry::findOrFail($id);
         $this->authorize('update', $entry);
-        $entry->update(['visible' => !$entry->visible]);
+
+        $newVisible = ! $entry->visible;
+
+        // Resolve the head of the failover group.
+        $headId = $entry->parent_id ?: $entry->id;
+        $head = ContactEntry::with('backups')->findOrFail($headId);
+
+        // Cascade: set visible on head + all backups in one pass.
+        ContactEntry::disableAuditing();
+        try {
+            $head->update(['visible' => $newVisible]);
+            $head->backups()->update(['visible' => $newVisible]);
+        } finally {
+            ContactEntry::enableAuditing();
+        }
+
+        $backupCount = $head->backups()->count();
+
+        ActivityLogService::log(
+            $newVisible ? 'entry.visibility.shown' : 'entry.visibility.hidden',
+            $head,
+            [
+                'site_id'      => $head->site_id,
+                'type'         => $head->type,
+                'value'        => $head->value,
+                'cascade'      => $backupCount > 0,
+                'backup_count' => $backupCount,
+            ],
+        );
+
+        $this->syncSite(true);
+
+        $this->dispatch('toast', type: 'success', message: $newVisible
+            ? 'Запис активовано' . ($backupCount > 0 ? " (+ {$backupCount} резервів)" : '')
+            : 'Запис приховано' . ($backupCount > 0 ? " (+ {$backupCount} резервів)" : ''));
     }
 
     public function resetEntryForm(): void

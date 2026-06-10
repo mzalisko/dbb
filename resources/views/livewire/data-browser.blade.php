@@ -120,7 +120,10 @@
                         @forelse ($valueGroups as $g)
                             @php
                                 $gcur = $g->currency ?? '';
-                                $gdisp = ($typeFilter === 'price' && is_numeric($g->gkey)) ? rtrim(rtrim(number_format((float) $g->gkey, 2, '.', ' '), '0'), '.') : $g->gkey;
+                                $gdisp = $typeFilter !== 'price' ? $g->gkey
+                                    : (is_numeric($g->gkey)
+                                        ? rtrim(rtrim(number_format((float) $g->gkey, 2, '.', ' '), '0'), '.')
+                                        : \App\Support\PriceHtml::text($g->gkey));
                                 $on = $pickedValue !== '' && (string) $pickedValue === (string) $g->gkey && (string) $pickedCurrency === (string) $gcur;
                             @endphp
                             <button type="button" wire:key="vgd-{{ md5($g->gkey.'|'.$gcur) }}"
@@ -355,7 +358,7 @@
                                 $oldPriceAmount = is_null($entry->old_price) ? null : rtrim(rtrim(number_format((float) $entry->old_price, 2, '.', ' '), '0'), '.');
                             @endphp
                             <span class="data-price-value">
-                                <span class="mono data-price-value__sku">{{ $entry->sku ?: $entry->value }}</span>
+                                <span class="mono data-price-value__sku">{{ $entry->sku ?: \App\Support\PriceHtml::text($entry->value) }}</span>
                                 <span class="data-price-value__amount">
                                     @if ($trashed)
                                         <strong>{{ $priceAmount ?? '—' }}</strong>

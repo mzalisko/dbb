@@ -406,6 +406,7 @@ trait WithWizard
             if (! $this->valueValidForType($this->typeFilter, $nv)) {
                 $this->wizErr('Телефон має містити лише цифри (без тексту)'); return;
             }
+            $nv = $this->normalizeValueForType($this->typeFilter, $nv);
         }
         $geoCountries = [];
         if (in_array('geo', $this->chg, true)) {

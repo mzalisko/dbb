@@ -350,6 +350,21 @@ class DataBrowserWizardTest extends TestCase
         $this->assertSame(0, ContactEntry::where('parent_id', $p->id)->count());
     }
 
+    public function test_price_value_writes_are_sanitized_like_the_site_drawer(): void
+    {
+        // Styled markup is a feature (whitelist), but broken/styled-attr HTML and
+        // script must be cleaned on the browser's write path too.
+        $owner = User::factory()->create(['role' => 'owner']);
+        $site = $this->siteForOwner($owner);
+        $e = ContactEntry::factory()->for($site)->price()->create(['value' => '1000', 'price' => null]);
+
+        Livewire::actingAs($owner)
+            ->test(DataBrowser::class, ['mode' => 'browse', 'typeFilter' => 'price'])
+            ->call('inlineUpdate', $e->id, 'value', '2000 <span style="x" onclick="hack()">EUR</span><script>bad()</script>');
+
+        $this->assertSame('2000 <span>EUR</span>', $e->fresh()->value, 'style/onclick/script stripped, whitelisted tag kept');
+    }
+
     public function test_edit_price_is_single_select_and_finds_its_occurrences(): void
     {
         $owner = User::factory()->create(['role' => 'owner']);

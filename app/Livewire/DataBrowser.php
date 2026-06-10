@@ -10,6 +10,7 @@ use App\Models\Site;
 use App\Services\ActivityLogService;
 use App\Services\BulkActionService;
 use App\Services\SitePluginSyncService;
+use App\Support\PriceHtml;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -863,7 +864,7 @@ class DataBrowser extends Component
         $stored = match (true) {
             $isNumeric          => ($new === '' ? null : (float) str_replace(',', '.', $new)),
             $field === 'label'  => ($new === '' ? null : $new),
-            default             => $new,
+            default             => $this->normalizeValueForType($entry->type, $new),
         };
         if ((string) $entry->{$field} === (string) $stored) {
             return; // nothing changed — stay quiet
@@ -884,6 +885,17 @@ class DataBrowser extends Component
             actionLabel: 'Відмінити',
             actionData: ['snapshot' => [$entry->id => $old], 'field' => $field],
         );
+    }
+
+    /**
+     * Normalise an incoming value before storing. Price values may carry styled
+     * markup (a feature the WP plugin renders) — pass them through the same
+     * whitelist sanitizer the site drawer uses, so broken/styled HTML can't get
+     * in via the browser. Other types are plain text.
+     */
+    public function normalizeValueForType(string $type, string $value): string
+    {
+        return $type === 'price' ? PriceHtml::clean($value) : trim($value);
     }
 
     /**
@@ -1064,6 +1076,8 @@ class DataBrowser extends Component
                 $value = strtoupper($raw);
             } elseif (in_array($field, ['price', 'old_price'], true)) {
                 $value = $raw === '' ? null : (float) str_replace(',', '.', $raw);
+            } elseif ($field === 'value') {
+                $value = $raw === '' ? null : $this->normalizeValueForType($this->typeFilter, $raw);
             } else {
                 $value = $raw === '' ? null : $raw;
             }
@@ -1136,6 +1150,9 @@ class DataBrowser extends Component
             $this->dispatch('toast', type: 'error', message: 'Телефон має містити лише цифри (без тексту)');
 
             return;
+        }
+        if ($field === 'value') {
+            $new = $this->normalizeValueForType($this->typeFilter, $new);
         }
 
         $snapshot = [];
@@ -1964,6 +1981,7 @@ class DataBrowser extends Component
 
             return;
         }
+        $value = $this->normalizeValueForType($type, $value);
 
         $needsKind = ContactEntry::hasKinds($type);
         $kind = $needsKind ? $this->createKind : null;

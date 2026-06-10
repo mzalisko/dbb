@@ -127,7 +127,10 @@
                     @forelse ($valueGroups as $g)
                         @php
                             $gcur = $g->currency ?? '';
-                            $gdisp = ($typeFilter === 'price' && is_numeric($g->gkey)) ? rtrim(rtrim(number_format((float) $g->gkey, 2, '.', ' '), '0'), '.') : $g->gkey;
+                            $gdisp = $typeFilter !== 'price' ? $g->gkey
+                                : (is_numeric($g->gkey)
+                                    ? rtrim(rtrim(number_format((float) $g->gkey, 2, '.', ' '), '0'), '.')
+                                    : \App\Support\PriceHtml::text($g->gkey)); // strip styled markup for display
                             $on = $single
                                 ? ($pickedValue !== '' && (string) $pickedValue === (string) $g->gkey && (string) $pickedCurrency === (string) $gcur)
                                 : in_array((string) $g->gkey, $wizValues, true);
@@ -203,7 +206,7 @@
                          style="display:flex; align-items:center; gap:12px; padding:12px 13px; cursor:pointer; border:1px solid var(--ink-2); border-top:0;
                                 background:{{ $sel ? 'var(--accent-soft)' : 'var(--card)' }}; {{ $isRes ? 'padding-left:30px;' : '' }}">
                         <span class="row-check {{ $sel ? 'is-checked' : '' }}">@if ($sel) <x-icon.check width="11" height="11" /> @endif</span>
-                        <span class="mono" style="flex:1; min-width:0; font:13.5px var(--font-mono); color:var(--ink-9); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ $e->value }}</span>
+                        <span class="mono" style="flex:1; min-width:0; font:13.5px var(--font-mono); color:var(--ink-9); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ $typeFilter === 'price' ? \App\Support\PriceHtml::text($e->value) : $e->value }}</span>
                         <span style="font:12px var(--font-sans); color:var(--ink-5); white-space:nowrap;">{{ $e->label ?: '—' }}</span>
                         <span style="font:12px var(--font-sans); color:var(--ink-5); white-space:nowrap;">{{ $e->geo_label }}</span>
                         <span style="font:11.5px var(--font-sans); white-space:nowrap; display:inline-flex; align-items:center; gap:5px;">
@@ -448,7 +451,7 @@
                                 <div style="display:flex; align-items:center; gap:10px; padding:9px 13px; border-bottom:1px solid var(--ink-2); font:12.5px var(--font-sans); color:var(--ink-7);">
                                     <span class="dot {{ is_null($e->parent_id) ? 'dot-ok' : 'dot-info' }}"></span>
                                     <span style="color:var(--ink-6);">{{ $e->site?->name ?? '—' }}</span>
-                                    <span class="mono" style="margin-left:auto; color:var(--ink-9);">{{ $e->value }}</span>
+                                    <span class="mono" style="margin-left:auto; color:var(--ink-9);">{{ $typeFilter === 'price' ? \App\Support\PriceHtml::text($e->value) : $e->value }}</span>
                                 </div>
                             @endif
                         @endforeach

@@ -167,7 +167,7 @@
                                         <span class="set-qgeo">{{ $item['geo'] }}</span>
                                         @if($item['status']==='active')
                                             <button wire:click="triggerFailover({{ $item['entryId'] }})"
-                                                    wire:confirm="Імітувати збій цього запису? Працюватиме наступний у черзі."
+                                                    wire:confirm="Перемкнути на резерв? Працюватиме наступний у черзі."
                                                     class="set-qtrigger">&#x26A1; Тригер</button>
                                         @elseif($item['status']==='waiting')
                                             <button wire:click="restoreFailover({{ $item['entryId'] }})"

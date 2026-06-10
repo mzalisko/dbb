@@ -65,12 +65,12 @@
                                         @php $serving = $phone->failoverServing(); @endphp
                                         <div class="ov-entry">
                                             @if($phone->failover_down && $serving && $serving->id !== $phone->id)
-                                                {{-- Основний у збої → відвідувач бачить резерв --}}
+                                                {{-- Основний на резерві → відвідувач бачить резерв --}}
                                                 <div class="ov-val mono">{{ $serving->value }}</div>
-                                                <div class="ov-sub" style="color:var(--warn);">резерв · основний у збої</div>
+                                                <div class="ov-sub" style="color:var(--warn);">резерв · замість основного</div>
                                             @elseif($phone->failover_down)
                                                 <div class="ov-val mono" style="text-decoration:line-through; color:var(--ink-5);">{{ $phone->value }}</div>
-                                                <div class="ov-sub" style="color:var(--bad);">збій · немає робочого номера</div>
+                                                <div class="ov-sub" style="color:var(--bad);">недоступний · немає робочого номера</div>
                                             @else
                                                 <div class="ov-val mono">{{ $phone->value }}</div>
                                                 @if($phone->label)
@@ -115,11 +115,11 @@
                                                 <div class="ov-val">{{ $servingMsg->value }}</div>
                                                 <div class="ov-sub">
                                                     <span class="ov-msg-tag" style="color:{{ $mk['color'] }};">{{ $mk['short'] }}</span>
-                                                    <span style="color:var(--warn);">резерв · основний у збої</span>
+                                                    <span style="color:var(--warn);">резерв · замість основного</span>
                                                 </div>
                                             @elseif($msg->failover_down)
                                                 <div class="ov-val" style="text-decoration:line-through; color:var(--ink-5);">{{ $msg->value }}</div>
-                                                <div class="ov-sub" style="color:var(--bad);">збій · немає робочого</div>
+                                                <div class="ov-sub" style="color:var(--bad);">недоступний · немає робочого</div>
                                             @else
                                                 <div class="ov-val">{{ $msg->value }}</div>
                                                 <div class="ov-sub">

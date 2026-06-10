@@ -105,7 +105,7 @@
                     <span class="failover-geo">{{ $msg->geo_label }}</span>
                     <span class="failover-role">
                         @if($isDown)
-                            Збій
+                            На резерві
                         @else
                             Основний
                         @endif

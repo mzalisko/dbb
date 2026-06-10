@@ -4,21 +4,34 @@ services:
       context: .
       dockerfile: docker/Dockerfile
       target: dev
+    # Come back on engine restarts / crashes without a manual `up`.
+    restart: unless-stopped
     working_dir: /var/www/html
     volumes:
       - .:/var/www/html
       - ./docker/xdebug.ini:/usr/local/etc/php/conf.d/zz-xdebug-mode.ini
+      - ./docker/php-perf.ini:/usr/local/etc/php/conf.d/zz-perf.ini
     ports:
       - "8000:8080"
     environment:
       - PHP_OPCACHE_ENABLE=1
       - PHP_OPCACHE_VALIDATE_TIMESTAMPS=1
-      - PHP_OPCACHE_REVALIDATE_FREQ=0
+      # 0 = stat every file on EVERY request — brutal on a Windows bind mount.
+      # 2s keeps edits visible almost instantly and cuts per-request I/O hard.
+      - PHP_OPCACHE_REVALIDATE_FREQ=2
       - XDEBUG_MODE=off
       - AUTORUN_ENABLED=true
       - AUTORUN_LARAVEL_MIGRATION=true
       - AUTORUN_LARAVEL_STORAGE_LINK=true
       - SSL_MODE=off
+    # Same probe as the base image, but with a start grace so slow boots
+    # (autorun migrations) don't flip the container to unhealthy.
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 90s
     depends_on:
       mysql:
         condition: service_healthy
@@ -27,6 +40,13 @@ services:
 
   mysql:
     image: mysql:8.0
+    restart: unless-stopped
+    # Dev-friendly speed: skip reverse-DNS on connects; relax fsync (a crash may
+    # lose <1s of writes — fine for dev data, much less disk pressure).
+    command:
+      - --skip-name-resolve
+      - --innodb-flush-log-at-trx-commit=2
+      - --innodb-buffer-pool-size=256M
     environment:
       MYSQL_ROOT_PASSWORD: secret
       MYSQL_DATABASE: ddbv2
@@ -41,6 +61,7 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+      start_period: 30s
     networks:
       - ddbv2
 

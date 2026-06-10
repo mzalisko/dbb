@@ -48,7 +48,7 @@ class AuditHumanDiffTest extends TestCase
 
         $matrix = $this->viewerMatrix();
         $matrix['sites']['create'] = true; // flip exactly one leaf
-        $user->update(['permissions' => $matrix]);
+        $user->forceFill(['permissions' => $matrix])->save();
 
         $rows = $this->changedUserEntry($user)->humanChanges();
         $group = collect($rows)->firstWhere('kind', 'group');
@@ -72,10 +72,10 @@ class AuditHumanDiffTest extends TestCase
         $site = Site::factory()->create(['name' => 'Main Site']);
         $user = User::factory()->create(['role' => 'viewer', 'access_scope' => 'all']);
 
-        $user->update([
+        $user->forceFill([
             'access_scope' => 'limited',
             'site_access'  => [$site->id],
-        ]);
+        ])->save();
 
         $rows = $this->changedUserEntry($user)->humanChanges();
 
@@ -97,7 +97,7 @@ class AuditHumanDiffTest extends TestCase
         $this->actingAs(User::factory()->create(['role' => 'owner']));
 
         $user = User::factory()->create(['role' => 'viewer', 'access_scope' => 'all']);
-        $user->update(['access_scope' => 'limited', 'group_access' => ['Poland']]);
+        $user->forceFill(['access_scope' => 'limited', 'group_access' => ['Poland']])->save();
 
         $rows = $this->changedUserEntry($user)->humanChanges();
         $access = collect($rows)->firstWhere('field', 'Доступ до груп');
@@ -115,11 +115,11 @@ class AuditHumanDiffTest extends TestCase
 
         $matrix = $this->viewerMatrix();
         $matrix['data_phones']['delete'] = true;
-        $user->update([
+        $user->forceFill([
             'permissions'  => $matrix,
             'access_scope' => 'limited',
             'site_access'  => [$site->id],
-        ]);
+        ])->save();
 
         // Collect only the strings actually shown to the admin (labels + values).
         $shown = [];

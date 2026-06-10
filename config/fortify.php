@@ -77,7 +77,10 @@ return [
     |--------------------------------------------------------------------------
     */
     'features' => [
-        Features::registration(),
+        // Public registration is OFF on purpose: this is a team CRM behind
+        // Tailscale — anyone on the VPN must NOT self-provision an account
+        // (a fresh user falls back to viewer = read access to all data).
+        // New members are added via /team (InviteForm) only.
         Features::resetPasswords(),
     ],
 

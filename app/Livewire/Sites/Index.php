@@ -48,6 +48,8 @@ class Index extends Component
 
     public function createSite(): void
     {
+        $this->authorize('create', Site::class);
+
         $this->validate([
             'createName' => 'required|string|max:100',
             'createUrl' => 'nullable|url|max:255',
@@ -79,7 +81,9 @@ class Index extends Component
     #[Renderless]
     public function toggleFavourite(int $id): void
     {
-        $site = Site::findOrFail($id);
+        // Scope to accessible sites so a request can't flip the flag on someone
+        // else's site (IDOR) by passing an arbitrary id.
+        $site = Site::accessibleTo(auth()->user())->findOrFail($id);
         $site->update(['is_favourite' => ! $site->is_favourite]);
     }
 
@@ -160,6 +164,7 @@ class Index extends Component
 
         $source = Site::with('contactEntries')->findOrFail($this->cloneSourceSiteId);
         $this->authorize('update', $source);
+        $this->authorize('create', Site::class); // a clone creates a new site
 
         $clone = DB::transaction(function () use ($source) {
             $attributes = [

@@ -27,9 +27,10 @@ class Phase4SmokeTest extends TestCase
         $this->get('/login')->assertStatus(200);
     }
 
-    public function test_register_page_returns_200(): void
+    public function test_register_is_disabled(): void
     {
-        $this->get('/register')->assertStatus(200);
+        // Public self-registration is off (team CRM, invite-only via /team).
+        $this->get('/register')->assertStatus(404);
     }
 
     public function test_forgot_password_page_returns_200(): void
@@ -95,43 +96,18 @@ class Phase4SmokeTest extends TestCase
         $this->assertStringContainsString('forgot-password', $content);
     }
 
-    // --- Registration flow ---
+    // --- Registration flow (disabled — invite-only team CRM) ---
 
-    public function test_register_form_creates_user(): void
+    public function test_register_post_is_disabled(): void
     {
         $this->browserPost('/register', [
             'name' => 'Test User',
             'email' => 'test@example.com',
             'password' => 'securepassword1',
             'password_confirmation' => 'securepassword1',
-        ])->assertRedirect('/dashboard');
+        ])->assertStatus(404);
 
-        $this->assertDatabaseHas('users', [
-            'email' => 'test@example.com',
-            'name' => 'Test User',
-        ]);
-    }
-
-    public function test_register_fails_with_duplicate_email(): void
-    {
-        User::factory()->create(['email' => 'taken@example.com']);
-
-        $this->browserPost('/register', [
-            'name' => 'Another User',
-            'email' => 'taken@example.com',
-            'password' => 'securepassword1',
-            'password_confirmation' => 'securepassword1',
-        ])->assertSessionHasErrors('email');
-    }
-
-    public function test_register_page_has_name_email_password_fields(): void
-    {
-        $content = $this->get('/register')->getContent();
-
-        $this->assertStringContainsString('name="name"', $content);
-        $this->assertStringContainsString('type="email"', $content);
-        $this->assertStringContainsString('type="password"', $content);
-        $this->assertStringContainsString('password_confirmation', $content);
+        $this->assertDatabaseMissing('users', ['email' => 'test@example.com']);
     }
 
     // --- Guest redirect ---
@@ -206,9 +182,9 @@ class Phase4SmokeTest extends TestCase
         $this->assertStringContainsString(config('app.name'), $content);
     }
 
-    public function test_register_page_has_design_system_button(): void
+    public function test_login_page_has_design_system_button(): void
     {
-        $this->get('/register')
+        $this->get('/login')
             ->assertStatus(200)
             ->assertSee('btn', false);
     }

@@ -30,10 +30,11 @@ class Phase1SmokeTest extends TestCase
         $response->assertSee('<form', false);
     }
 
-    public function test_register_page_returns_200(): void
+    public function test_register_page_is_disabled(): void
     {
+        // Invite-only team CRM — public registration is off.
         $response = $this->get('/register');
-        $response->assertStatus(200);
+        $response->assertStatus(404);
     }
 
     public function test_authenticated_user_sees_dashboard(): void

@@ -23,7 +23,8 @@ class SitePolicy
 
     public function create(User $user): bool
     {
-        return true;
+        // Respect the permission matrix — a viewer must not create sites.
+        return $user->can_('sites', 'create');
     }
 
     public function update(User $user, Site $site): bool

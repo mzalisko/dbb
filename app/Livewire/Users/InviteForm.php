@@ -24,12 +24,14 @@ class InviteForm extends Component
 
         $this->validate();
 
-        User::create([
+        $user = new User([
             'name'     => $this->name,
             'email'    => $this->email,
             'password' => bcrypt(Str::random(16)),
-            'role'     => $this->role,
         ]);
+        // role is guarded against mass assignment — set explicitly in this
+        // admin-only flow (validated against the assignable list above).
+        $user->forceFill(['role' => $this->role])->save();
 
         $this->reset();
         $this->dispatch('close-modal', 'invite-user');

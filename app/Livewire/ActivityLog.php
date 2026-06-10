@@ -135,7 +135,8 @@ class ActivityLog extends Component
     public function export()
     {
         $events = AuditFeed::collect($this->tabFilters());
-        $siteNames = Site::pluck('name', 'id');
+        // Scope like render() — a limited user must not learn out-of-scope site names.
+        $siteNames = Site::accessibleTo(auth()->user())->pluck('name', 'id');
         $filename = 'audit-'.$this->tab.'-'.now()->format('Y-m-d-His').'.csv';
 
         return response()->streamDownload(function () use ($events, $siteNames) {

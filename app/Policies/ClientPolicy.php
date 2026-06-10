@@ -24,11 +24,11 @@ class ClientPolicy
     }
 
     /**
-     * Any authenticated user can create clients.
+     * Create — owner/admin/manager; viewers are read-only.
      */
     public function create(User $user): bool
     {
-        return true;
+        return $user->isAdmin() || $user->role === 'manager';
     }
 
     /**

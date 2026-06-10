@@ -66,14 +66,20 @@
         @endphp
         <div class="card set-stats">
             @foreach([
-                ['l'=>'Статус','v'=>'<span class="set-stat__status"><span class="role-dot" style="background:var(--ok);"></span>Стабільно</span>','m'=>'усі активні відповідають'],
+                ['l'=>'Статус','v'=>'Стабільно','dot'=>true,'m'=>'усі активні відповідають'],
                 ['l'=>'Активних правил','v'=>'4','m'=>'у 2 гео-пулах'],
                 ['l'=>'Резервів','v'=>(string)$phonePrimaries->flatMap->backups->count(),'m'=>'у середньому 1.25 / пул'],
                 ['l'=>'Останній failover','v'=>$latestFailover?->created_at?->format('d M') ?? '—','m'=>$latestFailover ? (($latestFailoverMode ?? 'manual') . ' · журнал') : 'подій ще немає'],
             ] as $s)
                 <div class="set-stat">
                     <div class="eyebrow eyebrow-xxs" style="margin-bottom:8px;">{{ $s['l'] }}</div>
-                    <div class="set-stat__val">{!! $s['v'] !!}</div>
+                    <div class="set-stat__val">
+                        @if ($s['dot'] ?? false)
+                            <span class="set-stat__status"><span class="role-dot" style="background:var(--ok);"></span>{{ $s['v'] }}</span>
+                        @else
+                            {{ $s['v'] }}
+                        @endif
+                    </div>
                     <div class="set-stat__meta">{{ $s['m'] }}</div>
                 </div>
             @endforeach

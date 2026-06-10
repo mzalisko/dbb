@@ -12,7 +12,11 @@ use Illuminate\Notifications\Notifiable;
 use OwenIt\Auditing\Auditable;
 use OwenIt\Auditing\Contracts\Auditable as AuditableContract;
 
-#[Fillable(['name', 'email', 'password', 'role', 'permissions', 'access_scope', 'group_access', 'site_access', 'organization_name', 'phone', 'avatar_path'])]
+// Security-sensitive fields (role, permissions, access_scope, group_access,
+// site_access) are NOT mass-assignable — set them via forceFill() in the few
+// authorised admin flows (InviteForm, Users\Index, seeder) so no future form
+// binding can escalate privileges.
+#[Fillable(['name', 'email', 'password', 'organization_name', 'phone', 'avatar_path'])]
 #[Hidden(['password', 'temp_password', 'remember_token'])]
 class User extends Authenticatable implements AuditableContract
 {

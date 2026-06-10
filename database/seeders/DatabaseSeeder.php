@@ -15,6 +15,13 @@ class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
+        // Demo data + well-known passwords — never on production.
+        if (app()->isProduction()) {
+            $this->command?->error('DatabaseSeeder is dev-only — refusing to run in production.');
+
+            return;
+        }
+
         // Clear existing data (maintain FK order)
         DB::statement('SET FOREIGN_KEY_CHECKS=0');
         ContactEntry::truncate();
@@ -36,11 +43,11 @@ class DatabaseSeeder extends Seeder
             [
                 'name'              => 'AA Admin',
                 'password'          => 'password',
-                'role'              => 'owner',
                 'organization_name' => 'DataBridge Agency',
-                'email_verified_at' => now(),
             ]
         );
+        // role is guarded against mass assignment — set explicitly.
+        $owner->forceFill(['role' => 'owner', 'email_verified_at' => now()])->save();
 
         User::where('id', '!=', $owner->id)->delete();
 

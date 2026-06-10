@@ -28,7 +28,7 @@ class SiteCloneRenameTest extends TestCase
             'name' => 'Old Name',
             'api_key' => 'db_live_same_key',
         ]);
-        $user->update(['site_access' => [$site->id]]);
+        $user->forceFill(['site_access' => [$site->id]])->save();
 
         Livewire::actingAs($user)
             ->test(Show::class, ['site' => $site])
@@ -56,7 +56,7 @@ class SiteCloneRenameTest extends TestCase
             'group' => 'source-group',
             'api_key' => 'db_live_source_key',
         ]);
-        $user->update(['site_access' => [$source->id]]);
+        $user->forceFill(['site_access' => [$source->id]])->save();
 
         Livewire::actingAs($user)
             ->test(SitesIndex::class)

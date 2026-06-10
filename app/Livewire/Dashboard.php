@@ -25,7 +25,9 @@ class Dashboard extends Component
     #[Renderless]
     public function toggleFavourite(int $id): void
     {
-        $site = Site::findOrFail($id);
+        // Scope to accessible sites so a request can't flip the flag on someone
+        // else's site (IDOR) by passing an arbitrary id.
+        $site = Site::accessibleTo(auth()->user())->findOrFail($id);
         $site->update(['is_favourite' => !$site->is_favourite]);
     }
 

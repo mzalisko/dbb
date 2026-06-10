@@ -61,7 +61,7 @@ class AccessScopeTest extends TestCase
         $granted = Site::factory()->for($client)->create(['name' => 'GRANTED-SITE', 'group' => 'x']);
         Site::factory()->for($client)->create(['name' => 'DENIED-SITE', 'group' => 'x']);
 
-        $manager->update(['site_access' => [$granted->id]]);
+        $manager->forceFill(['site_access' => [$granted->id]])->save();
 
         Livewire::actingAs($manager)
             ->test(SitesIndex::class)

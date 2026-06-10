@@ -28,12 +28,15 @@
         "psr-4": {
             "App\\": "app/",
             "Database\\Factories\\": "database/factories/",
-            "Database\\Seeders\\": "database/seeders/"
+            "Database\\Seeders\\": "database/seeders/",
+            "Nwdb\\": "nwdb/src/",
+            "Nwdb\\Database\\Factories\\": "nwdb/database/factories/"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "Tests\\": "tests/"
+            "Tests\\": "tests/",
+            "Nwdb\\Tests\\": "nwdb/tests/"
         }
     },
     "scripts": {

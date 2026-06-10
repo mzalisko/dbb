@@ -1,0 +1,72 @@
+<?php
+/**
+ * Верифікація і розшифрування конверта фіду.
+ *
+ * Формат: "WPF1"(4) | version(1) | flags(1) | nonce(24) | ct_len uint32 LE(4)
+ *         | ciphertext | signature Ed25519(64).
+ * Спочатку перевіряється підпис над усім blob-ом (крім підпису),
+ * потім AEAD-розшифрування з заголовком як associated data.
+ *
+ * Використовує sodium_compat, який WordPress постачає з ядром (WP >= 5.2).
+ */
+
+if (!defined('ABSPATH')) {
+    exit;
+}
+
+/**
+ * @param string $blob Сирий вміст конверта
+ * @return array|false Декодований payload або false
+ */
+function {{PREFIX}}open_envelope($blob) {
+    if (!function_exists('sodium_crypto_sign_verify_detached')
+        || !function_exists('sodium_crypto_aead_xchacha20poly1305_ietf_decrypt')) {
+        return false;
+    }
+
+    $header_len = 4 + 1 + 1 + 24 + 4;
+    $sig_len = 64;
+
+    if (!is_string($blob) || strlen($blob) < $header_len + 16 + $sig_len) {
+        return false;
+    }
+    if (substr($blob, 0, 4) !== 'WPF1' || ord($blob[4]) !== 1) {
+        return false;
+    }
+
+    $ct_len_arr = unpack('V', substr($blob, $header_len - 4, 4));
+    $ct_len = $ct_len_arr[1];
+    if (strlen($blob) !== $header_len + $ct_len + $sig_len) {
+        return false;
+    }
+
+    $signed = substr($blob, 0, $header_len + $ct_len);
+    $signature = substr($blob, -$sig_len);
+    $pub = base64_decode({{CONST_PREFIX}}_PUB_KEY, true);
+
+    try {
+        if ($pub === false || !sodium_crypto_sign_verify_detached($signature, $signed, $pub)) {
+            return false;
+        }
+
+        $header = substr($blob, 0, $header_len);
+        $nonce = substr($blob, 6, 24);
+        $ciphertext = substr($blob, $header_len, $ct_len);
+        $key = base64_decode({{CONST_PREFIX}}_SEC_KEY, true);
+        if ($key === false) {
+            return false;
+        }
+
+        $plain = sodium_crypto_aead_xchacha20poly1305_ietf_decrypt($ciphertext, $header, $nonce, $key);
+    } catch (\Exception $e) {
+        return false;
+    }
+
+    if ($plain === false) {
+        return false;
+    }
+
+    $payload = json_decode($plain, true);
+
+    return is_array($payload) ? $payload : false;
+}

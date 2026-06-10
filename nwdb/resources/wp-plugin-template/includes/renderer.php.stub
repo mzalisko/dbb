@@ -1,0 +1,132 @@
+<?php
+/**
+ * Вивід контактів: шорткод [{{PREFIX}}contacts] і класичний віджет.
+ * Показуються лише primary-записи, видимі для гео відвідувача;
+ * якщо primary недоступний — перший видимий backup (parent-зв'язок).
+ */
+
+if (!defined('ABSPATH')) {
+    exit;
+}
+
+/**
+ * [{{PREFIX}}contacts type="phones|messengers|all"]
+ */
+function {{PREFIX}}contacts_shortcode($atts) {
+    $atts = shortcode_atts(array('type' => 'all'), $atts);
+
+    $payload = {{PREFIX}}get_payload();
+    if ($payload === null || empty($payload['contacts'])) {
+        return '';
+    }
+
+    $geo = {{PREFIX}}visitor_country();
+    $html = '<div class="{{PLUGIN_SLUG}}-contacts">';
+
+    if ($atts['type'] === 'all' || $atts['type'] === 'phones') {
+        $html .= {{PREFIX}}render_group($payload['contacts'], 'phones', $geo);
+    }
+    if ($atts['type'] === 'all' || $atts['type'] === 'messengers') {
+        $html .= {{PREFIX}}render_group($payload['contacts'], 'messengers', $geo);
+    }
+
+    return $html . '</div>';
+}
+add_shortcode('{{PREFIX}}contacts', '{{PREFIX}}contacts_shortcode');
+
+function {{PREFIX}}render_group($contacts, $group, $geo) {
+    if (empty($contacts[$group]) || !is_array($contacts[$group])) {
+        return '';
+    }
+
+    $visible = {{PREFIX}}filter_entries($contacts[$group], $geo);
+    $primaries = array();
+    foreach ($visible as $entry) {
+        if (empty($entry['parent']) && (!isset($entry['role']) || $entry['role'] === 'primary')) {
+            $primaries[] = $entry;
+        }
+    }
+
+    // Fallback: primary невидимий для цього гео — беремо перший видимий backup
+    if (empty($primaries)) {
+        foreach ($visible as $entry) {
+            if (!empty($entry['parent'])) {
+                $primaries[] = $entry;
+                break;
+            }
+        }
+    }
+
+    if (empty($primaries)) {
+        return '';
+    }
+
+    $html = '<ul class="{{PLUGIN_SLUG}}-' . esc_attr($group) . '">';
+    foreach ($primaries as $entry) {
+        $value = isset($entry['value']) ? $entry['value'] : '';
+        $label = isset($entry['label']) && $entry['label'] !== '' ? $entry['label'] : $value;
+
+        if ($group === 'phones') {
+            $href = 'tel:' . preg_replace('/[^0-9+]/', '', $value);
+        } else {
+            $href = {{PREFIX}}messenger_href(isset($entry['kind']) ? $entry['kind'] : '', $value);
+        }
+
+        $html .= '<li><a href="' . esc_url($href) . '" rel="nofollow noopener">'
+            . esc_html($label) . '</a></li>';
+    }
+
+    return $html . '</ul>';
+}
+
+function {{PREFIX}}messenger_href($kind, $value) {
+    $clean = ltrim($value, '@');
+    switch ($kind) {
+        case 'telegram':
+            return 'https://t.me/' . rawurlencode($clean);
+        case 'whatsapp':
+            return 'https://wa.me/' . preg_replace('/[^0-9]/', '', $value);
+        case 'viber':
+            return 'viber://chat?number=' . rawurlencode($value);
+        case 'signal':
+            return 'https://signal.me/#p/' . rawurlencode($value);
+        default:
+            return $value;
+    }
+}
+
+/** Класичний віджет із тим самим виводом. */
+class {{CLASS_PREFIX}}_Widget extends WP_Widget {
+    public function __construct() {
+        parent::__construct('{{PREFIX}}widget', '{{PLUGIN_NAME}}', array(
+            'description' => 'Contact details block.',
+        ));
+    }
+
+    public function widget($args, $instance) {
+        echo $args['before_widget'];
+        if (!empty($instance['title'])) {
+            echo $args['before_title'] . esc_html($instance['title']) . $args['after_title'];
+        }
+        echo {{PREFIX}}contacts_shortcode(array());
+        echo $args['after_widget'];
+    }
+
+    public function form($instance) {
+        $title = !empty($instance['title']) ? $instance['title'] : '';
+        printf(
+            '<p><label for="%1$s">Title:</label><input class="widefat" id="%1$s" name="%2$s" type="text" value="%3$s"></p>',
+            esc_attr($this->get_field_id('title')),
+            esc_attr($this->get_field_name('title')),
+            esc_attr($title)
+        );
+    }
+
+    public function update($new_instance, $old_instance) {
+        return array('title' => sanitize_text_field($new_instance['title']));
+    }
+}
+
+add_action('widgets_init', function () {
+    register_widget('{{CLASS_PREFIX}}_Widget');
+});

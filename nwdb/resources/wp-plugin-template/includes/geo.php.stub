@@ -1,0 +1,59 @@
+<?php
+/**
+ * Гео-резолюція відвідувача і фільтр записів — дзеркало правил центру:
+ * geo_mode: all | only | except; 'world' збігається з all та except.
+ */
+
+if (!defined('ABSPATH')) {
+    exit;
+}
+
+/** @return string ISO-2 код країни або 'world' */
+function {{PREFIX}}visitor_country() {
+    if (!empty($_SERVER['HTTP_CF_IPCOUNTRY']) && $_SERVER['HTTP_CF_IPCOUNTRY'] !== 'XX') {
+        return strtoupper(sanitize_text_field(wp_unslash($_SERVER['HTTP_CF_IPCOUNTRY'])));
+    }
+    if (!empty($_SERVER['GEOIP_COUNTRY_CODE'])) {
+        return strtoupper(sanitize_text_field(wp_unslash($_SERVER['GEOIP_COUNTRY_CODE'])));
+    }
+    return 'world';
+}
+
+/**
+ * @param array  $entry Запис payload (geo_mode, countries)
+ * @param string $geo   Країна відвідувача
+ * @return bool
+ */
+function {{PREFIX}}entry_visible($entry, $geo) {
+    $mode = isset($entry['geo_mode']) ? $entry['geo_mode'] : 'all';
+    $countries = isset($entry['countries']) && is_array($entry['countries']) ? $entry['countries'] : array();
+
+    if ($mode === 'all') {
+        return true;
+    }
+    if ($geo === 'world') {
+        return $mode === 'except';
+    }
+    if ($mode === 'only') {
+        return in_array($geo, $countries, true);
+    }
+    if ($mode === 'except') {
+        return !in_array($geo, $countries, true);
+    }
+    return false;
+}
+
+/**
+ * @param array  $entries
+ * @param string $geo
+ * @return array
+ */
+function {{PREFIX}}filter_entries($entries, $geo) {
+    $out = array();
+    foreach ($entries as $entry) {
+        if ({{PREFIX}}entry_visible($entry, $geo)) {
+            $out[] = $entry;
+        }
+    }
+    return $out;
+}

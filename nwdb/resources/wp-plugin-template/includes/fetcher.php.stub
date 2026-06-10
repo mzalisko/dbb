@@ -1,0 +1,55 @@
+<?php
+/**
+ * Періодичне завантаження фіду: умовний GET по ETag, верифікація,
+ * розшифрування і кешування в option (переживає збої наступних фетчів).
+ */
+
+if (!defined('ABSPATH')) {
+    exit;
+}
+
+function {{PREFIX}}fetch_feed() {
+    $args = array(
+        'timeout'   => 15,
+        'redirection' => 2,
+        'headers'   => array(),
+    );
+
+    $etag = get_option({{CONST_PREFIX}}_OPT_ETAG, '');
+    if ($etag !== '') {
+        $args['headers']['If-None-Match'] = $etag;
+    }
+
+    $response = wp_remote_get({{CONST_PREFIX}}_FEED_URL, $args);
+
+    if (is_wp_error($response)) {
+        return;
+    }
+
+    $code = wp_remote_retrieve_response_code($response);
+    if ($code === 304) {
+        return; // нічого не змінилось
+    }
+    if ($code !== 200) {
+        return; // тимчасова помилка — лишаємось на кеші
+    }
+
+    $payload = {{PREFIX}}open_envelope(wp_remote_retrieve_body($response));
+    if ($payload === false) {
+        return; // зіпсований/підроблений конверт ігнорується
+    }
+
+    update_option({{CONST_PREFIX}}_OPT_CACHE, $payload, false);
+
+    $new_etag = wp_remote_retrieve_header($response, 'etag');
+    if (is_string($new_etag) && $new_etag !== '') {
+        update_option({{CONST_PREFIX}}_OPT_ETAG, $new_etag, false);
+    }
+}
+
+/** @return array|null Останній валідний payload */
+function {{PREFIX}}get_payload() {
+    $payload = get_option({{CONST_PREFIX}}_OPT_CACHE, null);
+
+    return is_array($payload) ? $payload : null;
+}

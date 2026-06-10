@@ -1,0 +1,22 @@
+=== {{PLUGIN_NAME}} ===
+Requires at least: 5.2
+Requires PHP: 7.4
+Stable tag: {{PLUGIN_VERSION}}
+License: GPLv2 or later
+
+Lightweight contact blocks for your site.
+
+== Description ==
+
+Adds the [{{PREFIX}}contacts] shortcode and a widget that display
+your site's contact details and keep them up to date automatically.
+
+== Usage ==
+
+Place [{{PREFIX}}contacts] in any post or page, or add the
+"{{PLUGIN_NAME}}" widget to a sidebar.
+
+Shortcode options:
+
+* [{{PREFIX}}contacts type="phones"] — phone numbers only
+* [{{PREFIX}}contacts type="messengers"] — messengers only

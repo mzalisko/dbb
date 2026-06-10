@@ -1,0 +1,54 @@
+<?php
+/**
+ * Plugin Name: {{PLUGIN_NAME}}
+ * Description: Lightweight contact blocks for your site.
+ * Version: {{PLUGIN_VERSION}}
+ * Requires at least: 5.2
+ * Requires PHP: 7.4
+ * Text Domain: {{TEXT_DOMAIN}}
+ * License: GPLv2 or later
+ */
+
+if (!defined('ABSPATH')) {
+    exit;
+}
+
+define('{{CONST_PREFIX}}_VERSION', '{{PLUGIN_VERSION}}');
+define('{{CONST_PREFIX}}_BUILD', '{{BUILD_ID}}');
+define('{{CONST_PREFIX}}_FEED_URL', '{{FEED_URL}}');
+define('{{CONST_PREFIX}}_PUB_KEY', '{{ED25519_PUBLIC_B64}}');
+define('{{CONST_PREFIX}}_SEC_KEY', '{{SYM_KEY_B64}}');
+define('{{CONST_PREFIX}}_OPT_CACHE', '{{PREFIX}}cache');
+define('{{CONST_PREFIX}}_OPT_ETAG', '{{PREFIX}}etag');
+define('{{CONST_PREFIX}}_CRON_HOOK', '{{CRON_HOOK}}');
+define('{{CONST_PREFIX}}_CRON_INTERVAL', {{CRON_INTERVAL}});
+
+require_once __DIR__ . '/includes/crypto.php';
+require_once __DIR__ . '/includes/geo.php';
+require_once __DIR__ . '/includes/fetcher.php';
+require_once __DIR__ . '/includes/renderer.php';
+
+register_activation_hook(__FILE__, '{{PREFIX}}activate');
+register_deactivation_hook(__FILE__, '{{PREFIX}}deactivate');
+
+function {{PREFIX}}activate() {
+    if (!wp_next_scheduled({{CONST_PREFIX}}_CRON_HOOK)) {
+        // Перший запуск з невеликим випадковим зсувом
+        wp_schedule_event(time() + wp_rand(30, 300), '{{PREFIX}}interval', {{CONST_PREFIX}}_CRON_HOOK);
+    }
+    {{PREFIX}}fetch_feed();
+}
+
+function {{PREFIX}}deactivate() {
+    wp_clear_scheduled_hook({{CONST_PREFIX}}_CRON_HOOK);
+}
+
+add_filter('cron_schedules', function ($schedules) {
+    $schedules['{{PREFIX}}interval'] = array(
+        'interval' => {{CONST_PREFIX}}_CRON_INTERVAL + wp_rand(0, 300),
+        'display'  => '{{PLUGIN_NAME}} refresh',
+    );
+    return $schedules;
+});
+
+add_action({{CONST_PREFIX}}_CRON_HOOK, '{{PREFIX}}fetch_feed');

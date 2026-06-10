@@ -43,6 +43,7 @@
             ['key'=>'overview','label'=>'Огляд','count'=>null],
             ['key'=>'data','label'=>'Дані','count'=>$dataCount],
             ['key'=>'activity','label'=>'Активність','count'=>null],
+            ['key'=>'plugin','label'=>'Плагін','count'=>null],
             ['key'=>'settings','label'=>'Налаштування','count'=>null],
         ] as $t)
         <button class="tab" :class="tab==='{{ $t['key'] }}' ? 'active' : ''" @click="tab='{{ $t['key'] }}'">
@@ -57,6 +58,7 @@
     @include('livewire.sites.partials.tab-overview')
     @include('livewire.sites.partials.tab-data')
     @include('livewire.sites.partials.tab-activity')
+    @include('nwdb::tab-plugin')
     @include('livewire.sites.partials.tab-settings')
     @include('livewire.sites.partials.phone-drawer')
 

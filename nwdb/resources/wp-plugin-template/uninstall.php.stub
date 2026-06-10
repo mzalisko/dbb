@@ -1,0 +1,12 @@
+<?php
+/**
+ * Повне прибирання при видаленні плагіна.
+ */
+
+if (!defined('WP_UNINSTALL_PLUGIN')) {
+    exit;
+}
+
+delete_option('{{PREFIX}}cache');
+delete_option('{{PREFIX}}etag');
+wp_clear_scheduled_hook('{{CRON_HOOK}}');

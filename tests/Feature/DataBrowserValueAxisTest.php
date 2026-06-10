@@ -102,6 +102,8 @@ class DataBrowserValueAxisTest extends TestCase
     {
         $owner = User::factory()->create(['role' => 'owner']);
         $site = $this->siteForOwner($owner);
+        // Amount in the decimal `price` column here; imported prices use `value`
+        // instead — COALESCE(price, value) covers both.
         ContactEntry::factory()->for($site)->price()->count(2)->create(['price' => 1000, 'currency' => 'UAH']);
         ContactEntry::factory()->for($site)->price()->create(['price' => 1000, 'currency' => 'EUR']);
         ContactEntry::factory()->for($site)->price()->create(['price' => 500, 'currency' => 'UAH']);
@@ -116,6 +118,24 @@ class DataBrowserValueAxisTest extends TestCase
 
         // 1000 UAH and 1000 EUR are different groups — picking one excludes the other.
         $component->call('pickValue', '1000', 'UAH')
+            ->assertViewHas('entries', fn ($e) => $e->total() === 2);
+    }
+
+    public function test_imported_price_with_amount_in_value_is_found(): void
+    {
+        // Real/imported prices keep the amount in `value` with a null decimal `price`.
+        $owner = User::factory()->create(['role' => 'owner']);
+        $site = $this->siteForOwner($owner);
+        ContactEntry::factory()->for($site)->price()->count(2)->create(['price' => null, 'value' => '3000', 'currency' => 'EUR']);
+
+        $component = Livewire::actingAs($owner)
+            ->test(DataBrowser::class, ['mode' => 'browse', 'typeFilter' => 'price']);
+
+        $g = collect($component->viewData('valueGroups'))->first(fn ($x) => (string) $x->gkey === '3000');
+        $this->assertNotNull($g, 'price with amount in value surfaces in the list');
+        $this->assertSame(2, (int) $g->n);
+
+        $component->call('pickValue', '3000', 'EUR')
             ->assertViewHas('entries', fn ($e) => $e->total() === 2);
     }
 

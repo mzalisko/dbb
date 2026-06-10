@@ -428,16 +428,21 @@ class DataBrowser extends Component
             })
             ->when(empty($this->wizValues) && $this->axis === 'value' && $this->pickedValue !== '', function ($q) {
                 $this->typeFilter === 'price'
-                    ? $q->where('price', $this->pickedValue)
-                        ->when($this->pickedCurrency !== '', fn ($q2) => $q2->where('currency', $this->pickedCurrency))
+                    ? $q->where(function ($w) {
+                        // amount in the decimal column (column affinity matches), or
+                        // in `value` for imported prices where `price` is null.
+                        $w->where('price', $this->pickedValue)
+                            ->orWhereRaw('`price` IS NULL AND TRIM(`value`) = ?', [$this->pickedValue]);
+                    })->when($this->pickedCurrency !== '', fn ($q2) => $q2->where('currency', $this->pickedCurrency))
                     : $q->whereRaw('TRIM(`value`) = ?', [$this->pickedValue]); // trim: match whitespace variants too
             });
     }
 
-    /** Column the 'value' axis groups by — the price amount, else the raw value. */
+    /** Column the 'value' axis groups by — always `value` (even prices keep their
+     *  displayed amount there; the decimal `price` column is often left null). */
     private function valueGroupColumn(): string
     {
-        return $this->typeFilter === 'price' ? 'price' : 'value';
+        return 'value';
     }
 
     /**
@@ -466,12 +471,13 @@ class DataBrowser extends Component
             ->reorder();
 
         if ($this->typeFilter === 'price') {
+            // The amount may sit in the decimal `price` column (with a SKU in value)
+            // OR, for imported prices, in `value` (price column null). Group by
+            // whichever holds it — COALESCE(price, value) — so both kinds surface.
             return $base
-                ->select('price as gkey', 'currency', DB::raw('COUNT(*) as n'), DB::raw('COUNT(DISTINCT site_id) as sites'),
-                    DB::raw('SUM(CASE WHEN parent_id IS NULL THEN 1 ELSE 0 END) as prim'),
-                    DB::raw('SUM(CASE WHEN parent_id IS NOT NULL THEN 1 ELSE 0 END) as res'))
-                ->groupBy('price', 'currency')
-                ->orderByDesc('n')->orderByDesc('price')
+                ->selectRaw('COALESCE(`price`, TRIM(`value`)) as gkey, currency, COUNT(*) as n, COUNT(DISTINCT site_id) as sites, SUM(CASE WHEN parent_id IS NULL THEN 1 ELSE 0 END) as prim, SUM(CASE WHEN parent_id IS NOT NULL THEN 1 ELSE 0 END) as res')
+                ->groupBy(DB::raw('COALESCE(`price`, TRIM(`value`))'), 'currency')
+                ->orderByDesc('n')
                 ->limit(200)->get();
         }
 

@@ -127,7 +127,7 @@
                     @forelse ($valueGroups as $g)
                         @php
                             $gcur = $g->currency ?? '';
-                            $gdisp = $typeFilter === 'price' ? rtrim(rtrim(number_format((float) $g->gkey, 2, '.', ' '), '0'), '.') : $g->gkey;
+                            $gdisp = ($typeFilter === 'price' && is_numeric($g->gkey)) ? rtrim(rtrim(number_format((float) $g->gkey, 2, '.', ' '), '0'), '.') : $g->gkey;
                             $on = $single
                                 ? ($pickedValue !== '' && (string) $pickedValue === (string) $g->gkey && (string) $pickedCurrency === (string) $gcur)
                                 : in_array((string) $g->gkey, $wizValues, true);

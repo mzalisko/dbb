@@ -1551,10 +1551,16 @@ class Show extends Component
         $headId = $entry->parent_id ?: $entry->id;
         $head = ContactEntry::with('backups')->findOrFail($headId);
 
-        // Cascade: set visible on head + all backups in one pass.
+        // Cascade: set visible on head + all backups in one pass. Keep the head's
+        // role in sync (hidden ↔ primary) so the browser/overview — which read the
+        // canonical role — agree with what the plugin actually serves (visible).
         ContactEntry::disableAuditing();
         try {
-            $head->update(['visible' => $newVisible]);
+            $headData = ['visible' => $newVisible];
+            if (in_array($head->role, ['primary', 'hidden'], true)) {
+                $headData['role'] = $newVisible ? 'primary' : 'hidden';
+            }
+            $head->update($headData);
             $head->backups()->update(['visible' => $newVisible]);
         } finally {
             ContactEntry::enableAuditing();
@@ -1869,11 +1875,14 @@ class Show extends Component
         // Overview: what each geo group sees + "all" universal column
         $overviewByGeo = [];
         // "Всі" — universal phones (geo_mode=all)
+        // "What visitors see" = standalone + visible (the plugin serves by the
+        // visible flag) — don't require role==='primary', a stale role would
+        // wrongly drop a number that IS being served.
         $activePhones = $allPhones
-            ->filter(fn($e) => is_null($e->parent_id) && $e->role === 'primary')
+            ->filter(fn($e) => is_null($e->parent_id))
             ->values();
         $activeMsgs = $allMsgs
-            ->filter(fn($e) => is_null($e->parent_id) && $e->role === 'primary')
+            ->filter(fn($e) => is_null($e->parent_id))
             ->values();
         $overviewByGeo['all'] = [
             'label'        => 'Всі',

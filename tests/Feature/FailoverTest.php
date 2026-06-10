@@ -200,6 +200,38 @@ class FailoverTest extends TestCase
         $this->assertTrue($r2->fresh()->visible, 'reserve 2 cascade-shown');
     }
 
+    public function test_visibility_toggle_keeps_role_in_sync(): void
+    {
+        // Hide in the browser (role=hidden) → activate on the site: the role must
+        // come back to primary, or the number shows "hidden" in the browser while
+        // the plugin actually serves it (the 063 desync).
+        [$site, $base] = $this->siteWithReserves(1);
+        $base->forceFill(['role' => 'hidden', 'visible' => false])->save();
+
+        Livewire::test(Show::class, ['site' => $site])
+            ->call('toggleEntryVisibility', $base->id);
+
+        $fresh = $base->fresh();
+        $this->assertTrue((bool) $fresh->visible);
+        $this->assertSame('primary', $fresh->role, 'activation restores the canonical role');
+
+        Livewire::test(Show::class, ['site' => $site])
+            ->call('toggleEntryVisibility', $base->id);
+
+        $this->assertSame('hidden', $base->fresh()->role, 'hiding sets the canonical role');
+    }
+
+    public function test_overview_shows_a_visible_number_even_with_stale_role(): void
+    {
+        // Legacy desynced rows (visible=1, role=hidden) must still appear in the
+        // "what visitors see" overview — the plugin serves by the visible flag.
+        [$site, $base] = $this->siteWithReserves(1);
+        $base->forceFill(['role' => 'hidden', 'visible' => true])->save();
+
+        Livewire::test(Show::class, ['site' => $site])
+            ->assertSee($base->value);
+    }
+
     public function test_hiding_reserve_cascades_whole_group(): void
     {
         [$site, $base, [$r1, $r2]] = $this->siteWithReserves(2);

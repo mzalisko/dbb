@@ -36,8 +36,8 @@
                                 <x-icon.refresh width="13" height="13" /> Відновити
                             </button>
                         @elseif($phone->backups->count() > 0)
-                            <button class="cc-trigger" wire:click.stop="triggerFailover({{ $phone->id }})" wire:confirm="Перемкнути на резерв? Працюватиме наступний у черзі." title="Перемкнути на резерв">
-                                <x-icon.bolt width="13" height="13" /> На резерв
+                            <button class="cc-trigger" wire:click.stop="triggerFailover({{ $phone->id }})" wire:confirm="Перемкнути на резерв? Працюватиме наступний у черзі." title="Перемкнути на резерв" aria-label="Перемкнути на резерв">
+                                <x-icon.bolt width="13" height="13" />
                             </button>
                         @endif
                         <button class="cc-hide" wire:click.stop="toggleEntryVisibility({{ $phone->id }})" title="Приховати (весь набір)">
